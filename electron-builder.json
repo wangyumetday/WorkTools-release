@@ -33,14 +33,10 @@
     "artifactName": "${productName}-${version}.${ext}"
   },
   "publish": [
-    // {
-    //   "provider": "generic",
-    //   "url": "https://gitee.com/insongs/work-tools/releases/download/latest/"
-    // }
     {
-    "provider": "github",
-    "owner": "https://github.com/wangyumetday",
-    "repo": "work-tools"
+      "provider": "github",
+      "owner": "wangyumetday",
+      "repo": "work-tools"
     }
   ]
 }
