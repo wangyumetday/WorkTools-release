@@ -1,0 +1,41 @@
+{
+  "appId": "com.worktools.app",
+  "productName": "WorkTools",
+  "afterPack": "build/after-pack.js",
+  "directories": {
+    "output": "release/${version}"
+  },
+  "files": [
+    "out/**/*",
+    "package.json"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "artifactName": "${productName}-${version}-setup.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  },
+  "mac": {
+    "target": "dmg",
+    "artifactName": "${productName}-${version}.${ext}"
+  },
+  "linux": {
+    "target": "AppImage",
+    "artifactName": "${productName}-${version}.${ext}"
+  },
+  "publish": [
+    {
+      "provider": "generic",
+      "url": "https://gitee.com/insongs/work-tools/releases/download/latest/"
+    }
+  ]
+}

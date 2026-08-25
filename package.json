@@ -1,0 +1,39 @@
+{
+  "name": "work-tools",
+  "version": "1.0.24",
+  "description": "Work Tools - 桌面工具集（PCP 数据处理 + ERC 汇率转换）",
+  "main": "out/main/index.js",
+  "author": "work-tools",
+  "scripts": {
+    "dev": "electron-vite dev -w",
+    "dev:no-watch": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "pack": "electron-vite build && electron-builder --dir",
+    "dist": "electron-vite build && electron-builder",
+    "postinstall": "node node_modules/electron/install.js || echo electron install skipped"
+  },
+  "dependencies": {
+    "decimal.js": "^10.6.0",
+    "electron-updater": "^6.8.9",
+    "mathjs": "^12.4.3",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vicons/ionicons5": "^0.13.0",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "electron": "^43.0.0",
+    "electron-builder": "^26.15.0",
+    "electron-vite": "^5.0.0",
+    "naive-ui": "^2.40.0",
+    "pinia": "^4.0.3",
+    "pinia-plugin-persistedstate": "^4.7.1",
+    "vite": "^6.0.0",
+    "vue": "^3.5.0",
+    "vue-router": "^4.6.4"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "electron-winstaller@5.4.0": true
+  }
+}
