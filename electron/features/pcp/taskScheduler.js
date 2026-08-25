@@ -13,7 +13,9 @@ export class TaskScheduler {
   /**
    * @param {object} deps
    *   - onProgress:    (taskSerialized) => void 单任务进度变化时推送（外部合批/IPC 推送）
-   *   - onAllComplete: (completedTasks, stage) => void 全部完成时推送
+   *   - onAllComplete: (finishedTasks, stage) => void 全部完成时推送
+   *                    finishedTasks = 当前 stage 的全部任务（completed + failed / 含 aborted 标记）
+   *                    外部（Pipeline）据此统计 totalTasks / completedTasks / failedTasks
    */
   constructor({ onProgress, onAllComplete }) {
     this.tasks = []
@@ -203,10 +205,12 @@ export class TaskScheduler {
       if (this.activeCount === 0) {
         this.isRunning = false
         this.currentTaskIndex = -1
-        const completedTasks = this.tasks.filter(t => t.status === 'completed')
+        // 传全部任务（包含失败）给回调：Pipeline 需要算 failed 统计、
+        // fileManager 需要失败任务兜底生成 0 行不崩
+        const finishedTasks = this.tasks.slice()
         const stage = this.currentStage
         this.currentStage = null
-        this.onAllComplete(completedTasks, stage)
+        this.onAllComplete(finishedTasks, stage)
       }
       return
     }

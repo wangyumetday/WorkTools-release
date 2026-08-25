@@ -1,37 +1,53 @@
 // ============================================================
-// PCP Pipeline - 步骤流编排器（阶段3 核心）
-// 职责：步骤流的"单一权威"编排器，收回主进程，移除渲染层 autoChain
+// PCP Pipeline - 步骤流编排器（阶段3 + 细粒度阶段状态增强）
+// 职责：步骤流的"单一权威"编排器
 //
-// 状态机：
-//   status: 'idle' | 'running' | 'paused' | 'waiting_next' | 'done'
-//     - idle          空闲，未开始
-//     - running       某个 stage 正在跑（jxgj 或 o_combo）
-//     - paused        用户暂停（taskManager.pause）
-//     - waiting_next  dev 模式：某 stage 完成，等用户点下一步
-//     - done          o_combo 完成，等用户手动下载
+// ===== 状态模型（细粒度 stages）=====
+//  stages: Map<stageKey, StageState> — 单一事实来源
+//    StageState.shape:
+//      {
+//        key, title,
+//        status: 'idle'|'pending'|'running'|'completed'|'failed'|'skipped',
+//        skipReason?, error?,                   // skipped/failed 时的说明文字
+//        totalTasks?, completedTasks?, failedTasks?,  // 任务执行统计
+//        outputCount?,                          // 本阶段数据产出条数
+//        startedAt?, finishedAt?                // 时间戳
+//      }
+//    stageKey 顺序（也是依赖顺序）：
+//      upload → jxgj → trip → o2 → o3 → a3_merge → export
+//
+// ===== 向后兼容（老字段保留，从 stages 派生）=====
+//  status: 'idle'|'running'|'paused'|'waiting_next'|'done'   （全局粗状态）
+//  step:   'upload'|'jxgj'|'o_combo'|'export'                 （老 StepFlow 用）
+//  这两个字段仍然填充在 getState() 中，老调用方零改动。
 //
 // mode: 'auto' | 'dev'
-//   - auto  门禁通过后跑到底（jxgj → o_combo → done）
-//   - dev   每个 stage 完成后停在 waiting_next，等用户点 StepFlow 触发下一步
-//
-// step: 'upload' | 'jxgj' | 'o_combo' | 'export'
-//   upload/export 始终手动（涉及 dialog），Pipeline 只跟踪状态：
-//     upload 完成 = a1.count > 0
-//     export 可执行 = a3.count > 0
-//
-// 依赖：
-//   - taskManager:      注入，调 addBatchByStage/start/pause
-//   - fileManager:      注入，stage 完成时 saveStageResults + checkGate 时查 a1/a3
-//   - configManager:    注入，checkGate 时查 jxgj/o 启用状态
-//   - credentialManager:注入，checkGate 时查 jxgj/o 账号
-//   - mainWindow:       注入，推 IPC 事件
-//   - userDataPath:     注入，持久化 mode
+//   auto  门禁通过后跑到底（jxgj → O 平台 → a3_merge → 等待手动 export）
+//   dev   每个粗阶段完成后停在 waiting_next，等用户点 StepFlow 触发下一步
 // ============================================================
 
 import fs from 'node:fs'
 import path from 'node:path'
 
 const PIPELINE_STATE_FILE = 'pipelineState.json'
+
+// ===== 细粒度阶段定义（单一权威：顺序 = 依赖顺序）=====
+// 任何地方要列阶段，都应该遍历这个数组而不是自己硬编码顺序
+const STAGE_DEFS = [
+  { key: 'upload',   title: '导入 Excel 原始数据' },
+  { key: 'jxgj',     title: '锦绣国际获取官网票价' },
+  { key: 'trip',     title: '携程获取底价' },
+  { key: 'o2',       title: 'O2 平台比价' },
+  { key: 'o3',       title: 'O3 平台比价' },
+  { key: 'a3_merge', title: '交叉合并生成政策' },
+  { key: 'export',   title: '导出结果 Excel' }
+]
+
+// 老 step 顺序（与原 pipeline.step 字段 1:1 兼容）
+const LEGACY_STEP_ORDER = ['upload', 'jxgj', 'o_combo', 'export']
+
+// 哪些新 stage 属于"老 o_combo 粗阶段"（用于 legacy step 派生）
+const O_STAGE_KEYS = new Set(['trip', 'o2', 'o3', 'a3_merge'])
 
 export class Pipeline {
   constructor({ taskManager, fileManager, configManager, credentialManager, getMainWindow, userDataPath }) {
@@ -45,16 +61,36 @@ export class Pipeline {
     this.stateFile = path.join(userDataPath, 'config', PIPELINE_STATE_FILE)
     this.ensureStateFileDir()
 
-    // 内部状态
     this.mode = this.loadMode() // 'auto' | 'dev'
-    this.status = 'idle'        // 'idle'|'running'|'paused'|'waiting_next'|'done'
-    this.step = 'upload'        // 当前应执行的下一步
-    this.lastGateFail = null    // 上次门禁失败信息 { missing: [...] }
+
+    // ★ 细粒度阶段状态（核心状态，替换原本粗粒度 status/step）
+    this.stages = this._initStages()
+
+    // 向后兼容字段（从 stages 派生；老代码仍然读写这两个，功能正常）
+    this.status = 'idle'
+    this.step = 'upload'
+    this.lastGateFail = null
 
     // 接管 taskManager 的 onAllComplete：stage 完成后 saveStageResults + 推 IPC + 决定下一步
     if (this.taskManager?.scheduler) {
       this.taskManager.scheduler.onAllComplete = (results, stage) => this.handleStageComplete(results, stage)
     }
+  }
+
+  // ========== stages 初始化 ==========
+  _initStages() {
+    const map = new Map()
+    for (const def of STAGE_DEFS) {
+      map.set(def.key, { key: def.key, title: def.title, status: 'idle' })
+    }
+    return map
+  }
+
+  /** 部分/整体更新一个阶段。保持对象引用稳定，合并字段 */
+  _setStage(key, patch) {
+    const prev = this.stages.get(key)
+    if (!prev) return
+    Object.assign(prev, patch)
   }
 
   ensureStateFileDir() {
@@ -80,12 +116,56 @@ export class Pipeline {
     }
   }
 
+  // ========== legacy 派生（保持老调用方不破）==========
+  /**
+   * 派生老 step 字段（粗粒度 4 步）
+   * 规则：找到第一个 status ∈ { idle, pending, running, failed, waiting_next } 的阶段，
+   *       映射回对应粗 step；全部 completed/skipped 则是 export
+   */
+  _deriveLegacyStep() {
+    for (const def of STAGE_DEFS) {
+      const s = this.stages.get(def.key)
+      if (!s) continue
+      if (s.status === 'completed' || s.status === 'skipped') continue
+      // 映射：新 stage key → 老 step
+      if (def.key === 'upload') return 'upload'
+      if (def.key === 'jxgj') return 'jxgj'
+      if (O_STAGE_KEYS.has(def.key)) return 'o_combo'
+      if (def.key === 'export') return 'export'
+    }
+    return 'export'
+  }
+
+  _deriveLegacyStatus() {
+    const stageList = Array.from(this.stages.values())
+    // running → 只要有阶段在跑
+    if (stageList.some(s => s.status === 'running')) return 'running'
+    // paused → 由 pause() 直接设，不派生（因为暂停不是阶段状态，是全局控制）
+    // 如果全局当前 step 是 jxgj 或 o_combo 且 stages 中对应阶段仍未完成 → 检查是否 waiting_next
+    const step = this._deriveLegacyStep()
+    if (this.mode === 'dev') {
+      // jxgj completed 但还没点 o_combo → waiting_next
+      const jxgj = this.stages.get('jxgj').status
+      if (step === 'o_combo' && jxgj === 'completed') {
+        const anyORunningOrCompleted = ['trip', 'o2', 'o3'].some(p =>
+          ['running', 'completed', 'failed'].includes(this.stages.get(p).status)
+        )
+        if (!anyORunningOrCompleted) return 'waiting_next'
+      }
+    }
+    // done → export 之前 a3_merge 已 completed（不管是否已真正下载）
+    if (this.stages.get('a3_merge').status === 'completed') return 'done'
+    // paused → 保留外部设置（pause() 直接写 this.status = 'paused'）
+    if (this.status === 'paused') return 'paused'
+    return 'idle'
+  }
+
   // ========== 对外 API ==========
 
   /**
    * 启动流程（auto 模式入口）
-   *   门禁通过 → runStage('jxgj') → 完成后自动 runStage('o_combo') → done
-   *   门禁失败 → 推 pcp:pipeline:gateFail，渲染层闪烁引导
+   *   门禁通过 → upload 标记完成 → jxgj running → 调 runStage('jxgj')
+   *   完成后 jxgj 回调里自动衔接 o_combo
    */
   async start() {
     if (this.status === 'running') return { success: false, message: '流程执行中，请勿重复操作' }
@@ -96,18 +176,29 @@ export class Pipeline {
       this.emit('pcp:pipeline:gateFail', gate)
       return gate
     }
-
     this.lastGateFail = null
-    this.status = 'running'
-    this.step = 'jxgj'
+
+    // —— 门禁通过：把阶段状态重置 + upload 标 completed ——
+    this._resetRuntimeStages()
+    const a1Count = this.fileManager?.getA1()?.count || 0
+    this._setStage('upload', {
+      status: 'completed',
+      outputCount: a1Count,
+      startedAt: Date.now(),
+      finishedAt: Date.now()
+    })
+
+    this._setStage('jxgj', { status: 'running', startedAt: Date.now() })
+    this._syncLegacyFields()
     this.emitState()
+
     await this.runStage('jxgj')
     return { success: true }
   }
 
   /**
    * dev 模式：用户点 StepFlow 触发某一步
-   * @param {string} step  'jxgj' | 'o_combo'
+   * @param {string} step  'jxgj' | 'o_combo'（保持老接口，内部映射到细阶段）
    */
   async triggerStep(step) {
     if (this.status === 'running') return { success: false, message: '流程执行中，请勿重复操作' }
@@ -115,17 +206,39 @@ export class Pipeline {
       return { success: false, message: '未知的步骤' }
     }
 
-    // 首次进入或门禁曾失败：重新 checkGate
     const gate = this.checkGate()
     if (!gate.success) {
       this.lastGateFail = gate
       this.emit('pcp:pipeline:gateFail', gate)
       return gate
     }
-
     this.lastGateFail = null
-    this.status = 'running'
-    this.step = step
+
+    // 第一次手动点 jxgj：重置 + upload 标 completed
+    if (step === 'jxgj') {
+      this._resetRuntimeStages()
+      const a1Count = this.fileManager?.getA1()?.count || 0
+      this._setStage('upload', {
+        status: 'completed',
+        outputCount: a1Count,
+        startedAt: Date.now(),
+        finishedAt: Date.now()
+      })
+    }
+
+    if (step === 'jxgj') {
+      this._setStage('jxgj', { status: 'running', startedAt: Date.now() })
+    } else {
+      // o_combo：先检查 jxgj 前置（upload 阶段通过 checkGate 已经保证有文件）
+      const jxgj = this.stages.get('jxgj')
+      if (jxgj.status !== 'completed' && jxgj.status !== 'failed') {
+        // dev 模式下允许 jxgj 没跑完？不允许，依赖必须成立
+        return { success: false, message: '请先完成锦绣国际阶段' }
+      }
+      // 在 runStage('o_combo') 内部会为每 O 平台标 running/skipped
+    }
+
+    this._syncLegacyFields()
     this.emitState()
     await this.runStage(step)
     return { success: true }
@@ -141,36 +254,29 @@ export class Pipeline {
     return r
   }
 
-  /**
-   * 终止（硬中断）：立即打断当前流程
-   *   - taskManager.abort() → scheduler 标记 running 任务为 'aborted'，
-   *     isRunning=false → 在途 HTTP 回来后被 runNextTask 丢弃，进度条冻在当前值
-   *   - 状态回到 idle/upload → 下次 start() 不被挡，从头跑（clearAll 清旧任务）
-   *   - 推送 pcp:task:state 让前端 TaskMonitor 刷新任务状态（显示 aborted）
-   */
+  /** 终止（硬中断）：running 任务标记 aborted；阶段状态保留（用户能看到卡在了哪一步）*/
   abort() {
     if (this.status !== 'running') return { success: false, message: '没有正在运行的流程' }
     this.taskManager?.abort()
+    // 把所有 running 阶段标 failed + 错误说明
+    const now = Date.now()
+    for (const def of STAGE_DEFS) {
+      const s = this.stages.get(def.key)
+      if (s.status === 'running') {
+        Object.assign(s, { status: 'failed', error: '用户终止', finishedAt: now })
+      }
+    }
     this.status = 'idle'
-    this.step = 'upload'
+    this._syncLegacyFields()
     this.lastGateFail = null
-    // 推送任务状态：前端看到 aborted 任务的冻结进度
     this.emit('pcp:task:state', this.taskManager.getState())
     this.emitState()
     return { success: true }
   }
 
-  /**
-   * 重置整个流程到初始态（idle / upload）
-   *   - 清空 pipeline 内部状态：status='idle', step='upload', lastGateFail=null
-   *   - 清空任务队列（taskManager.clearAll → scheduler.tasks = []）
-   *   - 清空 a1/a2/a3 数据（fileManager.clearAll → 内存+磁盘）
-   *   - 推送状态让渲染层 StepFlow 回到初始（可重新选文件开始）
-   *
-   * 时机：下载完成后由渲染层调 pcp:pipeline:reset
-   *   （用户拿到 xlsx 后，这一轮流程结束，把"完成态"清掉，便于下一轮）
-   */
+  /** 重置到初始态（下载完成后 / 用户重新上传时调用）*/
   reset() {
+    this.stages = this._initStages()
     this.status = 'idle'
     this.step = 'upload'
     this.lastGateFail = null
@@ -188,12 +294,75 @@ export class Pipeline {
     return { success: true, mode: this.mode }
   }
 
+  /**
+   * 导出门控：**唯一权威位置**，替代原先 a3.count === 0 的判断
+   * 语义：a3_merge 阶段 status === 'completed'（即使 outputCount=0）→ 可以下载
+   * @returns {{ can: boolean, reason?: string, platformsToExport?: string[] }}
+   *   platformsToExport: 为 0 条数据时仍生成每个完成平台的表头文件准备
+   */
+  canExport() {
+    const a3 = this.stages.get('a3_merge')
+    if (a3.status !== 'completed') {
+      let reason = '请先完成 O 平台比价阶段'
+      if (a3.status === 'failed') reason = a3.error || '比价阶段执行失败，无法导出'
+      else if (a3.status === 'running') reason = '比价阶段执行中，请稍候'
+      else if (a3.status === 'idle')    reason = '请先完成锦绣国际和 O 平台比价'
+      return { can: false, reason }
+    }
+    // 收集：所有 O 平台中 status === 'completed' 的（即使 0 条 processedData 也要导出表头）
+    const platformsToExport = ['trip', 'o2', 'o3'].filter(p => {
+      const s = this.stages.get(p)
+      return s.status === 'completed'
+    })
+    if (platformsToExport.length === 0) {
+      return { can: false, reason: '没有已完成的 O 平台任务' }
+    }
+    return { can: true, platformsToExport }
+  }
+
   getState() {
+    // Map → 纯对象数组（序列化安全，前端 v-for 直接用）
+    const stages = STAGE_DEFS.map(def => ({ ...(this.stages.get(def.key) || {}) }))
+    this._syncLegacyFields()
     return {
       mode: this.mode,
       status: this.status,
       step: this.step,
-      lastGateFail: this.lastGateFail
+      lastGateFail: this.lastGateFail,
+      stages,                              // ★ 新：细粒度阶段数组
+      _exportGate: this.canExport()        // ★ 新：下载门控（前端不用推导）
+    }
+  }
+
+  // ========== 内部：辅助 ==========
+  /** 把 stages 派生值写回 legacy 字段，保证老读取者看到一致值 */
+  _syncLegacyFields() {
+    // status: 如果 paused 是手动设的，保留；否则重新派生
+    const derivedStatus = this._deriveLegacyStatus()
+    // paused 是全局暂停状态，只有 pause() / resume 流程能改，派生时不覆盖
+    if (this.status !== 'paused') {
+      this.status = derivedStatus
+    } else if (derivedStatus === 'running') {
+      // 暂停中派生 running 也不恢复（等用户 resume）
+    }
+    this.step = this._deriveLegacyStep()
+  }
+
+  /** 重置运行中/已完成阶段状态到 idle（保留 upload，否则由调用方再设）*/
+  _resetRuntimeStages() {
+    for (const def of STAGE_DEFS) {
+      const s = this.stages.get(def.key)
+      Object.assign(s, {
+        status: 'idle',
+        error: undefined,
+        skipReason: undefined,
+        totalTasks: undefined,
+        completedTasks: undefined,
+        failedTasks: undefined,
+        outputCount: undefined,
+        startedAt: undefined,
+        finishedAt: undefined
+      })
     }
   }
 
@@ -201,7 +370,6 @@ export class Pipeline {
   /**
    * 前置门禁：选文件 → JXGJ 配置启用 → 至少一个 O 配置启用
    * 返回 { success, missing: ['file'|'jxgj_config'|'jxgj_credential'|'o_config'|'o_credential'] }
-   *   注：门禁只查"配置启用 + 账号选中"，渲染层据此闪烁引导用户去对应 tab
    */
   checkGate() {
     const missing = []
@@ -233,33 +401,59 @@ export class Pipeline {
 
   // ========== 内部：执行 stage ==========
   /**
-   * 执行某 stage：addBatchByStage + taskStart
+   * 执行某粗 stage：addBatchByStage + taskStart
    * @param {string} stage  'jxgj' | 'o_combo'
    */
   async runStage(stage) {
     const addResult = await this._invokeAddBatchByStage(stage)
     if (!addResult.success) {
-      this.status = 'idle'
+      // 入队失败 → 标记对应阶段失败
+      if (stage === 'jxgj') {
+        this._setStage('jxgj', {
+          status: 'failed', error: addResult.message || '任务入队失败',
+          finishedAt: Date.now()
+        })
+      } else {
+        for (const p of ['trip', 'o2', 'o3']) {
+          const prev = this.stages.get(p)
+          if (prev.status === 'running') {
+            this._setStage(p, {
+              status: 'failed', error: addResult.message || '任务入队失败',
+              finishedAt: Date.now()
+            })
+          }
+        }
+      }
+      this._syncLegacyFields()
       this.emitState()
       return
     }
-    // ★ 任务已入队（pending）：立即推送完整 task state，让渲染层 TaskMonitor 显示新任务
-    //   并重建 id 索引。后续进度 patch 才能匹配到 id，进度条才会动（否则 patch 被丢弃 → 卡住）
-    //   场景：jxgj 入队、o_combo 拆分后的 trip/o2/o3 入队；尤其 auto 模式 jxgj→o_combo 衔接时
-    //   若不推，渲染层 tasks.value 仍是旧 id，新阶段进度 patch 全被丢，直到 allComplete 才整体刷新
     this.emit('pcp:task:state', this.taskManager.getState())
     const startResult = await this.taskManager.start(stage)
     if (!startResult.success) {
-      this.status = 'idle'
+      if (stage === 'jxgj') {
+        this._setStage('jxgj', {
+          status: 'failed', error: startResult.message,
+          finishedAt: Date.now()
+        })
+      } else {
+        for (const p of ['trip', 'o2', 'o3']) {
+          const prev = this.stages.get(p)
+          if (prev.status === 'running') {
+            this._setStage(p, {
+              status: 'failed', error: startResult.message,
+              finishedAt: Date.now()
+            })
+          }
+        }
+      }
+      this._syncLegacyFields()
       this.emitState()
       this.emit('pcp:pipeline:gateFail', { success: false, missing: [], message: startResult.message })
     }
   }
 
   _invokeAddBatchByStage(stage) {
-    // 通过 taskManager 间接调 controller 的 addBatchByStage 逻辑
-    // controller.js 里 addBatchByStage 是 IPC handler，逻辑封装在 controller 内
-    // 这里复用 fileManager + taskManager 直接实现，避免绕 IPC
     const stageMap = {
       jxgj: { source: () => this.fileManager.getA1().data, type: 'jxgj' },
       o_combo: { source: () => this.fileManager.getA2().data, type: 'o_combo' }
@@ -272,11 +466,23 @@ export class Pipeline {
       return Promise.resolve({ success: false, message: '数据源为空，请先完成上一阶段' })
     }
 
-    // o_combo 阶段账号前置检查（与 controller addBatchByStage 一致）
+    // o_combo 阶段：在入队前**就**把每个 O 平台阶段标 running/skipped（细阶段状态立刻可见）
     if (stage === 'o_combo' && this.credentialManager) {
       const hasAnyO = ['trip', 'o2', 'o3'].some(p => this.credentialManager.getSelected(p))
       if (!hasAnyO) {
         return Promise.resolve({ success: false, message: '未选择平台，请先在「账号管理」里为至少一个 O 平台选中账号' })
+      }
+      for (const p of ['trip', 'o2', 'o3']) {
+        const enabled = this.configManager?.isEnabled(p)
+        const credOk = !!this.credentialManager?.getSelected(p)
+        if (!enabled) {
+          this._setStage(p, { status: 'skipped', skipReason: '平台未启用', finishedAt: Date.now() })
+        } else if (!credOk) {
+          this._setStage(p, { status: 'skipped', skipReason: '未选择账号', finishedAt: Date.now() })
+        } else {
+          // running：totalTasks 稍后在 handleStageComplete 统计（因为此时还在拆分前不知道总数）
+          this._setStage(p, { status: 'running', startedAt: Date.now() })
+        }
       }
     }
 
@@ -284,10 +490,6 @@ export class Pipeline {
 
     let tasks
     if (stage === 'o_combo') {
-      // ★ O 平台任务拆分：每个启用的 O 平台（trip/o2/o3）各自独立成任务
-      //   原由 runCombo 内部并行三平台、进度聚合 → 渲染层看不到单平台进度（卡住）
-      //   现按 task.type=单平台 直接由 runByType → run 执行，各平台独立跑、独立进度
-      //   过滤条件：配置启用 && 账号选中（两者都满足才生成任务，避免无效任务）
       const enabledO = ['trip', 'o2', 'o3'].filter(p =>
         this.configManager?.isEnabled(p) && this.credentialManager?.getSelected(p))
       tasks = []
@@ -314,38 +516,111 @@ export class Pipeline {
 
   // ========== 内部：stage 完成回调（接管 taskManager.onAllComplete）==========
   /**
-   * stage 完成：saveStageResults + 推 IPC + 根据 mode 决定下一步
-   * @param {Array} results  完成的任务结果
-   * @param {string} stage   'jxgj' | 'o_combo'
+   * stage 完成：saveStageResults → 更新细阶段状态 → 推 IPC → 决定下一步
    */
   async handleStageComplete(results, stage) {
-    // 1. 落盘（保持原 main.js 行为）
+    const now = Date.now()
+    // 1. 落盘（保持原行为）
     if (this.fileManager) this.fileManager.saveStageResults(stage, results)
 
-    // 2. 推 pcp:task:allComplete 给渲染层（渲染层据此刷新 a1/a2/a3 计数）
-    this.emit('pcp:task:allComplete', { results, stage })
-
-    // 3. 决定下一步
     if (stage === 'jxgj') {
+      const total = results.length
+      const completed = results.filter(t => t.status === 'completed').length
+      const failed = total - completed
+      const a2Count = this.fileManager?.getA2()?.count || 0
+
+      this._setStage('jxgj', {
+        status: total === 0 ? 'failed' : 'completed',
+        error: total === 0 ? '锦绣国际没有实际执行任务' : (failed > 0 ? `有 ${failed} 个任务失败` : undefined),
+        totalTasks: total,
+        completedTasks: completed,
+        failedTasks: failed,
+        outputCount: a2Count,
+        finishedAt: now
+      })
+
       if (this.mode === 'auto') {
-        // 自动衔接 O 平台
-        this.step = 'o_combo'
-        this.status = 'running'
+        // 衔接 o_combo（即使 a2Count=0 也要跑：让 O 阶段收到 0 任务失败信息，而不是卡在 jxgj）
+        this._syncLegacyFields()
         this.emitState()
-        await new Promise(r => setTimeout(r, 300)) // 给 UI 刷新一下
+        await new Promise(r => setTimeout(r, 300))
         await this.runStage('o_combo')
       } else {
-        // dev 模式：停在 waiting_next，等用户点 StepFlow
-        this.step = 'o_combo'
-        this.status = 'waiting_next'
+        this._syncLegacyFields()
         this.emitState()
       }
     } else if (stage === 'o_combo') {
-      // O 完成：流程结束，等用户手动下载
-      this.step = 'export'
-      this.status = 'done'
+      // ★ 按 task.type 拆分 trip/o2/o3 统计
+      const byPlatform = { trip: [], o2: [], o3: [] }
+      for (const t of results) {
+        const type = t.type || (t.result?._usedCredential?.platform)
+        if (byPlatform[type]) byPlatform[type].push(t)
+      }
+
+      for (const p of ['trip', 'o2', 'o3']) {
+        const prev = this.stages.get(p)
+        if (prev.status === 'skipped') continue  // 前面标 skipped 的不动
+        const list = byPlatform[p] || []
+        const total = list.length
+        const completed = list.filter(t => t.status === 'completed').length
+        const failed = total - completed
+        // outputCount：该平台所有成功任务的 processedData.length 之和（0 也合法）
+        const outputCount = list.reduce((sum, t) => {
+          const pd = t.result?.processedData
+          return sum + (Array.isArray(pd) ? pd.length : 0)
+        }, 0)
+
+        let status = 'completed'
+        let error = undefined
+        if (total === 0) {
+          status = 'failed'
+          error = '没有实际执行任务'
+        } else if (failed === total) {
+          status = 'failed'
+          error = `全部 ${total} 个任务失败`
+        } else if (failed > 0) {
+          // 部分失败：仍标 completed（数据里成功的那些要参与合并），用 error 字段挂提示
+          error = `${failed}/${total} 个任务失败`
+        }
+
+        this._setStage(p, {
+          status, error,
+          totalTasks: total, completedTasks: completed, failedTasks: failed,
+          outputCount,
+          finishedAt: now
+        })
+      }
+
+      // a3_merge：读 saveStageResults 后 fileManager.a3 的 count
+      const a3Count = this.fileManager?.getA3()?.count || 0
+      const jxgjStatus = this.stages.get('jxgj').status
+      const anyOCompleted = ['trip', 'o2', 'o3'].some(p => this.stages.get(p).status === 'completed')
+      let a3Status = 'completed'
+      let a3Error = undefined
+      if (jxgjStatus !== 'completed') {
+        a3Status = 'failed'
+        a3Error = '锦绣国际阶段未成功完成'
+      } else if (!anyOCompleted) {
+        a3Status = 'failed'
+        a3Error = '所有 O 平台均未成功执行（均跳过或全部失败）'
+      } else {
+        // outputCount 可能为 0 → 仍 completed
+      }
+
+      this._setStage('a3_merge', {
+        status: a3Status,
+        outputCount: a3Count,
+        error: a3Error,
+        startedAt: now,
+        finishedAt: now
+      })
+
+      this._syncLegacyFields()
       this.emitState()
     }
+
+    // 2. 推 pcp:task:allComplete（渲染层据此刷新 a1/a2/a3 计数 + 提示）
+    this.emit('pcp:task:allComplete', { results, stage })
   }
 
   // ========== 工具：事件推送 ==========
@@ -357,3 +632,5 @@ export class Pipeline {
     this.emit('pcp:pipeline:state', this.getState())
   }
 }
+
+export default Pipeline

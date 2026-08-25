@@ -202,15 +202,15 @@ export class FileManager {
       const row0 = dataRows[0] || []
       if (!cangwei && cabinIdx >= 0 && row0[cabinIdx]) cangwei = String(row0[cabinIdx]).trim()
       if (!hangsi && airlineIdx >= 0 && row0[airlineIdx]) hangsi = String(row0[airlineIdx]).trim()
-      // 最终兜底：避免 a1 的 hangsi/cangwei 为空 → JXGJ 请求 carrier 空 → O 阶段 processedData 全 0
+      // 不兜底：用户文件里拆不出 cangwei/hangsi 就是空，a1 该字段为空 → JXGJ 阶段 cangwei_arr/date_obj 空
+      // → 后续 O 阶段 0 任务 → 0 条结果。这是用户语义：用户给什么用什么，拆不出就跑 0 个
       if (!cangwei) {
-        // 常见模板：26 字母全舱位
-        cangwei = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        console.warn('[parseXlsx] 未在 Excel 中找到 cabin/舱位列/值，兜底使用 26 字母全舱位')
+        cangwei = ''
+        console.warn('[parseXlsx] 未在 Excel 中找到 cabin/舱位列/值，cangwei_str 将为空 → 跑出 0 条结果')
       }
       if (!hangsi) {
         hangsi = ''
-        console.warn('[parseXlsx] 未在 Excel 中找到 airline_code/航司列/值，JXGJ 请求会用 a1 里 hangsi 字段（如果为空，接口大概率返回空列表）')
+        console.warn('[parseXlsx] 未在 Excel 中找到 airline_code/航司列/值，hangsi 将为空（JXGJ 接口大概率返回空列表）')
       }
 
       // ------- 列名映射：兼容各种 Excel 中文列头 -------
@@ -473,15 +473,21 @@ export class FileManager {
    *   - 系统导入文件命名：{平台中文名}导入政策{日期}.xlsx（如 携程导入政策2026-08-21.xlsx）
    *   - 人看文件命名：底价检查({平台中文名}){日期}.xlsx（如 底价检查(携程)2026-08-21.xlsx）
    *   - 同名序号递增：携程导入政策2026-08-21.xlsx 存在 → 携程导入政策2026-08-21 (1).xlsx
+   *   - 进度推送：0 → 每平台写完按比例推进 → 100
+   *   - 返回 { success, files: [{path, filename, platform, count}], dir }
    *
-   * 进度推送：0 → 每平台写完按比例推进 → 100
-   * 返回 { success, files: [{path, filename, platform, count}], dir }
-   *   渲染层据此显示文件名列表
+   * @param {string} dir                   下载目录
+   * @param {string} _filename             已废弃（每个平台独立命名；仅保留形参兼容老调用方）
+   * @param {(n:number)=>void} onProgress  进度回调 0→90→100（-1 = 失败）
+   * @param {{ platformsToInclude?: string[] }} opts
+   *   platformsToInclude：即使 a3 中该平台 0 条数据，也生成"仅表头"的系统导入文件。
+   *     用于 O 平台真的跑成功了但恰好没匹配到底价政策、0 结果也应该允许下载的场景。
    */
-  exportResult(dir, _filename = 'result.xlsx', onProgress = () => { }) {
+  exportResult(dir, _filename = 'result.xlsx', onProgress = () => { }, opts = {}) {
     try {
       onProgress(0)
       const dateStr = dateStamp()
+      const { platformsToInclude = [] } = opts
 
       // 按 _platform 分组（兼容老 a3：无 _platform 的行归到 trip）
       const groups = {}
@@ -489,6 +495,11 @@ export class FileManager {
         const p = row?._platform || 'trip'
         if (!groups[p]) groups[p] = []
         groups[p].push(row)
+      }
+
+      // ★ 新增：把显式要求包含的平台补进 groups（空数组 = 只出表头）
+      for (const p of platformsToInclude) {
+        if (!groups[p]) groups[p] = []
       }
 
       const platformKeys = Object.keys(groups)
@@ -524,7 +535,14 @@ export class FileManager {
           return flat
         })
 
-        const worksheet = XLSX.utils.json_to_sheet(flatData)
+        // ★ 0 行数据 + 有 columns 模板时：仅写表头行（否则 json_to_sheet([]) 出的表连列名都没有）
+        let worksheet
+        if (flatData.length === 0 && columns) {
+          const headerRow = columns.map(col => col.title || col.label || col.key)
+          worksheet = XLSX.utils.aoa_to_sheet([headerRow])
+        } else {
+          worksheet = XLSX.utils.json_to_sheet(flatData)
+        }
         const workbook = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(workbook, worksheet, p)
 

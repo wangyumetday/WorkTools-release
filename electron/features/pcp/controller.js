@@ -191,18 +191,21 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
    *   - 通过 onProgress 回调 + webContents.send 推送进度事件，前端按钮按进度填充颜色
    */
   ipcMain.handle('pcp:file:downloadResult', async () => {
-    const a3 = fileManager.getA3()
-    if (a3.count === 0) {
-      return { success: false, error: '没有结果数据，请先完成O平台阶段' }
+    // ★ 用"阶段状态"做门控（替代原来的 a3.count===0 判断）
+    //   a3_merge.completed + 至少一个O平台completed → 可下载，哪怕 a3.count=0
+    const gate = pipeline ? pipeline.canExport() : { can: false, reason: '请先完成 O 平台比价阶段' }
+    if (!gate.can) {
+      return { success: false, error: gate.reason || '请先完成 O 平台比价阶段' }
     }
     const dir = fileManager.getDownloadDir()
     if (!dir) {
       return { success: false, error: '未设置下载目录，请先点击「选择下载目录」' }
     }
     // onProgress 回调：把 0/30/60/100 推送给渲染层，渲染层据此填充按钮颜色
+    // platformsToInclude：0 条数据时也为每个 completed 的 O 平台生成表头文件
     return fileManager.exportResult(dir, 'result.xlsx', (progress) => {
       mainWindow?.webContents.send('pcp:file:downloadProgress', { progress })
-    })
+    }, { platformsToInclude: gate.platformsToExport || [] })
   })
 
   // ========== Credential IPC ==========

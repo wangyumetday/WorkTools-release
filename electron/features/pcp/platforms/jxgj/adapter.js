@@ -137,11 +137,15 @@ export function mergeResult(rawResponse, a1Item, compiledConfig = {}) {
   if (rawResponse.Msg != 'OK') {
     throw new Error(`G1 平台返回业务异常：${rawResponse.Msg || '未知错误'}`)
   }
-  const cwstr = a1Item.cangwei_str.split(',')
+  // cangwei_str 仅按英文逗号分隔拆舱位（用户语义：文件里给什么用什么，拆不出就是 0 个）
+  //   "Y,J,F" → ['Y', 'J', 'F']
+  //   "Y, J, F" → ['Y', 'J', 'F']（trim 空格）
+  //   "YJF" → ['YJF']（单元素，API 单字符舱位匹配不到 → 0 个，符合"拆不出就 0"）
+  //   "" → [] → 跳过整个 for 循环
+  const cwstr = a1Item.cangwei_str.split(',').map(s => s.trim()).filter(Boolean)
   const GW_data = rawResponse.Content.List
   a1Item.cangwei_arr = []
 
-  // for (const cw_item of cwstr.split(',').map(s => s.trim()).filter(Boolean)) {
   for (const cw_item of cwstr) {
     const findItem = GW_data.find(item => findItemByCwItem(item, cw_item))
     if (findItem) {

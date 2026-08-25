@@ -10,7 +10,7 @@
         <div class="home-left">
           <TopToolbar />
           <ConfigPanel class="home-left__main" />
-          <StepFlow />
+          <StageFlow />
         </div>
         <!-- 右栏：任务监控 -->
         <div class="home-right">
@@ -35,7 +35,7 @@ import { computed, onMounted } from 'vue'
 import { NConfigProvider, NMessageProvider } from 'naive-ui'
 import TopToolbar from '../components/TopToolbar.vue'
 import ConfigPanel from '../components/ConfigPanel.vue'
-import StepFlow from '../components/StepFlow.vue'
+import StageFlow from '../components/StageFlow.vue'
 import TaskMonitor from '../components/TaskMonitor.vue'
 import TaskProgressBar from '../components/TaskProgressBar.vue'
 import { useTaskStore } from '../stores/task.js'

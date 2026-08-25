@@ -1,0 +1,35 @@
+{
+  "statusCode": 200,
+  "headers": {
+    "date": "Tue, 25 Aug 2026 06:35:18 GMT",
+    "content-type": "application/json;charset=UTF-8",
+    "transfer-encoding": "chunked",
+    "connection": "keep-alive",
+    "soa20-service-latency": "3",
+    "content-encoding": "gzip",
+    "x-envoy-upstream-service-time": "3",
+    "x-via": "1.1 PS-000-0106i26:25 (Cdn Cache Server V2.0)",
+    "x-cdn-cache": "MISS",
+    "c-via": "wangsu",
+    "unique-request-id": "6a8d37a6_PS-000-0106i26_809-52424",
+    "x-ws-request-id": "6a8d37a6_PS-000-0106i26_809-52424"
+  },
+  "resData": {
+    "ResponseStatus": {
+      "Timestamp": "2026-08-25T14:35:18.645+08:00",
+      "Ack": "Success",
+      "Errors": [],
+      "Build": null,
+      "Version": null,
+      "Extension": []
+    },
+    "responseHeader": {
+      "requestID": "38fbcdd1-0bac-4c54-9f88-624ebecfc97c",
+      "transactionID": "501ab358-42ef-4725-a98a-137480341b21",
+      "replyStatus": "ERROR",
+      "message": "用户名或者密码不正确"
+    },
+    "responseBody": null
+  },
+  "decodeError": null
+}

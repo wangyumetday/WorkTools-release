@@ -426,9 +426,22 @@ export const useTaskStore = defineStore('pcp-task', () => {
 
   // 整批完成（Pipeline 推送，含 stage）：刷新数据计数 + 提示
   //   注：不再自动衔接下一步，衔接由 Pipeline 在主进程完成
+  //   results = 当前 stage 全部任务（包含失败 → 要显示成功数需按 status==='completed' 过滤）
   async function handleAllComplete(data) {
     const { results, stage } = data
-    message.success(`${getStageName(stage)}阶段完成，共 ${results.length} 个成功`)
+    const total = Array.isArray(results) ? results.length : 0
+    const completed = Array.isArray(results)
+      ? results.filter(t => t && t.status === 'completed').length
+      : 0
+    const failed = total - completed
+    const stageName = getStageName(stage)
+    if (failed > 0) {
+      message.warning(
+        `${stageName}阶段结束：共 ${total} 任务 · 成功 ${completed} · 失败 ${failed}（失败详情见任务面板）`
+      )
+    } else {
+      message.success(`${stageName}阶段完成：${completed} 任务全部成功`)
+    }
     currentStage.value = null
     await refreshTasks()
     await refreshDataCounts()

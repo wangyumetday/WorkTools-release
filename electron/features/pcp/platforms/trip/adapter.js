@@ -87,6 +87,34 @@ function priceComparisonPolicy(originalData, resData) {
   const forData = Array.isArray(originalData?.dateValue) ? originalData.dateValue : []
   const flights = Array.isArray(resData?.responseBody?.flights) ? resData.responseBody.flights : []
   const lowPrices = Array.isArray(resData?.responseBody?.lowPrices) ? resData.responseBody.lowPrices : []
+  const dateKey = originalData?.dateKey || 'unknown-date'
+
+  // [debug] 一次性字段名采样：第一次进 priceComparisonPolicy 时输出 jxgj item / trip flights / lowPrices 的字段名
+  //   目的：定位"processedData=0"是字段名不匹配还是业务比价输
+  //   定位后可整段删除
+  if (!priceComparisonPolicy._sampled) {
+    priceComparisonPolicy._sampled = true
+    const sampleItem = forData[0] || {}
+    const sampleFlight = flights[0] || {}
+    const sampleLp = lowPrices[0] || {}
+    const samplePrice = (sampleLp.prices && sampleLp.prices[0]) || {}
+    console.log('[trip/debug] ===== 字段名采样（仅一次） =====')
+    console.log('[trip/debug] jxgj item 字段:', Object.keys(sampleItem))
+    console.log('[trip/debug]   item.H航班号 =', sampleItem.H航班号, '| item.C出发机场 =', sampleItem.C出发机场, '| item.D到达机场 =', sampleItem.D到达机场, '| item.C出发日期 =', sampleItem.C出发日期, '| item.dijia =', sampleItem.dijia, '| item.C成人总票价_CNY_INT =', sampleItem.C成人总票价_CNY_INT)
+    console.log('[trip/debug] trip flights 字段:', Object.keys(sampleFlight))
+    console.log('[trip/debug]   f.flightNo =', sampleFlight.flightNo, '| f.departAirport =', sampleFlight.departAirport, '| f.arriveAirport =', sampleFlight.arriveAirport, '| f.takeOffDateTime =', sampleFlight.takeOffDateTime, '| f.flightId =', sampleFlight.flightId)
+    console.log('[trip/debug] trip lowPrices 字段:', Object.keys(sampleLp))
+    console.log('[trip/debug]   lp.flightRefs =', JSON.stringify(sampleLp.flightRefs))
+    console.log('[trip/debug] trip lowPrices[0].prices[0] 字段:', Object.keys(samplePrice))
+    console.log('[trip/debug]   p.baggage =', samplePrice.baggage, '| p.showState =', samplePrice.showState, '| p.isOwn =', samplePrice.isOwn, '| p.sortIndicator =', samplePrice.sortIndicator)
+    console.log('[trip/debug] ====================================')
+  }
+
+  let matchedFlights = 0
+  let matchedLowPrice = 0
+  let wonByPrice = 0
+  let lostByPrice = 0  // 接口有低价但 dijia > sortIndicator（业务上比输了）
+
   forData.forEach(item => {
     const flights_related = flights.find(f =>
       f &&
@@ -95,6 +123,8 @@ function priceComparisonPolicy(originalData, resData) {
       String(f.arriveAirport) === String(item.D到达机场) &&
       String((f.takeOffDateTime || '').split(' ')[0]) === String(item.C出发日期)
     )
+    if (flights_related) matchedFlights++
+
     let lowPrice_related = null
     if (flights_related?.flightId != null) {
       const relatedLp = lowPrices.find(lp => Array.isArray(lp?.flightRefs) && lp.flightRefs.some(ref => ref?.flightId === flights_related.flightId))
@@ -109,16 +139,29 @@ function priceComparisonPolicy(originalData, resData) {
         }
       }
     }
+    if (lowPrice_related) matchedLowPrice++
+
     const sortIndicator = Number(lowPrice_related?.sortIndicator)
     const hasXcPrice = !isNaN(sortIndicator) && sortIndicator > 0
     const dijia = Number(item.dijia) || 0
     const totalCNY = Number(item.C成人总票价_CNY_INT) || 0
     if (hasXcPrice && dijia > 0 && dijia <= sortIndicator) {
+      wonByPrice++
       item.XC_dijia = sortIndicator
       item.CUT_VALUE = new Decimal(sortIndicator).minus(totalCNY || 0).minus(1).toNumber()
       resArr.push(item)
+    } else if (hasXcPrice && dijia > sortIndicator) {
+      lostByPrice++
     }
   })
+
+  // [debug] 每个任务的比价计数：定位"processedData=0"是哪一步断了
+  //   航班匹配=0 → 字段名问题（H航班号/C出发机场 等）
+  //   低价套餐匹配=0 → flightId 链接或 lowPrices 字段问题
+  //   比赢入队=0 + 比输=N → 业务上 dijia 普遍 > 携程底价（数据问题，不是 bug）
+  //   定位后可整段删除
+  console.log(`[trip/debug] dateKey=${dateKey} 舱位项=${forData.length} → 航班匹配=${matchedFlights} 低价套餐匹配=${matchedLowPrice} 比赢=${wonByPrice} 比输=${lostByPrice} → processedData=${resArr.length}`)
+
   return resArr
 }
 
