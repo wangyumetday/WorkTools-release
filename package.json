@@ -1,6 +1,6 @@
 {
   "name": "work-tools",
-  "version": "1.0.26",
+  "version": "1.0.27",
   "description": "Work Tools - 桌面工具集（PCP 数据处理 + ERC 汇率转换）",
   "main": "out/main/index.js",
   "author": "work-tools",
