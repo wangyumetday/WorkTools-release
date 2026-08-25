@@ -162,11 +162,11 @@ export class FileManager {
       if (!cangwei) {
         // 常见模板：26 字母全舱位
         cangwei = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        console.warn('[parseXlsx] 未在 Excel 中找到 cabin/舱位列/值，兜底使用 26 字母全舱位')
+        // console.warn('[parseXlsx] 未在 Excel 中找到 cabin/舱位列/值，兜底使用 26 字母全舱位')
       }
       if (!hangsi) {
         hangsi = ''
-        console.warn('[parseXlsx] 未在 Excel 中找到 airline_code/航司列/值，JXGJ 请求会用 a1 里 hangsi 字段（如果为空，接口大概率返回空列表）')
+        // console.warn('[parseXlsx] 未在 Excel 中找到 airline_code/航司列/值，JXGJ 请求会用 a1 里 hangsi 字段（如果为空，接口大概率返回空列表）')
       }
 
       // ------- 列名映射：兼容各种 Excel 中文列头 -------

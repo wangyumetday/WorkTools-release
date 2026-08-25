@@ -98,16 +98,16 @@ function priceComparisonPolicy(originalData, resData) {
     const sampleFlight = flights[0] || {}
     const sampleLp = lowPrices[0] || {}
     const samplePrice = (sampleLp.prices && sampleLp.prices[0]) || {}
-    console.log('[trip/debug] ===== 字段名采样（仅一次） =====')
-    console.log('[trip/debug] jxgj item 字段:', Object.keys(sampleItem))
-    console.log('[trip/debug]   item.H航班号 =', sampleItem.H航班号, '| item.C出发机场 =', sampleItem.C出发机场, '| item.D到达机场 =', sampleItem.D到达机场, '| item.C出发日期 =', sampleItem.C出发日期, '| item.dijia =', sampleItem.dijia, '| item.C成人总票价_CNY_INT =', sampleItem.C成人总票价_CNY_INT)
-    console.log('[trip/debug] trip flights 字段:', Object.keys(sampleFlight))
-    console.log('[trip/debug]   f.flightNo =', sampleFlight.flightNo, '| f.departAirport =', sampleFlight.departAirport, '| f.arriveAirport =', sampleFlight.arriveAirport, '| f.takeOffDateTime =', sampleFlight.takeOffDateTime, '| f.flightId =', sampleFlight.flightId)
-    console.log('[trip/debug] trip lowPrices 字段:', Object.keys(sampleLp))
-    console.log('[trip/debug]   lp.flightRefs =', JSON.stringify(sampleLp.flightRefs))
-    console.log('[trip/debug] trip lowPrices[0].prices[0] 字段:', Object.keys(samplePrice))
-    console.log('[trip/debug]   p.baggage =', samplePrice.baggage, '| p.showState =', samplePrice.showState, '| p.isOwn =', samplePrice.isOwn, '| p.sortIndicator =', samplePrice.sortIndicator)
-    console.log('[trip/debug] ====================================')
+    // console.log('[trip/debug] ===== 字段名采样（仅一次） =====')
+    // console.log('[trip/debug] jxgj item 字段:', Object.keys(sampleItem))
+    // console.log('[trip/debug]   item.H航班号 =', sampleItem.H航班号, '| item.C出发机场 =', sampleItem.C出发机场, '| item.D到达机场 =', sampleItem.D到达机场, '| item.C出发日期 =', sampleItem.C出发日期, '| item.dijia =', sampleItem.dijia, '| item.C成人总票价_CNY_INT =', sampleItem.C成人总票价_CNY_INT)
+    // console.log('[trip/debug] trip flights 字段:', Object.keys(sampleFlight))
+    // console.log('[trip/debug]   f.flightNo =', sampleFlight.flightNo, '| f.departAirport =', sampleFlight.departAirport, '| f.arriveAirport =', sampleFlight.arriveAirport, '| f.takeOffDateTime =', sampleFlight.takeOffDateTime, '| f.flightId =', sampleFlight.flightId)
+    // console.log('[trip/debug] trip lowPrices 字段:', Object.keys(sampleLp))
+    // console.log('[trip/debug]   lp.flightRefs =', JSON.stringify(sampleLp.flightRefs))
+    // console.log('[trip/debug] trip lowPrices[0].prices[0] 字段:', Object.keys(samplePrice))
+    // console.log('[trip/debug]   p.baggage =', samplePrice.baggage, '| p.showState =', samplePrice.showState, '| p.isOwn =', samplePrice.isOwn, '| p.sortIndicator =', samplePrice.sortIndicator)
+    // console.log('[trip/debug] ====================================')
   }
 
   let matchedFlights = 0
@@ -160,7 +160,7 @@ function priceComparisonPolicy(originalData, resData) {
   //   低价套餐匹配=0 → flightId 链接或 lowPrices 字段问题
   //   比赢入队=0 + 比输=N → 业务上 dijia 普遍 > 携程底价（数据问题，不是 bug）
   //   定位后可整段删除
-  console.log(`[trip/debug] dateKey=${dateKey} 舱位项=${forData.length} → 航班匹配=${matchedFlights} 低价套餐匹配=${matchedLowPrice} 比赢=${wonByPrice} 比输=${lostByPrice} → processedData=${resArr.length}`)
+  // console.log(`[trip/debug] dateKey=${dateKey} 舱位项=${forData.length} → 航班匹配=${matchedFlights} 低价套餐匹配=${matchedLowPrice} 比赢=${wonByPrice} 比输=${lostByPrice} → processedData=${resArr.length}`)
 
   return resArr
 }

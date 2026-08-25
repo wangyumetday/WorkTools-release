@@ -58,7 +58,14 @@ async function fetchG1WithRetry(url, headers) {
 
 function findItemByCwItem(item, cw_item) {
   if (item.C舱位 !== cw_item) return false
-  if (!(Number(item.S剩余座位数) >= 3)) return false
+  // let ZWS = item.套餐信息[0].座位数
+  // console.log('item.套餐信息', item)
+  let ZWS = item.S剩余座位数
+  if (item.套餐信息.length > 0) {
+    ZWS = item.套餐信息[0].座位数
+  }
+  console.log('item.座位数', ZWS)
+  if (ZWS < 3) return false
   const riqiStr = item.C出发时间_Date
   if (!riqiStr) return false
   const riqi = new Date(riqiStr)
@@ -145,8 +152,9 @@ export function mergeResult(rawResponse, a1Item, compiledConfig = {}) {
   const cwstr = a1Item.cangwei_str.split(',').map(s => s.trim()).filter(Boolean)
   const GW_data = rawResponse.Content.List
   a1Item.cangwei_arr = []
-
+  // console.log(cwstr)
   for (const cw_item of cwstr) {
+    // console.log(cw_item)
     const findItem = GW_data.find(item => findItemByCwItem(item, cw_item))
     if (findItem) {
       findItem.C成人总票价_CNY_INT = Math.ceil(findItem.C成人总票价_CNY)

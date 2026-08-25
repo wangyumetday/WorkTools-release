@@ -47,7 +47,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 if (!app.isPackaged) {
   try {
     openInspector(9229, '127.0.0.1')
-    console.log('[debug] Electron 主进程 inspector 已开启 → ws://127.0.0.1:9229 （VS Code F5 选 "Attach to Electron Main" 或 Chrome 打开 chrome://inspect）')
+    // console.log('[debug] Electron 主进程 inspector 已开启 → ws://127.0.0.1:9229 （VS Code F5 选 "Attach to Electron Main" 或 Chrome 打开 chrome://inspect）')
   } catch (err) {
     console.warn('[debug] inspector 开启失败（端口可能被占用）:', err.message)
   }
@@ -245,7 +245,7 @@ function registerIpcHandlers() {
   if (!app.isPackaged) return // 开发态跳过，省得每次启动都去请求 Gitee 超时
 
   autoUpdater.logger = {
-    info: (...a) => console.log('[updater]', ...a),
+    info: () => {},  // (...a) => console.log('[updater]', ...a)  ← 打包时不再输出 updater 日志
     warn: (...a) => console.warn('[updater]', ...a),
     error: (...a) => console.error('[updater]', ...a),
     debug: () => {}

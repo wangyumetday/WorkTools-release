@@ -259,7 +259,7 @@ export class FileManager {
 
       this.saveData('a1.json', this.a1)
 
-      console.log(`[parseXlsx] FA-3.xlsx 解析完成：行数=${this.a1.length}，hangsi=${this.a1[0]?.hangsi || '(空)'}，cangwei_str 长度=${(this.a1[0]?.cangwei_str || '').length}`)
+      // console.log(`[parseXlsx] FA-3.xlsx 解析完成：行数=${this.a1.length}，hangsi=${this.a1[0]?.hangsi || '(空)'}，cangwei_str 长度=${(this.a1[0]?.cangwei_str || '').length}`)
       return {
         success: true,
         fileName: path.basename(filePath),
@@ -349,8 +349,8 @@ export class FileManager {
     const sample = this.a2[0] || {}
     const sampleLen = (sample.cangwei_arr || []).length
     const sampleDateCount = Object.keys(sample.date_obj || {}).length
-    console.log(`[saveA2FromJxgjTasks] 任务数=${tasks.length}；从 result.data.inputData 取=${hasInputData}；兜底 task.data=${fallbackCount} → A2 条数=${this.a2.length}`)
-    console.log(`  → A2[0] 样例：hangsi=${sample.hangsi} 舱位=${sample.cangwei_str}；cangwei_arr 长度=${sampleLen}；date_obj 日期数=${sampleDateCount}`)
+    // console.log(`[saveA2FromJxgjTasks] 任务数=${tasks.length}；从 result.data.inputData 取=${hasInputData}；兜底 task.data=${fallbackCount} → A2 条数=${this.a2.length}`)
+    // console.log(`  → A2[0] 样例：hangsi=${sample.hangsi} 舱位=${sample.cangwei_str}；cangwei_arr 长度=${sampleLen}；date_obj 日期数=${sampleDateCount}`)
     this.saveData('a2.json', this.a2)
     return this.a2
   }
@@ -422,7 +422,7 @@ export class FileManager {
     })
 
     const summary = O_PLATFORMS.map(p => `${p}: ok=${stats[p].okTasks} fail=${stats[p].failedTasks} processed=${stats[p].processedSum}`).join('；')
-    console.log(`[saveA3FromOTasks] 总 O 任务数=${tasks.length}；${summary} → a3 条数=${a3arr.length}`)
+    // console.log(`[saveA3FromOTasks] 总 O 任务数=${tasks.length}；${summary} → a3 条数=${a3arr.length}`)
     this.a3 = a3arr
     this.saveData('a3.json', a3arr)
     return a3arr
