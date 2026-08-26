@@ -26,14 +26,14 @@ export const configSchema = {
   //   show: false,
   //   help: '预留字段，当前未参与计算'
   // },
-  // PriceRange: {
-  //   type: 'PriceRange',
-  //   label: '票价区间',
-  //   default: [],
-  //   show: false,
-  //   required: true,
-  //   help: '票价区间，格式为 [min, max,drop]，min 为最小票价，max 为最大票价，drop 减价金额，单位为 CNY'
-  // },
+  PriceRange: {
+    type: 'PriceRange',
+    label: '票价区间',
+    default: [],
+    show: false,
+    required: true,
+    help: '票价区间，格式为 [min, max,drop]，min 为最小票价，max 为最大票价，drop 减价金额，单位为 CNY'
+  },
 
 }
 

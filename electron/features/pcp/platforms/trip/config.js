@@ -27,6 +27,10 @@ export const configSchema = {
   validatingCarrier: { type: 'string', label: '开票航司二字码', default: '' },
   childTravelerCount: { type: 'number', label: '儿童人数', default: 0 },
   timeout: { type: 'number', label: '请求超时(ms)', default: 10000 },
+  rateLimitPerMin: {
+    type: 'number', label: '每分钟请求上限', default: 200, required: true,
+    help: '携程 API 阈值（默认 200/分钟）。超量会触发 429 封禁，限流器会自动排队等待'
+  },
   agentName: { type: 'string', label: '业务员名（写入政策 Name 列）', default: '' },
   agentRemark: { type: 'string', label: '业务员备注（写入政策 Remark 列）', default: '' }
 }
@@ -44,6 +48,7 @@ export const defaults = {
   validatingCarrier: '',
   childTravelerCount: 0,
   timeout: 10000,
+  rateLimitPerMin: 200,
   agentName: '',
   agentRemark: ''
 }

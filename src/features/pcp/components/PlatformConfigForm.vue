@@ -10,7 +10,31 @@
        - o_config    + platform=trip → 抖动（trip 作为"第一个 O"引导用户去启用）
      说明：纯展示+表单组件，无 IPC 调用
      ============================================================ -->
+<style scoped>
+.qujian {
+  width: 100%;
 
+  .wrap {
+    width: 100%;
+    border: 1px solid #ccc;
+    padding: 8px;
+    border-radius: 4px;
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: flex-start;
+    align-items: center;
+
+
+    .gongshi {
+      margin-left: 8px;
+    }
+
+    .btn {
+      margin-left: 8px;
+    }
+  }
+}
+</style>
 <template>
   <n-form :model="localConfig" label-placement="left" label-width="160px" :show-required-mark="false"
     style="max-width: 640px; margin-top: 16px" :class="{ 'pcp-blink-shake': shouldBlink }">
@@ -22,24 +46,32 @@
       <n-input-number v-else-if="field.type === 'number'" v-model:value="localConfig[field.key]" style="width: 100%" />
       <!-- formula / string → 文本输入 -->
       <!-- PriceRange → 数组输入，格式为 [min, max,drop] -->
-      <n-space vertical v-else-if="field.type === 'PriceRange'" v-model:value="localConfig[field.key]"
+      <!-- <n-space vertical v-else-if="field.type === 'PriceRange'" v-model:value="localConfig[field.key]"
         style="width: 100%">
         <n-cascader v-model:value="value" placeholder="没啥用的值" :expand-trigger="hover" :options="options"
           :show-path="showPath" :bordered="true" @update:value="handleUpdateValue" />
-      </n-space>
-
+      </n-space> -->
+      <!-- <div class="qujian" v-else-if="field.type == 'PriceRange'">
+        <div class="wrap">
+          <n-cascader v-model:value="value" :options="options" placeholder="qujian " expand-trigger="hover"
+            :show-path="false" clearable/>
+          <input type="text" placeholder="公式" />
+          <div class="btn">+</div>
+        </div>
+      </div> -->
       <n-input v-else v-model:value="localConfig[field.key]" :placeholder="field.help ? field.help : ''" />
       <!-- 字段 help（小字说明，schema 注释即 UI 提示） -->
       <template v-if="field.help && field.type !== 'string'" #feedback>
         <span style="color: #999; font-size: 12px">{{ field.help }}</span>
       </template>
+
     </n-form-item>
   </n-form>
 </template>
 
 <script setup>
 import { ref, watch, computed, nextTick } from 'vue'
-import { NForm, NFormItem, NInput, NInputNumber, NSwitch, NButton } from 'naive-ui'
+import { NForm, NFormItem, NInput, NInputNumber, NSwitch, NButton, NCascader } from 'naive-ui'
 import { useTaskStore } from '../stores/task.js'
 
 // 父组件注入：平台配置值 + 平台 key + schema
@@ -159,4 +191,46 @@ const shouldBlink = computed(() => {
   if (t === 'o_config' && props.platform === 'trip') return true
   return false
 })
+
+// 区间底价公式
+function getOptions(depth = 3, iterator = 1, prefix = "") {
+  const length = 12;
+  const options = [];
+  for (let i = 1; i <= length; ++i) {
+    if (iterator === 1) {
+      options.push({
+        value: `v-${i}`,
+        label: `l-${i}`,
+        disabled: i % 5 === 0,
+        children: getOptions(depth, iterator + 1, `${String(i)}`)
+      });
+    } else if (iterator === depth) {
+      options.push({
+        value: `v-${prefix}-${i}`,
+        label: `l-${prefix}-${i}`,
+        disabled: i % 5 === 0
+      });
+    } else {
+      options.push({
+        value: `v-${prefix}-${i}`,
+        label: `l-${prefix}-${i}`,
+        disabled: i % 5 === 0,
+        children: getOptions(depth, iterator + 1, `${prefix}-${i}`)
+      });
+    }
+  }
+  return options;
+}
+const checkStrategyIsChild = ref(true);
+const showPath = ref(true);
+const hoverTrigger = ref(false);
+const filterable = ref(false);
+const value = ref(null);
+const options = getOptions();
+function handleUpdateValue(value, option) {
+  console.log(value, option);
+}
+
+
+
 </script>

@@ -64,7 +64,6 @@ function findItemByCwItem(item, cw_item) {
   if (item.套餐信息.length > 0) {
     ZWS = item.套餐信息[0].座位数
   }
-  console.log('item.座位数', ZWS)
   if (ZWS < 3) return false
   const riqiStr = item.C出发时间_Date
   if (!riqiStr) return false
@@ -110,8 +109,8 @@ export function prepareRequest(a1Item) {
     r: 4.01,
     currentPage: 1,
     pageSize: 200,
-    arrAirPort: a1Item.CF_jichang,
-    depAirPort: a1Item.DD_jichang,
+    arrAirPort: a1Item.DD_jichang,
+    depAirPort: a1Item.CF_jichang,
     carrier: a1Item.hangsi,
   }
   return {

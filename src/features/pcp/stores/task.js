@@ -51,7 +51,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
   function triggerBlink(target) {
     blinkTarget.value = target
     if (blinkTimer) clearTimeout(blinkTimer)
-    blinkTimer = setTimeout(() => { blinkTarget.value = null }, 3500)
+    blinkTimer = setTimeout(() => { blinkTarget.value = null }, 1500)
   }
 
   // ==================== 下载相关状态 ====================

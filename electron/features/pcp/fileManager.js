@@ -464,6 +464,20 @@ export class FileManager {
     return path.join(dir, `${realBase} (${Date.now()})${ext}`)
   }
 
+  /** 构造带序号的路径：seq=0 无括号，seq>0 加 (seq) */
+  _pathWithSeq(dir, base, ext, seq) {
+    const name = seq === 0 ? `${base}${ext}` : `${base} (${seq})${ext}`
+    return path.join(dir, name)
+  }
+
+  /** 返回使所有 base 都不冲突的最小序号（统一序号，保证多个文件序号一致） */
+  _uniqueSeqForAll(dir, bases, ext) {
+    for (let seq = 0; seq < 1000; seq++) {
+      if (bases.every(b => !fs.existsSync(this._pathWithSeq(dir, b, ext, seq)))) return seq
+    }
+    return Date.now()
+  }
+
   /**
    * 导出 a3 最终数据（阶段4：每 O 平台一个系统导入 xlsx + 一个「底价检查」人看合并 xlsx）
    *   - a3 每行带 _platform 标签 → 按 _platform 分组
@@ -507,6 +521,17 @@ export class FileManager {
         return { success: false, error: '没有可导出的平台数据' }
       }
 
+      // ★ 统一序号：政策导入文件 + 底价检查文件用相同序号（取使所有文件都不冲突的最小序号）
+      const bases = platformKeys.map(p => `${platformDisplayName(p)}导入政策${dateStr}`)
+      // 预测底价检查文件 basename（mainKey 逻辑同 buildHumanReadableFile：trip 优先，否则第一个有数据的平台）
+      const O_PLATFORMS = ['trip', 'o2', 'o3']
+      const hrPresent = O_PLATFORMS.filter(p => (groups[p] || []).length > 0)
+      if (hrPresent.length > 0) {
+        const hrMainKey = (groups['trip'] || []).length > 0 ? 'trip' : hrPresent[0]
+        bases.push(`${platformDisplayName(hrMainKey)}底价检查${dateStr}`)
+      }
+      const unifiedSeq = this._uniqueSeqForAll(dir, bases, '.xlsx')
+
       const files = []
       for (let i = 0; i < platformKeys.length; i++) {
         const p = platformKeys[i]
@@ -547,7 +572,7 @@ export class FileManager {
         XLSX.utils.book_append_sheet(workbook, worksheet, p)
 
         // 系统导入文件名：{平台中文名}导入政策{日期}.xlsx（如 携程导入政策2026-08-21.xlsx）
-        const finalPath = this.getUniqueFilePath(dir, `${platformDisplayName(p)}导入政策${dateStr}.xlsx`)
+        const finalPath = this._pathWithSeq(dir, `${platformDisplayName(p)}导入政策${dateStr}`, '.xlsx', unifiedSeq)
         XLSX.writeFile(workbook, finalPath)
         files.push({ path: finalPath, filename: path.basename(finalPath), platform: p, count: rows.length })
 
@@ -556,7 +581,7 @@ export class FileManager {
       }
 
       // ===== 生成「底价检查」人看合并文件（失败不影响系统导入文件） =====
-      const humanFile = this.buildHumanReadableFile(dir, dateStr)
+      const humanFile = this.buildHumanReadableFile(dir, dateStr, unifiedSeq)
       if (humanFile) files.push(humanFile)
 
       onProgress(100)
@@ -578,7 +603,7 @@ export class FileManager {
    *   - 其他平台有而主体平台没有的航班 → 追加为独立行（主体平台底价留空）
    * @returns {{path, filename, platform, count}|null} 没数据或生成失败返回 null
    */
-  buildHumanReadableFile(dir, dateStr) {
+  buildHumanReadableFile(dir, dateStr, seq = null) {
     try {
       // 1. 按平台分组（按标准 O 平台顺序取，保证底价列顺序稳定）
       const O_PLATFORMS = ['trip', 'o2', 'o3']
@@ -663,11 +688,13 @@ export class FileManager {
         }
       }
 
-      // 6. 写 xlsx：底价检查({主体平台中文名}){日期}.xlsx（如 底价检查(携程)2026-08-21.xlsx）
+      // 6. 写 xlsx：{主体平台中文名}底价检查{日期}.xlsx（如 携程底价检查2026-08-21.xlsx）
       const worksheet = XLSX.utils.json_to_sheet(rows)
       const workbook = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(workbook, worksheet, '底价检查')
-      const finalPath = this.getUniqueFilePath(dir, `底价检查(${platformDisplayName(mainKey)})${dateStr}.xlsx`)
+      const finalPath = seq != null
+        ? this._pathWithSeq(dir, `${platformDisplayName(mainKey)}底价检查${dateStr}`, '.xlsx', seq)
+        : this.getUniqueFilePath(dir, `${platformDisplayName(mainKey)}底价检查${dateStr}.xlsx`)
       XLSX.writeFile(workbook, finalPath)
       return { path: finalPath, filename: path.basename(finalPath), platform: 'human', count: rows.length }
     } catch (error) {

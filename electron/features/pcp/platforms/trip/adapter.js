@@ -12,7 +12,7 @@ import Decimal from 'decimal.js'
 import { configSchema, defaults } from './config.js'
 
 export const key = 'trip'
-// 平台中文名：用于导出文件名（携程导入政策{日期}.xlsx / 底价检查(携程){日期}.xlsx）和底价列名（携程底价）
+// 平台中文名：用于导出文件名（携程导入政策{日期}.xlsx / 携程底价检查{日期}.xlsx）和底价列名（携程底价）
 export const displayName = '携程'
 export { configSchema, defaults }
 
@@ -23,6 +23,90 @@ export const compileConfig = (raw = {}) => ({ ...raw })
 export async function login(credential) {
   return { loginName: credential?.username || '', password: credential?.password || '' }
 }
+
+// ============================================================
+// 进程级滑动窗口限流器（携程专用，处理 rateLimitPerMin 阈值 + 429 被动冷却）
+// 设计要点（对齐项目硬约束）：
+//   1. 模块级单例：跨并发 worker 共享同一计数状态，保证准确计数
+//   2. 滑动窗口：维护请求时间戳数组，避免固定窗口的边界尖峰（59s 末 200 + 0s 头 200 = 1s 400 的封号风险）
+//   3. acquire 串行化：用 Promise chain 排队所有 acquire 调用，避免并发计数竞态
+//   4. 429 被动冷却：服务端返 429 时进入 cooldown，Retry-After 优先，无则默认 30s
+//   5. 配置快照：每次 acquire 从 compiledConfig.rateLimitPerMin 动态读取阈值
+//      （TaskManager.precompilePlatformConfigs 编译后 cfg.rateLimitPerMin 即用户配置值）
+// ============================================================
+const RATE_LIMIT_WINDOW_MS = 60_000  // 滑动窗口长度 60s
+const DEFAULT_COOLDOWN_MS = 30_000   // 429 默认冷却 30s（无 Retry-After 时）
+
+function createRateLimiter() {
+  const state = {
+    timestamps: [],                   // 滑动窗口内已发出的请求时间戳
+    cooldownUntil: 0,                 // 被动冷却到期时间戳（0 = 无冷却）
+    acquireChain: Promise.resolve()   // 串行化 acquire 调用的 Promise chain
+  }
+
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+
+  // 清理超过滑动窗口的过期时间戳
+  function pruneExpired(now) {
+    const cutoff = now - RATE_LIMIT_WINDOW_MS
+    while (state.timestamps.length > 0 && state.timestamps[0] < cutoff) {
+      state.timestamps.shift()
+    }
+  }
+
+  // acquire 的实际工作函数（由外层 chain 包装串行执行）
+  async function acquireThunk(rateLimitPerMin) {
+    const limit = Number(rateLimitPerMin) || 0
+    if (limit <= 0) return  // 0 / NaN / 负数 = 不限流（dev 调试可设 0 关闭限流）
+
+    // 1. 被动冷却检查：429 触发的 cooldown 必须先等完
+    if (state.cooldownUntil > Date.now()) {
+      await sleep(state.cooldownUntil - Date.now())
+    }
+
+    // 2. 主动滑动窗口检查：循环等到窗口内请求数 < limit
+    for (;;) {
+      const now = Date.now()
+      pruneExpired(now)
+      if (state.timestamps.length < limit) break
+      // 窗口已满 → 等到最早时间戳滑出窗口（+10ms 避免抢刚过期那一瞬）
+      const waitMs = state.timestamps[0] + RATE_LIMIT_WINDOW_MS - now + 10
+      if (waitMs > 0) await sleep(waitMs)
+    }
+
+    // 3. 占一个位置（记录本次请求的时间戳）
+    state.timestamps.push(Date.now())
+  }
+
+  return {
+    // 串行化的 acquire：所有调用排队执行，避免并发计数竞态
+    //   state.acquireChain 用 .catch(() => {}) 吞错，保证 chain 永不 reject（否则后续 acquire 全卡）
+    //   但返回的 next 保留错误，调用者能收到 acquireThunk 抛的异常
+    acquire(rateLimitPerMin) {
+      const next = state.acquireChain.then(() => acquireThunk(rateLimitPerMin))
+      state.acquireChain = next.catch(() => {})
+      return next
+    },
+    // 429 被动冷却：Retry-After 优先（携程返秒数），无则默认 30s
+    //   Math.max 防止短 cooldown 覆盖长 cooldown（连续 429 时取最远到期时间）
+    cooldown(retryAfterSec) {
+      const ms = Number(retryAfterSec) > 0 ? Number(retryAfterSec) * 1000 : DEFAULT_COOLDOWN_MS
+      state.cooldownUntil = Math.max(state.cooldownUntil, Date.now() + ms)
+    },
+    // 调试用：返回当前状态快照（只读，不发请求）
+    snapshot() {
+      const now = Date.now()
+      pruneExpired(now)
+      return {
+        windowCount: state.timestamps.length,
+        cooldownRemainingMs: Math.max(0, state.cooldownUntil - now)
+      }
+    }
+  }
+}
+
+// 模块级单例：进程级共享，跨 worker 准确计数（不持久化，进程重启即清零）
+const _rateLimiter = createRateLimiter()
 
 // ===== 内部 helper（从 o1.js 移植）=====
 function buildSegments(data) {
@@ -190,9 +274,27 @@ export async function request(prepared, ctx) {
   if (!loginName || !password) {
     throw new Error('O1平台请求失败：缺少账密（credential.username/password 或 loginResult 未提供）')
   }
+
+  // ★ 滑动窗口限流：acquire 串行排队，等到窗口内请求数 < rateLimitPerMin 才放行
+  //   rateLimitPerMin 来自 cfg（= compiledConfig.rateLimitPerMin，TaskManager 启动时已编译为快照）
+  //   设为 0 / 负数 = 关闭限流（dev 调试可设 0 跳过限流）
+  await _rateLimiter.acquire(cfg.rateLimitPerMin)
+
   const requestBody = buildRequestBody(cfg, loginName, password, segments, validatingCarrier)
   const gzippedBody = gzipSync(Buffer.from(JSON.stringify(requestBody), 'utf-8'))
-  return await postGzip(cfg.baseURL, gzippedBody, cfg.timeout)
+  const rawResponse = await postGzip(cfg.baseURL, gzippedBody, cfg.timeout)
+
+  // ★ 429 被动冷却：携程服务端限流时返 429 + Retry-After（秒）
+  //   触发 cooldown 后，后续所有 acquire 会自动等待冷却到期再放行
+  //   这里抛错让 platformRunner 标记本任务 fail（避免无效重试打爆携程）
+  if (rawResponse.statusCode === 429) {
+    const retryAfterSec = rawResponse.headers?.['retry-after']
+    _rateLimiter.cooldown(retryAfterSec)
+    const cooldownDesc = Number(retryAfterSec) > 0 ? `${retryAfterSec}s` : '30s（默认）'
+    throw new Error(`O1平台 429 限流：触发被动冷却 ${cooldownDesc}（Retry-After: ${retryAfterSec || '(无)'}）`)
+  }
+
+  return rawResponse
 }
 
 /**
