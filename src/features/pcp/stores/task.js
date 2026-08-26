@@ -17,6 +17,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '@/shared/api.js'
 import message from '@/shared/message.js'
+import notification from '@/shared/notification.js'
 
 export const useTaskStore = defineStore('pcp-task', () => {
   // ==================== 步骤器数据 ====================
@@ -448,6 +449,26 @@ export const useTaskStore = defineStore('pcp-task', () => {
     await refreshPipelineState()
   }
 
+  /**
+   * BUG-2 错误弹窗：主进程按错误内容分组推送，前端弹 notification（不自动关闭）
+   *   同类型错误（相同 message）只弹一个，标题显示出现次数
+   *   payload: { stage, errors: [{ message, platforms: string[], count }] }
+   */
+  function handleTaskError(data) {
+    if (!data || !Array.isArray(data.errors)) return
+    const stageName = getStageName(data.stage)
+    for (const err of data.errors) {
+      const platformStr = err.platforms.join(', ')
+      const title = `[${stageName}] ${platformStr} · ${err.count} 个任务失败`
+      notification.error({
+        title,
+        content: err.message,
+        // 不自动关闭（duration: null 已在 notification.js 全局设置）
+        meta: new Date().toLocaleTimeString()
+      })
+    }
+  }
+
   function handleFileDownloadProgress(data) {
     if (!data || typeof data.progress !== 'number') return
     const { progress } = data
@@ -468,6 +489,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
       api.pcp.onTaskProgress(handleTaskProgress)
       api.pcp.onTaskState(handleTaskState)
       api.pcp.onTaskAllComplete(handleAllComplete)
+      api.pcp.onTaskError(handleTaskError)
       api.pcp.onFileDownloadProgress(handleFileDownloadProgress)
       api.pcp.onPipelineState(handlePipelineState)
       api.pcp.onPipelineGateFail(handlePipelineGateFail)

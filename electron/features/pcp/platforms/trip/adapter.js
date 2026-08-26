@@ -10,6 +10,7 @@ import { gzipSync, gunzipSync } from 'node:zlib'
 import { randomUUID } from 'node:crypto'
 import Decimal from 'decimal.js'
 import { configSchema, defaults } from './config.js'
+import { A2_FIELDS, A3_FIELDS, TRIP_RESPONSE_FIELDS, JXGJ_RESPONSE_FIELDS } from '../../fieldNames.js'
 
 export const key = 'trip'
 // 平台中文名：用于导出文件名（携程导入政策{日期}.xlsx / 携程底价检查{日期}.xlsx）和底价列名（携程底价）
@@ -110,8 +111,8 @@ const _rateLimiter = createRateLimiter()
 
 // ===== 内部 helper（从 o1.js 移植）=====
 function buildSegments(data) {
-  const CF_CITY = data.dateValue[0].C出发城市
-  const DD_CITY = data.dateValue[0].D到达城市
+  const CF_CITY = data.dateValue[0][A3_FIELDS.C出发城市]
+  const DD_CITY = data.dateValue[0][A3_FIELDS.D到达城市]
   const RIQI = data.dateKey
   if (!CF_CITY || !DD_CITY || !RIQI) {
     throw new Error(`O1平台请求失败：缺少必填字段（C出发城市/D到达城市/日期）实际：${JSON.stringify(data)}`)
@@ -181,7 +182,7 @@ function priceComparisonPolicy(originalData, resData) {
     const sampleItem = forData[0] || {}
     const sampleFlight = flights[0] || {}
     const sampleLp = lowPrices[0] || {}
-    const samplePrice = (sampleLp.prices && sampleLp.prices[0]) || {}
+    const samplePrice = (sampleLp[TRIP_RESPONSE_FIELDS.prices] && sampleLp[TRIP_RESPONSE_FIELDS.prices][0]) || {}
     // console.log('[trip/debug] ===== 字段名采样（仅一次） =====')
     // console.log('[trip/debug] jxgj item 字段:', Object.keys(sampleItem))
     // console.log('[trip/debug]   item.H航班号 =', sampleItem.H航班号, '| item.C出发机场 =', sampleItem.C出发机场, '| item.D到达机场 =', sampleItem.D到达机场, '| item.C出发日期 =', sampleItem.C出发日期, '| item.dijia =', sampleItem.dijia, '| item.C成人总票价_CNY_INT =', sampleItem.C成人总票价_CNY_INT)
@@ -200,39 +201,49 @@ function priceComparisonPolicy(originalData, resData) {
   let lostByPrice = 0  // 接口有低价但 dijia > sortIndicator（业务上比输了）
 
   forData.forEach(item => {
+    // BUG-5 修复：增加 null/undefined 检查，避免 String(undefined)==='undefined' 误匹配
+    //   任一字段为 null/undefined 时跳过该 item（不匹配）
+    const itemFlightNo = item[A3_FIELDS.H航班号]
+    const itemDepAirport = item[A3_FIELDS.C出发机场]
+    const itemArrAirport = item[A3_FIELDS.D到达机场]
+    const itemDate = item[JXGJ_RESPONSE_FIELDS.C出发日期]
+    if (itemFlightNo == null || itemDepAirport == null || itemArrAirport == null || itemDate == null) {
+      return
+    }
     const flights_related = flights.find(f =>
       f &&
-      String(f.flightNo) === String(item.H航班号) &&
-      String(f.departAirport) === String(item.C出发机场) &&
-      String(f.arriveAirport) === String(item.D到达机场) &&
-      String((f.takeOffDateTime || '').split(' ')[0]) === String(item.C出发日期)
+      f[TRIP_RESPONSE_FIELDS.flightNo] != null && f[TRIP_RESPONSE_FIELDS.departAirport] != null && f[TRIP_RESPONSE_FIELDS.arriveAirport] != null && f[TRIP_RESPONSE_FIELDS.takeOffDateTime] != null &&
+      String(f[TRIP_RESPONSE_FIELDS.flightNo]) === String(itemFlightNo) &&
+      String(f[TRIP_RESPONSE_FIELDS.departAirport]) === String(itemDepAirport) &&
+      String(f[TRIP_RESPONSE_FIELDS.arriveAirport]) === String(itemArrAirport) &&
+      String(f[TRIP_RESPONSE_FIELDS.takeOffDateTime].split(' ')[0]) === String(itemDate)
     )
     if (flights_related) matchedFlights++
 
     let lowPrice_related = null
-    if (flights_related?.flightId != null) {
-      const relatedLp = lowPrices.find(lp => Array.isArray(lp?.flightRefs) && lp.flightRefs.some(ref => ref?.flightId === flights_related.flightId))
+    if (flights_related?.[TRIP_RESPONSE_FIELDS.flightId] != null) {
+      const relatedLp = lowPrices.find(lp => Array.isArray(lp?.[TRIP_RESPONSE_FIELDS.flightRefs]) && lp[TRIP_RESPONSE_FIELDS.flightRefs].some(ref => ref?.[TRIP_RESPONSE_FIELDS.flightId] === flights_related[TRIP_RESPONSE_FIELDS.flightId]))
       if (relatedLp) {
-        const prices = Array.isArray(relatedLp.prices) ? relatedLp.prices : []
+        const prices = Array.isArray(relatedLp[TRIP_RESPONSE_FIELDS.prices]) ? relatedLp[TRIP_RESPONSE_FIELDS.prices] : []
         lowPrice_related = prices.find(lpr => {
-          const baggage = String(lpr?.baggage || '')
-          return baggage.includes('无免费托运行李额') && Number(lpr?.showState) === 1 && !lpr?.isOwn
+          const baggage = String(lpr?.[TRIP_RESPONSE_FIELDS.baggage] || '')
+          return baggage.includes('无免费托运行李额') && Number(lpr?.[TRIP_RESPONSE_FIELDS.showState]) === 1 && !lpr?.[TRIP_RESPONSE_FIELDS.isOwn]
         })
         if (!lowPrice_related) {
-          lowPrice_related = prices.find(lpr => Number(lpr?.showState) === 1 && !lpr?.isOwn)
+          lowPrice_related = prices.find(lpr => Number(lpr?.[TRIP_RESPONSE_FIELDS.showState]) === 1 && !lpr?.[TRIP_RESPONSE_FIELDS.isOwn])
         }
       }
     }
     if (lowPrice_related) matchedLowPrice++
 
-    const sortIndicator = Number(lowPrice_related?.sortIndicator)
+    const sortIndicator = Number(lowPrice_related?.[TRIP_RESPONSE_FIELDS.sortIndicator])
     const hasXcPrice = !isNaN(sortIndicator) && sortIndicator > 0
-    const dijia = Number(item.dijia) || 0
-    const totalCNY = Number(item.C成人总票价_CNY_INT) || 0
+    const dijia = Number(item[A2_FIELDS.dijia]) || 0
+    const totalCNY = Number(item[A2_FIELDS.C成人总票价_CNY_INT]) || 0
     if (hasXcPrice && dijia > 0 && dijia <= sortIndicator) {
       wonByPrice++
-      item.XC_dijia = sortIndicator
-      item.CUT_VALUE = new Decimal(sortIndicator).minus(totalCNY || 0).minus(1).toNumber()
+      item[A3_FIELDS.XC_dijia] = sortIndicator
+      item[A3_FIELDS.CUT_VALUE] = new Decimal(sortIndicator).minus(totalCNY || 0).minus(1).toNumber()
       resArr.push(item)
     } else if (hasXcPrice && dijia > sortIndicator) {
       lostByPrice++
@@ -258,7 +269,7 @@ function priceComparisonPolicy(originalData, resData) {
 export function prepareRequest(a2Item, _dateKey, compiledConfig) {
   const cfg = { ...defaults, ...compiledConfig }
   const segments = buildSegments(a2Item)
-  const validatingCarrier = a2Item.dateValue[0].H航司名 || cfg.validatingCarrier || ''
+  const validatingCarrier = a2Item.dateValue[0][A3_FIELDS.H航司名] || cfg.validatingCarrier || ''
   return { segments, validatingCarrier, cfg }
 }
 
@@ -323,6 +334,14 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
     const errMsg = errors.map(e => e?.Message || e?.message || JSON.stringify(e)).join('; ')
     throw new Error(`O1平台请求业务失败：Ack=${ack} - ${errMsg}`)
   }
+  // BUG-2 修复：检查 responseHeader.replyStatus（携程错误响应 Ack 可能仍=Success，但 replyStatus=ERROR）
+  //   例如密码错误时 HTTP 200 + Ack=Success + replyStatus=ERROR + message="用户名或者密码不正确"
+  //   不检查会导致错误被吞 → 任务标 completed → 148 个"成功"任务 processed=0
+  const replyStatus = String(resData?.responseHeader?.replyStatus || '').toLowerCase()
+  if (replyStatus && replyStatus !== 'success') {
+    const errMsg = resData?.responseHeader?.message || `replyStatus=${replyStatus}`
+    throw new Error(`O1平台业务错误：${errMsg}`)
+  }
   const processedDataArr = priceComparisonPolicy(a2Item, resData)
   const flightCount = resData?.responseBody?.flights?.length || 0
   const lowPriceCount = resData?.responseBody?.lowPrices?.length || 0
@@ -346,16 +365,16 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
 export const exportTemplate = {
   platform: 'trip',
   columns: [
-    { key: 'Name',             from: (item, cfg) => `${cfg.agentName || '王宇'}_${item.H航司名}_携程/${item.C出发机场}-${item.D到达机场}` },
+    { key: 'Name',             from: (item, cfg) => `${cfg.agentName || '王宇'}_${item[A3_FIELDS.H航司名]}_携程/${item[A3_FIELDS.C出发机场]}-${item[A3_FIELDS.D到达机场]}` },
     { key: 'Remark',           from: (_item, cfg) => cfg.agentRemark || '王宇_出官网' },
     { key: '优先级',            value: '90' },
     { key: '是否启用',          value: 'TRUE' },
     { key: '航程类型',          value: null },
-    { key: '航司匹配',          from: (item) => item.H航司名 },
-    { key: '出发机场',          from: (item) => item.C出发机场 },
-    { key: '到达机场',          from: (item) => item.D到达机场 },
+    { key: '航司匹配',          from: (item) => item[A3_FIELDS.H航司名] },
+    { key: '出发机场',          from: (item) => item[A3_FIELDS.C出发机场] },
+    { key: '到达机场',          from: (item) => item[A3_FIELDS.D到达机场] },
     { key: '航班号',            value: null },
-    { key: '舱位',              from: (item) => item.C舱位 },
+    { key: '舱位',              from: (item) => item[A3_FIELDS.C舱位] },
     { key: '起飞时间Start',     value: null },
     { key: '起飞时间End',       value: null },
     { key: '去程时间匹配排除',   value: null },
@@ -401,7 +420,7 @@ export const exportTemplate = {
     { key: '返程班期',          value: null },
     { key: '调价阶段',          value: '搜索' },
     { key: '调价增加百分比',     value: 0 },
-    { key: '调价固定加减钱',     from: (item) => item.CUT_VALUE },
+    { key: '调价固定加减钱',     from: (item) => item[A3_FIELDS.CUT_VALUE] },
     { key: '儿童调价增加百分比', value: 0 },
     { key: '儿童调价固定加减钱', value: 0 },
     { key: '价格基础类型',       value: '总价' },
@@ -410,7 +429,70 @@ export const exportTemplate = {
   ]
 }
 
+/**
+ * 账密验证：用最小化请求验证账密是否正确（添加/更新账号时调用）
+ *   发 1 条 OW 单程请求（固定测试航线 BKK→HKT），只看 replyStatus/Ack
+ *   不走限流器（验证是单次请求，不会触发 429）
+ *   不走 mergeResult 的比价逻辑（只关心账密对不对）
+ * @param {object} credential - { username, password }
+ * @returns {Promise<{ success: boolean, message?: string }>}
+ */
+export async function verifyCredential(credential) {
+  const cfg = { ...defaults, rateLimitPerMin: 0 }  // rateLimitPerMin=0 关闭限流
+  const loginName = credential?.username || ''
+  const password = credential?.password || ''
+  if (!loginName || !password) {
+    return { success: false, message: '用户名和密码不能为空' }
+  }
+  // 最小测试请求：1 条 OW 单程，固定航线 BKK→HKT（文档示例航线）
+  const segments = [{ segmentNo: 1, departCity: 'BKK', arriveCity: 'HKT', departDate: '2025-12-31' }]
+  const requestBody = buildRequestBody(cfg, loginName, password, segments, '')
+  let rawResponse
+  try {
+    const gzippedBody = gzipSync(Buffer.from(JSON.stringify(requestBody), 'utf-8'))
+    rawResponse = await postGzip(cfg.baseURL, gzippedBody, cfg.timeout)
+  } catch (err) {
+    return { success: false, message: `网络请求失败：${err.message}` }
+  }
+  // 解析响应，只检查鉴权相关字段
+  let bodyBuf = rawResponse.body
+  const contentEncoding = String(rawResponse.headers['content-encoding'] || '').toLowerCase()
+  if (contentEncoding.includes('gzip') && bodyBuf.length > 0) {
+    try { bodyBuf = gunzipSync(bodyBuf) }
+    catch (e) { return { success: false, message: `响应解压失败：${e.message}` } }
+  }
+  let resData
+  try { resData = JSON.parse(bodyBuf.toString('utf-8')) }
+  catch (e) { return { success: false, message: `响应解析失败：${e.message}` } }
+
+  // 账密验证判定：只区分"账密错误"vs"正常业务响应"
+  //   正常响应：Ack=Success + replyStatus ∈ {SUCCESS, NO_RESULT}
+  //     - SUCCESS：有结果，账密正确
+  //     - NO_RESULT：无匹配记录（如测试航线当天无航班），账密也正确
+  //   账密错误：Ack≠Success 或 replyStatus=ERROR
+  //     - 例如密码错误时 replyStatus=ERROR + message="用户名或者密码不正确"
+  const ack = resData?.ResponseStatus?.Ack
+  const replyStatus = resData?.responseHeader?.replyStatus
+  const message = resData?.responseHeader?.message || resData?.ResponseStatus?.Errors?.[0]?.Message || ''
+
+  if (rawResponse.statusCode === 429) {
+    return { success: false, message: '触发限流（429），请稍后再试' }
+  }
+  if (rawResponse.statusCode < 200 || rawResponse.statusCode >= 300) {
+    return { success: false, message: `HTTP ${rawResponse.statusCode}：${message}` }
+  }
+  if (ack && ack !== 'Success') {
+    return { success: false, message: message || `Ack=${ack}` }
+  }
+  // replyStatus=ERROR 才是账密/业务错误；SUCCESS/NO_RESULT 都是正常（账密正确）
+  if (replyStatus === 'ERROR') {
+    return { success: false, message: message || `replyStatus=ERROR` }
+  }
+  // 账密正确（SUCCESS 有结果 / NO_RESULT 无航班，都是正常响应）
+  return { success: true }
+}
+
 export default {
   key, displayName, configSchema, defaults,
-  compileConfig, login, prepareRequest, request, mergeResult, exportTemplate
+  compileConfig, login, prepareRequest, request, mergeResult, exportTemplate, verifyCredential
 }

@@ -106,7 +106,7 @@ export class TaskManager {
     }
 
     if (stage === 'o_combo') {
-      const hasAny = ['trip', 'o2', 'o3'].some(p => this.credentialManager.getSelected(p))
+      const hasAny = registry.O_PLATFORM_KEYS.some(p => this.credentialManager.getSelected(p))
       if (hasAny) return { success: true }
       return {
         success: false,

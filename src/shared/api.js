@@ -41,10 +41,10 @@ const mockApi = {
     taskStart:           () => { mockNotReady('pcp.taskStart');           return mockDelay({ success: false, message: '未连接主进程' }) },
     taskPause:           () => { mockNotReady('pcp.taskPause');           return mockDelay({ success: false, message: '未连接主进程' }) },
     taskGetState:        () => { mockNotReady('pcp.taskGetState');        return mockDelay({ tasks: [], isRunning: false, isPaused: false, currentStage: null, concurrency: 1, activeCount: 0 }) },
-    taskAddBatchByStage: () => { mockNotReady('pcp.taskAddBatchByStage'); return mockDelay({ success: false, message: '未连接主进程' }) },
     taskSetConcurrency:  () => { mockNotReady('pcp.taskSetConcurrency');  return mockDelay({ success: false, concurrency: 1 }) },
     onTaskProgress:      () => { mockNotReady('pcp.onTaskProgress') },
     onTaskAllComplete:   () => { mockNotReady('pcp.onTaskAllComplete') },
+    onTaskError:         () => { mockNotReady('pcp.onTaskError') },
     onTaskState:         () => { mockNotReady('pcp.onTaskState') },
 
     fileUploadXlsx:      () => { mockNotReady('pcp.fileUploadXlsx');      return mockDelay(null) },
@@ -134,6 +134,7 @@ function hasRealApi() {
 const LISTENER_METHODS = new Set([
   'pcp.onTaskProgress',
   'pcp.onTaskAllComplete',
+  'pcp.onTaskError',
   'pcp.onTaskState',
   'pcp.onFileDownloadProgress',
   'pcp.onPipelineState',

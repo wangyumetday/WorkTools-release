@@ -55,7 +55,8 @@ export class TaskScheduler {
       progress: t.progress ?? 0,
       startedAt: t.startedAt ?? null,
       finishedAt: t.finishedAt ?? null,
-      createdAt: t.createdAt ?? null
+      createdAt: t.createdAt ?? null,
+      result: t.result ?? null   // 透传 result（含 error / errorType / isFatal 等失败详情），供前端 TaskMonitor 展开查看
     }
   }
 
@@ -210,7 +211,16 @@ export class TaskScheduler {
         const finishedTasks = this.tasks.slice()
         const stage = this.currentStage
         this.currentStage = null
-        this.onAllComplete(finishedTasks, stage)
+        // BUG-3 修复：onAllComplete 可能返回 Promise（Pipeline.handleStageComplete 是 async）
+        // 不 await 会导致 auto 模式阶段衔接 fire-and-forget + 未捕获 rejection
+        try {
+          const ret = this.onAllComplete(finishedTasks, stage)
+          if (ret && typeof ret.then === 'function') {
+            await ret
+          }
+        } catch (err) {
+          console.error('[TaskScheduler] onAllComplete 抛错', err)
+        }
       }
       return
     }

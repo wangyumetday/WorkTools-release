@@ -28,6 +28,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { O_PLATFORM_KEYS } from './platforms/registry.js'
 
 const PIPELINE_STATE_FILE = 'pipelineState.json'
 
@@ -147,7 +148,7 @@ export class Pipeline {
       // jxgj completed 但还没点 o_combo → waiting_next
       const jxgj = this.stages.get('jxgj').status
       if (step === 'o_combo' && jxgj === 'completed') {
-        const anyORunningOrCompleted = ['trip', 'o2', 'o3'].some(p =>
+        const anyORunningOrCompleted = O_PLATFORM_KEYS.some(p =>
           ['running', 'completed', 'failed'].includes(this.stages.get(p).status)
         )
         if (!anyORunningOrCompleted) return 'waiting_next'
@@ -310,7 +311,7 @@ export class Pipeline {
       return { can: false, reason }
     }
     // 收集：所有 O 平台中 status === 'completed' 的（即使 0 条 processedData 也要导出表头）
-    const platformsToExport = ['trip', 'o2', 'o3'].filter(p => {
+    const platformsToExport = O_PLATFORM_KEYS.filter(p => {
       const s = this.stages.get(p)
       return s.status === 'completed'
     })
@@ -386,7 +387,7 @@ export class Pipeline {
     }
 
     // 3. 至少一个 O 平台启用 + 账号选中
-    const oPlatforms = ['trip', 'o2', 'o3']
+    const oPlatforms = O_PLATFORM_KEYS
     const enabledO = oPlatforms.filter(p => this.configManager?.isEnabled(p))
     if (enabledO.length === 0) {
       missing.push('o_config')
@@ -414,7 +415,7 @@ export class Pipeline {
           finishedAt: Date.now()
         })
       } else {
-        for (const p of ['trip', 'o2', 'o3']) {
+        for (const p of O_PLATFORM_KEYS) {
           const prev = this.stages.get(p)
           if (prev.status === 'running') {
             this._setStage(p, {
@@ -437,7 +438,7 @@ export class Pipeline {
           finishedAt: Date.now()
         })
       } else {
-        for (const p of ['trip', 'o2', 'o3']) {
+        for (const p of O_PLATFORM_KEYS) {
           const prev = this.stages.get(p)
           if (prev.status === 'running') {
             this._setStage(p, {
@@ -455,8 +456,8 @@ export class Pipeline {
 
   _invokeAddBatchByStage(stage) {
     const stageMap = {
-      jxgj: { source: () => this.fileManager.getA1().data, type: 'jxgj' },
-      o_combo: { source: () => this.fileManager.getA2().data, type: 'o_combo' }
+      jxgj: { source: () => this.fileManager.getA1Data(), type: 'jxgj' },
+      o_combo: { source: () => this.fileManager.getA2Data(), type: 'o_combo' }
     }
     const config = stageMap[stage]
     if (!config) return Promise.resolve({ success: false, message: '未知的阶段' })
@@ -468,11 +469,11 @@ export class Pipeline {
 
     // o_combo 阶段：在入队前**就**把每个 O 平台阶段标 running/skipped（细阶段状态立刻可见）
     if (stage === 'o_combo' && this.credentialManager) {
-      const hasAnyO = ['trip', 'o2', 'o3'].some(p => this.credentialManager.getSelected(p))
+      const hasAnyO = O_PLATFORM_KEYS.some(p => this.credentialManager.getSelected(p))
       if (!hasAnyO) {
         return Promise.resolve({ success: false, message: '未选择平台，请先在「账号管理」里为至少一个 O 平台选中账号' })
       }
-      for (const p of ['trip', 'o2', 'o3']) {
+      for (const p of O_PLATFORM_KEYS) {
         const enabled = this.configManager?.isEnabled(p)
         const credOk = !!this.credentialManager?.getSelected(p)
         if (!enabled) {
@@ -490,7 +491,7 @@ export class Pipeline {
 
     let tasks
     if (stage === 'o_combo') {
-      const enabledO = ['trip', 'o2', 'o3'].filter(p =>
+      const enabledO = O_PLATFORM_KEYS.filter(p =>
         this.configManager?.isEnabled(p) && this.credentialManager?.getSelected(p))
       tasks = []
       for (const item of sourceData) {
@@ -539,6 +540,9 @@ export class Pipeline {
         finishedAt: now
       })
 
+      // BUG-2 弹窗：收集失败任务的错误，按错误内容分组推给前端
+      this._emitTaskErrors(results, 'jxgj')
+
       if (this.mode === 'auto') {
         // 衔接 o_combo（即使 a2Count=0 也要跑：让 O 阶段收到 0 任务失败信息，而不是卡在 jxgj）
         this._syncLegacyFields()
@@ -557,7 +561,7 @@ export class Pipeline {
         if (byPlatform[type]) byPlatform[type].push(t)
       }
 
-      for (const p of ['trip', 'o2', 'o3']) {
+      for (const p of O_PLATFORM_KEYS) {
         const prev = this.stages.get(p)
         if (prev.status === 'skipped') continue  // 前面标 skipped 的不动
         const list = byPlatform[p] || []
@@ -594,7 +598,7 @@ export class Pipeline {
       // a3_merge：读 saveStageResults 后 fileManager.a3 的 count
       const a3Count = this.fileManager?.getA3()?.count || 0
       const jxgjStatus = this.stages.get('jxgj').status
-      const anyOCompleted = ['trip', 'o2', 'o3'].some(p => this.stages.get(p).status === 'completed')
+      const anyOCompleted = O_PLATFORM_KEYS.some(p => this.stages.get(p).status === 'completed')
       let a3Status = 'completed'
       let a3Error = undefined
       if (jxgjStatus !== 'completed') {
@@ -615,6 +619,9 @@ export class Pipeline {
         finishedAt: now
       })
 
+      // BUG-2 弹窗：收集 O 平台失败任务的错误，按错误内容分组推给前端
+      this._emitTaskErrors(results, 'o_combo')
+
       this._syncLegacyFields()
       this.emitState()
     }
@@ -630,6 +637,42 @@ export class Pipeline {
 
   emitState() {
     this.emit('pcp:pipeline:state', this.getState())
+  }
+
+  /**
+   * BUG-2 错误弹窗：收集 failed 任务的错误，按错误内容分组推 pcp:task:error
+   *   同类型错误（相同 message）堆叠为一个，避免错误多时堆满页面
+   *   前端收到后用 notification 弹窗（不自动关闭）
+   * @param {Array} results - 任务结果数组
+   * @param {string} stage - 'jxgj' | 'o_combo'
+   */
+  _emitTaskErrors(results, stage) {
+    if (!this.getMainWindow()) return
+    const failedTasks = results.filter(t => t.status === 'failed')
+    if (failedTasks.length === 0) return
+
+    // 按错误内容分组：相同 message 合并，记录出现次数和平台
+    const groups = new Map()
+    for (const t of failedTasks) {
+      const msg = t.result?.error || t.result?.message || '未知错误'
+      const platform = t.type || t.result?._usedCredential?.platform || stage
+      const key = msg
+      if (!groups.has(key)) {
+        groups.set(key, { message: msg, platforms: new Set([platform]), count: 1 })
+      } else {
+        const g = groups.get(key)
+        g.platforms.add(platform)
+        g.count++
+      }
+    }
+
+    // 推送给前端：数组，每项 { message, platforms: string[], count }
+    const errors = Array.from(groups.values()).map(g => ({
+      message: g.message,
+      platforms: Array.from(g.platforms),
+      count: g.count
+    }))
+    this.emit('pcp:task:error', { stage, errors })
   }
 }
 

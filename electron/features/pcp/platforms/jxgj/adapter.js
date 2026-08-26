@@ -6,6 +6,7 @@
 
 import { makeFloorPriceFn } from './formula.js'
 import { configSchema, defaults } from './config.js'
+import { A1_FIELDS, A2_FIELDS, A3_FIELDS, JXGJ_RESPONSE_FIELDS } from '../../fieldNames.js'
 
 // ===== 内部常量 =====
 const REQUEST_TIMEOUT_MS = 10000
@@ -57,7 +58,7 @@ async function fetchG1WithRetry(url, headers) {
 }
 
 function findItemByCwItem(item, cw_item) {
-  if (item.C舱位 !== cw_item) return false
+  if (item[A3_FIELDS.C舱位] !== cw_item) return false
   // let ZWS = item.套餐信息[0].座位数
   // console.log('item.套餐信息', item)
   let ZWS = item.S剩余座位数
@@ -65,7 +66,7 @@ function findItemByCwItem(item, cw_item) {
     ZWS = item.套餐信息[0].座位数
   }
   if (ZWS < 3) return false
-  const riqiStr = item.C出发时间_Date
+  const riqiStr = item[JXGJ_RESPONSE_FIELDS.C出发时间_Date]
   if (!riqiStr) return false
   const riqi = new Date(riqiStr)
   if (isNaN(riqi.getTime())) return false
@@ -109,9 +110,9 @@ export function prepareRequest(a1Item) {
     r: 4.01,
     currentPage: 1,
     pageSize: 200,
-    arrAirPort: a1Item.DD_jichang,
-    depAirPort: a1Item.CF_jichang,
-    carrier: a1Item.hangsi,
+    arrAirPort: a1Item[A1_FIELDS.DD_jichang],
+    depAirPort: a1Item[A1_FIELDS.CF_jichang],
+    carrier: a1Item[A1_FIELDS.hangsi],
   }
   return {
     url: baseURL + path + '?' + new URLSearchParams(params),
@@ -143,29 +144,31 @@ export function mergeResult(rawResponse, a1Item, compiledConfig = {}) {
   if (rawResponse.Msg != 'OK') {
     throw new Error(`G1 平台返回业务异常：${rawResponse.Msg || '未知错误'}`)
   }
+  // ARCH-2：无副作用——创建 a1Item 副本，不修改入参
+  //   原代码直接 a1Item.cangwei_arr = [] 修改入参，现在改为副本上操作
+  //   下游 fileManager.saveA2FromJxgjTasks 用返回的 inputData 作为 a2 项，副本即 a2
+  const a2Item = { ...a1Item }
   // cangwei_str 仅按英文逗号分隔拆舱位（用户语义：文件里给什么用什么，拆不出就是 0 个）
   //   "Y,J,F" → ['Y', 'J', 'F']
   //   "Y, J, F" → ['Y', 'J', 'F']（trim 空格）
   //   "YJF" → ['YJF']（单元素，API 单字符舱位匹配不到 → 0 个，符合"拆不出就 0"）
   //   "" → [] → 跳过整个 for 循环
-  const cwstr = a1Item.cangwei_str.split(',').map(s => s.trim()).filter(Boolean)
+  const cwstr = a2Item[A1_FIELDS.cangwei_str].split(',').map(s => s.trim()).filter(Boolean)
   const GW_data = rawResponse.Content.List
-  a1Item.cangwei_arr = []
-  // console.log(cwstr)
+  a2Item[A2_FIELDS.cangwei_arr] = []
   for (const cw_item of cwstr) {
-    // console.log(cw_item)
     const findItem = GW_data.find(item => findItemByCwItem(item, cw_item))
     if (findItem) {
-      findItem.C成人总票价_CNY_INT = Math.ceil(findItem.C成人总票价_CNY)
-      findItem.dijia = Math.ceil(floorPriceFormula(findItem.C成人总票价_CNY))
-      findItem.C出发日期 = findItem.C出发时间_Date.split(' ')[0]
-      a1Item.cangwei_arr.push(findItem)
+      findItem[A2_FIELDS.C成人总票价_CNY_INT] = Math.ceil(findItem[JXGJ_RESPONSE_FIELDS.C成人总票价_CNY])
+      findItem[A2_FIELDS.dijia] = Math.ceil(floorPriceFormula(findItem[JXGJ_RESPONSE_FIELDS.C成人总票价_CNY]))
+      findItem[JXGJ_RESPONSE_FIELDS.C出发日期] = findItem[JXGJ_RESPONSE_FIELDS.C出发时间_Date].split(' ')[0]
+      a2Item[A2_FIELDS.cangwei_arr].push(findItem)
     }
   }
-  a1Item.date_obj = {}
-  a1Item.cangwei_arr.forEach(item => {
-    if (!a1Item.date_obj[item.C出发日期]) a1Item.date_obj[item.C出发日期] = []
-    a1Item.date_obj[item.C出发日期].push(item)
+  a2Item[A2_FIELDS.date_obj] = {}
+  a2Item[A2_FIELDS.cangwei_arr].forEach(item => {
+    if (!a2Item[A2_FIELDS.date_obj][item[JXGJ_RESPONSE_FIELDS.C出发日期]]) a2Item[A2_FIELDS.date_obj][item[JXGJ_RESPONSE_FIELDS.C出发日期]] = []
+    a2Item[A2_FIELDS.date_obj][item[JXGJ_RESPONSE_FIELDS.C出发日期]].push(item)
   })
   // 返回兼容老 g1Request 的包装结构（阶段1过渡：保持下游 fileManager/controller/store 不破）
   // inputData 即增强后的 a2 项（含 cangwei_arr + date_obj）
@@ -176,7 +179,7 @@ export function mergeResult(rawResponse, a1Item, compiledConfig = {}) {
     resultMsg: '处理成功',
     data: {
       queryId: `G1_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      inputData: a1Item,
+      inputData: a2Item,
       result: rawResponse,
       processedValue: Math.floor(Math.random() * 10000),
       timestamp: new Date().toISOString()

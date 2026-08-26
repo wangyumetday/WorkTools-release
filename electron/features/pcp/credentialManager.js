@@ -15,6 +15,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import * as registry from './platforms/registry.js'
 
 /**
  * 本项目支持的全部业务平台（代码 key 用简称：锦绣国际 JXGJ / 携程OTA TRIP）
@@ -152,12 +153,24 @@ export class CredentialManager {
    * 添加账号
    *   - 自动生成 id（cred_<timestamp>）和 createdAt
    *   - 若该平台当前没选中账号，自动选中刚添加的这条（符合"刚加的立刻能用"心智）
+   *   - trip（携程）平台会先验证账密，验证失败不保存
    */
-  add(credential) {
+  async add(credential) {
+    // 账密验证：只有支持 verifyCredential 的平台才验证（如 trip）
+    //   jxgj 是公开 API 无账密，不验证
+    const platform = credential.platform || 'jxgj'
+    const adapter = _safeGetAdapter(platform)
+    if (adapter?.verifyCredential) {
+      const verifyResult = await adapter.verifyCredential(credential)
+      if (!verifyResult.success) {
+        return { success: false, message: `账号验证失败：${verifyResult.message}` }
+      }
+    }
+
     const newCredential = {
       id: `cred_${Date.now()}`,
       name: credential.name || '未命名',
-      platform: credential.platform || 'jxgj',
+      platform,
       username: credential.username || '',
       password: credential.password || '',
       remark: credential.remark || '',
@@ -174,7 +187,7 @@ export class CredentialManager {
       this.saveSelectedMap()
     }
 
-    return newCredential
+    return { success: true, credential: newCredential }
   }
 
   /**
@@ -202,12 +215,32 @@ export class CredentialManager {
   /**
    * 更新账密
    *   - 若修改导致 platform 变化：旧平台选中位要清空，新平台若没选中则自动选中它
+   *   - 修改了 username/password 时会先验证账密，验证失败不保存
    */
-  update(credential) {
+  async update(credential) {
     const index = this.credentials.findIndex(c => c.id === credential.id)
     if (index === -1) return { success: false, message: '账密不存在' }
     const oldPlatform = this.credentials[index].platform
     const newPlatform = credential.platform ?? oldPlatform
+
+    // 账密验证：username 或 password 变了才验证（只改名/备注不验证）
+    const oldCred = this.credentials[index]
+    const usernameChanged = credential.username && credential.username !== oldCred.username
+    const passwordChanged = credential.password && credential.password !== oldCred.password
+    if (usernameChanged || passwordChanged) {
+      const adapter = _safeGetAdapter(newPlatform)
+      if (adapter?.verifyCredential) {
+        // 用新值（未传则用旧值）验证
+        const verifyCred = {
+          username: credential.username || oldCred.username,
+          password: credential.password || oldCred.password
+        }
+        const verifyResult = await adapter.verifyCredential(verifyCred)
+        if (!verifyResult.success) {
+          return { success: false, message: `账号验证失败：${verifyResult.message}` }
+        }
+      }
+    }
 
     this.credentials[index] = { ...this.credentials[index], ...credential }
 
@@ -297,5 +330,17 @@ export class CredentialManager {
       result[p] = id ? (this.credentials.find(c => c.id === id) || null) : null
     }
     return result
+  }
+}
+
+/**
+ * 安全获取平台 adapter（registry.get 未注册时抛错，这里吞掉返回 null）
+ *   用于 add/update 时判断该平台是否支持 verifyCredential
+ */
+function _safeGetAdapter(platform) {
+  try {
+    return registry.get(platform)
+  } catch {
+    return null
   }
 }

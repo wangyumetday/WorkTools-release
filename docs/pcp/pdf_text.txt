@@ -1,0 +1,2972 @@
+
+
+1
+国际共享平台API使用说明
+• 1 介绍
+• 1.1 接入流程
+• 1.2 服务访问
+• 1.2.1 服务URL
+• 1.2.2 公布运价接口名
+• 1.2.3 私有单程运价接口名
+• 1.2.4 私有往返运价接口名
+• 1.2.5 低价看板查询接口名
+• 1.3 约定
+• 1.4 请求处理流程
+• 1.5 服务调用示例代码(Java)
+• 1.5.1 Maven项目配置
+• 1.5.2 新增公布运价请求示例报文
+• 1.5.3 接口调用实现
+• 2 运价接口说明
+• 2.1 限制
+• 2.2 请求报文结构
+• 2.2.1 报文格式
+• 2.2.2 请求头(RequestHeader)字段说明
+• 2.3 响应报文结构
+• 2.3.1 报文格式
+• 2.3.2 响应状态(ResponseStatus)字段说明
+• 2.3.3 响应头(ResponseHeader)字段说明
+• 2.3.4 新增/修改/删除/调价批量操作响应(BatchOperationResponse)
+• 2.3.4.1 批量操作响应示例报文
+• 2.3.4.2 批量操作响应(BatchOperationResponse)字段说明
+• 2.3.4.3 批量操作结果(ResultInfo)字段说明
+• 2.3.4.4 消息对象(Message)字段说明
+• 2.4 新增
+• 2.4.1 公布运价
+• 2.4.1.1 请求示例报文
+• 2.4.1.2 新增请求(PubFareAddRequest)字段说明
+• 2.4.1.3 公布运价记录(PubFareRecord)字段说明
+• 2.4.2 私有单程运价
+• 2.4.2.1 请求示例报文
+• 2.4.2.2 新增请求(PrvOwFareAddRequest)字段说明
+• 2.4.2.3 私有单程运价记录(PrvOwFareRecord)字段说明
+• 2.4.3 私有往返运价
+• 2.4.3.1 请求示例报文
+
+2
+• 2.4.3.2 新增请求(PrvRtFareAddRequest)字段说明
+• 2.4.3.3 私有往返运价记录(PrvRtFareRecord)字段说明
+• 2.4.4 响应结构
+• 2.5 删除
+• 2.5.1 fareIDList作为删除条件报文示例
+• 2.5.2 externalIDList作为删除条件报文示例
+• 2.5.3 deleteFareConditionList作为删除条件报文示例
+• 2.5.4 删除请求(DeleteRequest)字段说明
+• 2.5.5 运价ID(FareID)字段说明
+• 2.5.6 外部编号(ExternalID)字段说明
+• 2.5.7 删除运价条件(DeleteFareCondition)字段说明
+• 2.5.8 响应结构
+• 2.6 修改
+• 2.7 查询
+• 2.7.1 fareIDList作为查询条件报文示例
+• 2.7.2 externalIDList作为查询条件报文示例
+• 2.7.3 公布运价queryCondition作为查询条件报文示例
+• 2.7.4 私有运价queryCondition作为查询条件报文示例
+• 2.7.5 未指定任何查询条件报文示例
+• 2.7.6 查询请求(QueryRequest)字段说明
+• 2.7.7 公布运价查询条件(PubFareQueryCondition)字段说明
+• 2.7.8 私有运价查询条件(PrvFareQueryCondition)字段说明
+• 2.7.9 公布运价查询响应示例报文
+• 2.7.10 私有运价查询响应示例报文
+• 2.7.11 查询响应结构(QueryResponse)字段说明
+• 2.7.12 公布运价查询记录结构(PubFareQueryRecord)字段说明字段说明)
+• 2.7.13 私有运价查询记录结构(PrvFareQueryRecord)字段说明字段说明)
+• 2.8 调价
+• 2.8.1 请求示例报文
+• 2.8.2 调价请求(ChangePriceRequest)字段说明
+• 2.8.3 调价记录(ChangePriceRecord)字段说明
+• 2.8.4 响应结构
+• 2.9 低价看板查询
+• 2.9.1 请求示例报文
+• 2.9.2 低价请求(LowPriceRequest)字段说明
+• 2.9.3 低价查询条件(LowPriceQueryCondition)字段说明
+• 2.9.4 用户行程段(Segment)字段说明
+• 2.9.5 低价响应示例报文
+• 2.9.6 低价查询响应结果(LowPriceResponse)字段说明
+• 2.9.7 响应结果主体信息(LowPriceResponseBody)字段说明
+• 2.9.8 航班基础信息(FlightDataType)字段说明
+
+3
+• 2.9.9 航组价格信息(LowPriceDataType)字段说明
+• 2.9.10 航班引用信息(FlightRefDataType)字段说明
+• 2.9.11 价格信息(PriceDataType)字段说明
+• 2.9.12 政策信息(Policy)字段说明
+• 2.9.13 品牌信息(BrandName)字段说明
+• 2.10 运价池公布运价查询
+• 2.10.1 请求示例报文
+• 2.10.2 请求MegaFareSearchRequest字段说明
+• 2.10.3 查询条件(MegaFareSearchCondition)字段说明
+• 2.10.4 响应示例报文
+• 2.10.5 查询响应结果(MegaFareSearchResponse)字段说明
+• 2.10.6 响应结果主体信息Records说明
+• 2.10.7 响应结果节点信息(MegaFareData)字段说明
+• 3 CSD航线策略接口说明
+• 3.1 限制
+• 3.2 接口
+• 3.2.1 查询接口
+• 3.2.1.1 查询请求示例报文
+• 3.2.1.2 查询请求(CsdAllocationStrategyQueryRequest)字段说明字段说明)
+• 3.2.1.3 Csd航线策略查询条件(CsdAllocationStrategyQueryCondition)字段说明字段说明)
+• 3.2.1.4 查询返回示例报文
+• 3.2.1.5 查询返回(CsdAllocationStrategyQueryResponse)字段说明字段说明)
+• 3.2.1.6 Csd航线策略(CsdAllocationStrategy)字段说明字段说明)
+• 3.2.2新增接口
+• 3.2.2.1 新增请求示例报文
+• 3.2.2.2 新增请求(CsdAllocationStrategyAddRequest)字段说明字段说明)
+• 3.2.2.3 新增返回示例报文
+• 3.2.2.4 新增返回(CsdAllocationStrategyAddResponse)字段说明字段说明)
+• 3.2.3更新接口
+• 3.2.3.1 更新请求示例报文
+• 3.2.3.2 更新请求(CsdAllocationStrategyUpdateRequest)字段说明字段说明)
+• 3.2.3.3 更新返回示例报文
+• 3.2.3.4 更新返回(CsdAllocationStrategyUpdateResponse)字段说明字段说明)
+• 3.2.4删除接口
+• 3.2.4.1 删除请求示例报文
+• 3.2.4.2 删除请求(CsdAllocationStrategyDeleteRequest)字段说明字段说明)
+• 3.2.4.3 删除返回示例报文
+• 3.2.4.4 删除返回(CsdAllocationStrategyDeleteResponse)字段说明字段说明)
+1介绍
+为了提高供应商在携程网的政策投放效率，满足其业务需求，由携程机票研发部门开发了一套供应商运价维护API，
+
+4
+从模块维度分为公布运价、私有单程运价、私有往返运价和低价看板4个模块，从功能维度分为新增、修改、删除、查询和调
+价5个接口。
+1.1接入流程
+生产环境已有手工投放政策权限的帐号可直接使用,无需额外申请。
+测试环境需要通知对口业务联系携程供应商支持组申请帐号。
+1.2服务访问
+• 支持http或https访问，其中https协议，访问前需要预装CA证书或在调用端的程序中设置信任任何证书，否则无法正常访问。
+• 接口URL拼接规则：各环境服务URL+接口名
+例：测试环境服务公布运价新增接口URL:https://intlresource-exchdata.fat.ctripqa.com/api/pubFareAdd
+其中 https://intlresource-exchdata.fat.ctripqa.com/api/ 为对应环境服务URL, pubFareAdd为对应接口名
+1.2.1服务URL
+• 测试环境: https://intlresource-exchdata.fat.ctripqa.com/api/
+• 生产环境: https://intlresource-exchdata.ctrip.com/api/
+1.2.2公布运价接口名
+接口中文名接口URL
+新增pubFareAdd
+删除pubFareDelete
+修改pubFareUpdate
+查询pubFareQuery
+调价pubFareChangePrice
+1.2.3私有单程运价接口名
+接口中文名接口URL
+新增owFareAdd
+删除owFareDelete
+修改owFareUpdate
+查询owFareQuery
+调价owFareChangePrice
+1.2.4私有往返运价接口名
+接口中文名接口URL
+新增rtFareAdd
+删除rtFareDelete
+修改rtFareUpdate
+查询rtFareQuery
+调价rtFareChangePrice
+1.2.5低价看板查询接口名
+接口中文名接口URL
+低价看板查询lowPriceSearch
+1.3约定
+服务的调用方（供应商）和提供方（携程）在服务过程中，需要遵循如下约定：
+• 请求、响应报文字符编码为UTF-8
+• 请求、响应报文的序列化方式为Json+Gzip
+• 调用方负责请求报文压缩和响应报文解压缩，并确保Http Request Header中包含如下信息
+• Content-Type=application/json;charset=UTF-8
+
+5
+• Content-Transfer-Encoding=gzip
+• Transfer-Encoding=chunked
+• Accept-Encoding=gzip
+• 提供方负责请求报文解压缩和响应报文压缩，并确保Http Response Header中包含如下信息
+• Content-Type=application/json;charset=UTF-8
+• Content-Encoding=gzip
+• Transfer-Encoding=chunked
+1.4请求处理流程
+!avatar
+1. 客户端构建请求报文
+2. gzip压缩请求
+3. 发送请求
+4. 服务端接收请求并gzip解压缩请求
+5. 处理请求构建响应报文
+6. gzip压缩响应
+7. 返回至客户端
+8. 客户端接收并解压缩响应
+1.5服务调用示例代码(Java)
+示例使用Apache Http Client作为Http访问组件，需要引入相关lib。
+1.5.1Maven项目配置
+<dependencies>
+    <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpclient</artifactId>
+        <version>4.5.8</version>
+    </dependency>
+    <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>jcl-over-slf4j</artifactId>
+    </dependency>
+</dependencies>
+1.5.2新增公布运价请求示例报文
+{
+  "requestHeader": {
+    "requestID": "c444550d-cd07-4dbb-b4fd-17f4c705ae8e",
+    "loginName": "your login name",
+    "password": "your password",
+    "language": "zh_CN"
+  },
+  "records": [
+    {
+      "seq": 1,
+      "tripType": "RT",
+      "owner": "CA",
+      "interlineApplicable": true,
+      "salesDate": "2019-08-13>2025-06-01",
+      "commition": "20.50",
+      "profit": 20,
+      "commissionCalculation": 1,
+      "fareType": "Amadeus",
+      "invoiceType": 0,
+      "forSmallGroup": 2,
+      "publicToPrivate": false,
+      "forFilePrvOwFare": 2,
+      "applicableFareSource": 2,
+      "transferApplication": 2,
+      "allowOpenJaw": 2,
+      "cSApplicableNew": 2,
+      "fareID": 1,
+      "externalID": "d0a9e4d1-a75c-43fe-813e-b4b2b0c6f296",
+      "policyID": "d0a9e4d1-a75c-43fe-813e-b4b2b0c6f296",
+      "combinablePolicyID": "d0a9e4d1-a75c-43fe-813e-b4b2b0c6f296",
+      "depCity": "BJS",
+      "arrCity": "LAX",
+      "depCityExcept": "",
+      "arrCityExcept": "",
+      "seatClass": "Y/S",
+
+6
+      "interlineAirlineCode": "CZ",
+      "interlineAirlineCodeExcept": "MH/MU",
+      "outboundTravelDate": "2019-08-13>2025-06-01",
+      "fCInboundTravelDate": "2019-08-13>2025-06-01",
+      "ticketingDeadline": "",
+      "transferPoint": "SHA",
+      "ticketingRemark": "",
+      "workingTime": "",
+      "nationality": "",
+      "excludeNationality": "",
+      "penalties": 0,
+      "ticketingCity": "BJS",
+      "saleMarket": "CN",
+      "brandName": "SmartFare",
+      "priceRange": "10-20/20-30",
+      "excludeSaleMarket": "MK/HK",
+      "fareBasis": "",
+      "officeNo": "SHA888"
+    },
+    {
+      "seq": 2,
+      "tripType": "RT",
+      "owner": "CA",
+      "interlineApplicable": true,
+      "salesDate": "2019-08-13>2025-06-01",
+      "commition": "20.50",
+      "profit": 20,
+      "commissionCalculation": 1,
+      "fareType": "Amadeus",
+      "invoiceType": 0,
+      "forSmallGroup": 2,
+      "publicToPrivate": false,
+      "forFilePrvOwFare": 2,
+      "applicableFareSource": 2,
+      "transferApplication": 2,
+      "allowOpenJaw": 2,
+      "cSApplicableNew": 2,
+      "fareID": 2,
+      "externalID": "5c2c235f-09c8-48db-bd45-042464a32fec",
+      "policyID": "5c2c235f-09c8-48db-bd45-042464a32fec",
+      "combinablePolicyID": "5c2c235f-09c8-48db-bd45-042464a32fec",
+      "depCity": "BJS",
+      "arrCity": "LAX",
+      "depCityExcept": "",
+      "arrCityExcept": "",
+      "seatClass": "Y/S",
+      "interlineAirlineCode": "CZ",
+      "interlineAirlineCodeExcept": "MH/MU",
+      "outboundTravelDate": "2019-08-13>2025-06-01",
+      "fCInboundTravelDate": "2019-08-13>2025-06-01",
+      "ticketingDeadline": "",
+      "transferPoint": "SHA",
+      "ticketingRemark": "",
+      "workingTime": "",
+      "nationality": "",
+      "excludeNationality": "",
+      "penalties": 0,
+      "ticketingCity": "BJS",
+      "saleMarket": "CN",
+      "brandName": "SmartFare",
+      "priceRange": "10-20/20-30",
+      "excludeSaleMarket": "MK/HK",
+      "fareBasis": "",
+      "officeNo": "SHA888"
+    }
+  ]
+}
+1.5.3接口调用实现
+package com.ctrip.flight.intl.trade.openapi.example;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.http.Header;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpStatus;
+import org.apache.http.ParseException;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.entity.GzipCompressingEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.ssl.SSLContextBuilder;
+import org.apache.http.util.EntityUtils;
+import javax.net.ssl.SSLContext;
+import java.io.IOException;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.List;
+public class OpenAPIExample {
+    private final Log log = LogFactory.getLog(getClass());
+
+7
+    // Connection establishment timeout time 3 seconds unit milliseconds
+    private static final int CONNECT_TIMEOUT = 3000;
+    // Socket timeout 25 seconds unit milliseconds
+    private static final int SOCKET_TIMEOUT = 25000;
+    /*
+     * CloseableHttpClient Thread safe
+     * reference httpComponents-client-ga/tutorial 1.2.1. HttpClient thread safety
+     * HttpClient implementations are expected to be thread safe. It is recommended that the same instance
+     * of this class is reused for multiple request executions.
+     */
+    private CloseableHttpClient httpClient;
+    private CloseableHttpClient getHttpClient() throws KeyStoreException, NoSuchAlgorithmException,
+            KeyManagementException {
+        if (null != httpClient) {
+            return httpClient;
+        }
+        RequestConfig reqConfig = RequestConfig.custom()
+                .setConnectTimeout(CONNECT_TIMEOUT)
+                .setSocketTimeout(SOCKET_TIMEOUT)
+                /*
+                 * ContentCompressionEnabled set true , http Request add header Accept-Encoding:gzip,deflate 
+                 */
+                .setContentCompressionEnabled(true).build();
+        SSLContext sslCtx = SSLContextBuilder.create().loadTrustMaterial(null, (x, s) -> {
+            return true;
+        }).build();
+        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslCtx, NoopHostnameVerifier.INSTANCE);
+        List<Header> defaultHeaderList = new ArrayList<>();
+        // default request header
+        defaultHeaderList.add(new BasicHeader("Content-Type", "application/json;charset=UTF-8"));
+        HttpClientBuilder builder = HttpClients.custom()
+                .setDefaultRequestConfig(reqConfig)
+                .setDefaultHeaders(defaultHeaderList)
+                .setSSLSocketFactory(factory);
+        synchronized (OpenAPIExample.class) {
+            if (httpClient == null) {
+                httpClient = builder.build();
+            }
+        }
+        return httpClient;
+    }
+    public void publicFareAdd() throws Exception {
+        CloseableHttpClient httpClient = getHttpClient();
+        HttpPost httpPost = new HttpPost("Interface Url");
+        StringEntity requestEntity = new StringEntity("jsonData","UTF-8");
+        /*
+         * using GzipCompressingEntity
+         */
+        httpPost.setEntity(new GzipCompressingEntity(requestEntity));
+        try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
+            HttpEntity responseEntity = response.getEntity();
+            int statusCode = response.getStatusLine().getStatusCode();
+            if (statusCode == HttpStatus.SC_OK) {
+                log.info("request success response content:" + EntityUtils.toString(responseEntity));
+            } else {
+                log.info("request fail response content:" + EntityUtils.toString(responseEntity));
+            }
+        } catch (ParseException | IOException e) {
+            log.error("request execute occur exception", e);
+        } finally {
+            releaseClient();
+        }
+    }
+    private void releaseClient() {
+        try {
+            httpClient.close();
+        } catch (Exception ignore) {
+        }
+    }
+}
+其它接口调用与示例类似，差异在于接口URL、请求报文，以及对响应报文的处理。
+2.运价接口说明
+公布运价、私有单程运价和私有往返运价3个模块各接口(新增/修改/删除/查询/调价)的处理逻辑和限制是一致，因此下文在介绍
+时没有区分模块。部分接口的请求/响应报文模块间会有差异，下文会分别介绍。
+低价看板查询可直接接生产环境，数据更准确
+2.1限制
+• 同一账号每天新增运价数量上限为50W（可以找业务申请放大每天新增数据数量）
+• 每次请求间隔不低于20秒，高于这个频率，携程OPS可能会认为是恶意攻击，封锁IP，导致API无法正常使用
+• 新增/修改/删除/调价接口
+
+8
+• 请求报文中的Seq字段必填，起始值从1开始，不能重复
+• 请求中运价数量上限为5W，超出上限时，接口调用会失败，给予错误提示
+• 查询接口返回运价数量上限为1W,超出时将截取1W条返回
+• 低价看板查询为单条可并发请求，每分钟限制210条
+2.2请求报文结构
+分为请求头(RequestHeader)和请求体(RequestBody)两部分，请求头各接口相同，请求体各接口不同，具体见各接口说明。
+2.2.1报文格式
+{
+  "requestHeader": {
+    "requestID": "b833fae2-8a52-4c35-9fb0-18f0c8c8e604",
+    "loginName": "your login name",
+    "password": "your password",
+    "language":"zh_CN"
+  },
+  "requestBody": " ..."
+}
+2.2.2请求头(RequestHeader)字段说明
+行号字段数据类型是否必填描述
+1requestIDstring是请求ID:用于跟踪排查问题,调用方
+保证其唯一性
+2loginNamestring是登录用户名:供应商(主账户/子账户)
+3passwordstring是登录密码
+4languagestring否语言选项:默认zh_CN,单选(en_US/
+zh_CN),消息会按照所选语言进行
+切换
+2.3响应报文结构
+分为响应状态（ResponseStatus）、响应头(ResponseHeader)和响应体(ResponseBody)三部分，响应状态、响应头各接口相
+同，响应体新增/修改/删除/调价是相同的具体见章节2.4，查询接口公布和私有有差异，具体见接口说明。
+2.3.1报文格式
+{
+    "ResponseStatus": {
+        "Timestamp": "2019-08-28T18:01:38.617+08:00",
+        "Ack": "Success",
+        "Errors": []
+    },
+    "responseHeader": {
+        "requestID": "b833fae2-8a52-4c35-9fb0-18f0c8c8e604",
+        "transactionID": "52e7e967-c41a-4471-ac19-0276103fabb8",
+        "replyStatus": "SUCCESS",
+        "message": "Success"
+    },
+    "responseBody": " ..."
+}
+2.3.2响应状态(ResponseStatus)字段说明
+行号字段数据类型是否必填描述
+1Timestampstring是响应时间
+2Ackstring是Success成功,其它均为接口调用失
+败
+3Errorsstring是当状态不为Success时，会输出错
+误原因
+2.3.3响应头(ResponseHeader)字段说明
+行号字段数据类型是否必填描述
+1requestIDstring是请求ID:回填入参时RequestID
+2transactionIDstring是API事务ID
+3replyStatusstring是响应状态:SUCCESS成功;NO_RE
+SULT无结果;ERROR错误
+4messagestring是响应消息:消息提示
+2.3.4新增/修改/删除/调价批量操作响应(BatchOperationResponse)
+
+9
+2.3.4.1批量操作响应示例报文
+{
+    "ResponseStatus": " ",
+    "responseHeader": " ",
+    "totalCount": 4,
+    "successCount": 1,
+    "warnSuccessCount": 0,
+    "failCount": 3,
+    "successList": [
+        {
+            "externalID": "315010c9-b20d-46f0-a296-ab50ff6aa534",
+            "fareID": 892777945,
+            "seq": 1
+        }
+    ],
+    "warnList": [],
+    "failList": [
+        {
+            "messageRefNum": 1,
+            "seq": 2
+        },
+        {
+            "messageRefNum": 1,
+            "seq": 3
+        },
+        {
+            "messageRefNum": 2,
+            "seq": 4
+        }
+    ],
+    "messageList": [
+        {
+            "content": "OutboundReBookingFee:          ",
+            "refNum": 1
+        },
+        {
+            "content": "            58e798db-58df-442c-8e5a-a31e0513991b",
+            "refNum": 2
+        }
+    ]
+}
+2.3.4.2批量操作响应(BatchOperationResponse)字段说明
+行号字段数据类型是否必填描述
+1ResponseStatusResponseStatus是响应状态:2.3.2 响应状态(Respons
+eStatus)字段说明
+2responseHeaderResponseHeader是响应头:2.3.3 响应头(ResponseHe
+ader)字段说明
+3totalCountint是总记录数
+4successCountint是成功记录数
+5warnCountint是警告记录数
+6failCountint是失败记录数
+7successListlist是
+成功记录明细:每个元素是操作结果
+(ResultInfo)
+8warnListlist是警告记录明细:操作成功，但有提示
+信息,每个元素是批量操作结果(Re
+sultInfo)
+9failListlist是
+失败记录明细:每个元素是批量操作
+结果(ResultInfo)
+10messageListlist是消息列表:每个元素是消息提示(Me
+ssage)
+2.3.4.3批量操作结果(ResultInfo)字段说明
+行号字段数据类型是否必填描述
+1seqint是
+序号:从1开始,请求内唯一不可重复
+,批量操作结果回填此字段，根据S
+eq值关联对应结果
+2fareIDint是
+新增成功时返回OpenAPI生成ID编
+号;修改/删除/调价时回填入参fareI
+D;失败时:不返回
+3externalIDint是回填入参ExternalID;失败时:不返回
+4ownerint是仅删除操作时可用:回填删除条件(
+DeleteCondition)owner字段
+5policyIDint是
+仅删除操作时可用:回填除条件(Del
+eteCondition)policy字段
+6messageRefNumint是
+消息索引编号,从1开始, 例:Messag
+eRefNum=1,对应BatchOperationR
+esponse->MessageList->RefNum
+=1的消息记录,null成功记录没有消
+息
+
+10
+2.3.4.4消息对象(Message)字段说明
+行号字段数据类型是否必填描述
+1refNumint是
+消息索引编号,批量操作结果(Resul
+tInfo)的messageRefNum与该字段
+值关联获取对应文本消息
+2contentint是文本消息
+2.4新增
+2.4.1公布运价
+2.4.1.1请求示例报文
+{
+  "requestHeader": {
+    "requestID": "19f38700-d1fa-49d5-ade8-fdad9c05f1f1",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "records": [
+    {
+      "seq": 1,
+      "tripType": "RT",
+      "owner": "CA",
+      "interlineApplicable": true,
+      "salesDate": "2019-08-13>2025-06-01",
+      "commition": "20.50",
+      "profit": 20,
+      "commissionCalculation": 1,
+      "fareType": "Amadeus",
+      "invoiceType": 0,
+      "forSmallGroup": 2,
+      "publicToPrivate": false,
+      "forFilePrvOwFare": 2,
+      "applicableFareSource": 2,
+      "transferApplication": 2,
+      "allowOpenJaw": 2,
+      "cSApplicableNew": 2,
+      "fareID": null,
+      "externalID": "742c125f-11f7-4b1c-b4d9-a8abd49dbd27",
+      "policyID": "742c125f-11f7-4b1c-b4d9-a8abd49dbd27",
+      "combinablePolicyID": "742c125f-11f7-4b1c-b4d9-a8abd49dbd27",
+      "depCity": "BJS",
+      "arrCity": "LAX",
+      "depCityExcept": "",
+      "arrCityExcept": "",
+      "seatClass": "Y/S",
+      "interlineAirlineCode": "CZ",
+      "interlineAirlineCodeExcept": "MH/MU",
+      "outboundTravelDate": "2019-08-13>2025-06-01",
+      "fCInboundTravelDate": "2019-08-13>2025-06-01",
+      "ticketingDeadline": "",
+      "transferPoint": "SHA",
+      "ticketingRemark": "",
+      "workingTime": "",
+      "nationality": "",
+      "excludeNationality": "",
+      "penalties": 0,
+      "ticketingCity": "BJS",
+      "isPenaltiesAdvantage": 0,
+      "shareAirlineCode": "LH",
+      "shareAirlineCodeExcept": "",
+      "routingExcept": "SEL-TYO/CN-TYO",
+      "saleMarket": "CN",
+      "brandName": "SmartFare",
+      "priceRange": "10-20/20-30",
+      "excludeSaleMarket": "MK/HK",
+      "fareBasis": "",
+      "officeNo": "SHA888"
+    },
+    {
+      "seq": 2,
+      "tripType": "RT",
+      "owner": "CA",
+      "interlineApplicable": true,
+      "salesDate": "2019-08-13>2025-06-01",
+      "commition": "20.50",
+      "profit": 20,
+      "commissionCalculation": 1,
+      "fareType": "Amadeus",
+      "invoiceType": 0,
+      "forSmallGroup": 2,
+      "publicToPrivate": false,
+      "forFilePrvOwFare": 2,
+      "applicableFareSource": 2,
+      "transferApplication": 2,
+      "allowOpenJaw": 2,
+      "cSApplicableNew": 2,
+      "fareID": null,
+      "externalID": "66bca9bb-1d23-4f54-893e-b739d55b9ec7",
+      "policyID": "66bca9bb-1d23-4f54-893e-b739d55b9ec7",
+      "combinablePolicyID": "66bca9bb-1d23-4f54-893e-b739d55b9ec7",
+      "depCity": "BJS",
+      "arrCity": "LAX",
+
+11
+      "depCityExcept": "",
+      "arrCityExcept": "",
+      "seatClass": "Y/S",
+      "interlineAirlineCode": "CZ",
+      "interlineAirlineCodeExcept": "MH/MU",
+      "outboundTravelDate": "2019-08-13>2025-06-01",
+      "fCInboundTravelDate": "2019-08-13>2025-06-01",
+      "ticketingDeadline": "",
+      "transferPoint": "SHA",
+      "ticketingRemark": "",
+      "workingTime": "",
+      "nationality": "",
+      "excludeNationality": "",
+      "penalties": 0,
+      "ticketingCity": "BJS",
+      "shareAirlineCode": "LH",
+      "shareAirlineCodeExcept": "",
+      "routingExcept": "SEL-TYO/CN-TYO",
+      "saleMarket": "CN",
+      "brandName": "SmartFare",
+      "priceRange": "10-20/20-30",
+      "excludeSaleMarket": "MK/HK",
+      "fareBasis": "",
+      "officeNo": "SHA888"
+    }
+  ]
+}
+2.4.1.2新增请求(PubFareAddRequest)字段说明
+行号字段数据类型是否必填描述
+1requestHeaderRequestHeader是请求头:2.2.2
+请求头(RequestHeader)字段说明
+2recordslist是
+新增记录列表:每个元素为2.4.1.3
+公布运价记录(PubFareRecord)字
+段说明
+2.4.1.3公布运价记录(PubFareRecord)字段说明
+行号字段数据类型是否必填描述
+1seqint是
+序号:从1开始,请求内唯一不可重复
+,批量操作结果回填此字段，根据S
+eq值关联对应结果
+2tripTypestring是行程类型:(OW=单程;RT=往返;BO
+TH=全部)
+3ownerstring是开票航司:航司二字代码,只允许录
+入一家,要做航司是否存在check
+4interlineApplicableboolean是是否适用于联运:true=是;false=否
+5salesDatestring是销售日期:2014-11-01>2015-06-01
+,只允许录入一个,做日期check
+6commitionstring是
+返点:整数,最多允许保留两位小数,
+当返点大于30时会进入异常运价，
+需要手动解挂
+7profitint是结算留钱:只支持正负整数输入;-20
+表示返20元,20代表留20元,当留钱
+小于-1000时提示警告,但是可以继
+续保存
+8commissionCalculationint是1/2RT佣金计算方式:单选
+(1=取严;2=各取各)
+9fareTypestring是运价类型:单选(BSP;Amadeu;Web
+Site(航司官网);Abacus;Galileo),请
+录入字母
+10invoiceTypeint是
+报销凭证:0=旅游发票;1=行程单;2=
+电子发票
+11forSmallGroupint是是否适用小团价:单选(0=否;1=是;2
+=不限)
+12publicToPrivateboolean是是否公布转私有:true=是;false=否
+13forFilePrvOwFareint是
+是否适用文件私有Ow运价:单选(0=
+否;1=是;2=不限)
+14applicableFareSourceint是可适用运价来源:(1=ATPCO 公布
+运价;2=ATPCO私有运价;3=不限)
+15transferApplicationint是是否适用于中转:(0=否,表示仅适用
+直飞;
+1=是,表示仅适用中转;2=不限)
+16allowOpenJawint是是否允许缺口:(0=否,表示不允许缺
+口;1=是,表示仅适用缺口;2=不限)
+17cSApplicableNewint是
+是否适用代码共享航班:(0=否,表示
+仅适用实际承运;1=是,表示仅适用
+代码共享;2=不限)
+18fareIDlong否运价ID:由API生成新增时无需输入
+
+12
+行号字段数据类型是否必填描述
+19externalIDstring否
+外部编号:自由录入格式,如SHA570
+0FF500 不可重复,最大长度50(中
+文占2个长度)
+20policyIDstring否文件编号:自由录入格式,如SHA570
+0FF500,最大长度50(中文占2个长
+度)
+21combinablePolicyIDstring否可组文件编号:自由录入格式,如SH
+A5700FF500,当文件编号有值时,
+可组文件编号也必须要有值,最大长
+度50(中文占2个长度)
+22depCitystring否
+出发地:城市三代 如SHA/NYC/SEL
+国家二代 如CN/US/KR 大区四代
+如SEAS/JPKR/NAME TC区代码
+如TC1/TC2/TC 为空表示不限制 允
+许混合录入,可录入多个用/隔开表
+示多个最多允许录入100个,要做是
+否存在check
+23arrCitystring否目的地:同上
+24depCityExceptstring否出发地除外:同上
+25arrCityExceptstring否目的地除外:同上
+26seatClassstring否
+适用舱位:舱位代码,可录入多个用/
+隔开表示多个;为空表示不限制
+27interlineAirlineCodestring否适用联运航司:航司二字代码,允许
+录入多个用/隔开表示或的关系,最
+多允许录入20家航司,可为空表示
+不限制,要做航司是否存在check
+28interlineAirlineCodeExceptstring否除外联运航司:同上
+29outboundTravelDatestring否
+去程旅行日期:2014-11-01>2015-0
+6-01,允许录入多个用/隔开表示或
+的关系,可为空表示不限制,做日期c
+heck
+30fCInboundTravelDatestring否回程旅行日期:同上
+31passengerTypestring否乘客类型:三种乘客类型:成人/成人
+陪伴儿童/无座婴儿(0/1/2),可录入
+多个用/隔开表示或的关系,可以为
+空默认全部,请输入数字
+32eligibilitystring否
+旅客资质:两种旅客资质:普通/留学
+生 (0/1),可以为空默认全部,请输入
+数字
+33ticketingDeadlinestring否出票时限:举例0-365,7,3表示至少
+于预订后7天内出票或起飞前3天前
+出票
+34transferPointstring否指定转机点:支持城市三代/国家二
+代/大区四代
+，多个用“/”隔开；为空不限制
+35ticketingRemarkstring否出票备注:QTE需使用特使指令QT
+E:/XXXX
+36workingTimestring否工作时间:09:00-18:00表示每一天
+的早上9点到下午6点;09:00MON-1
+8:00FRI表示周一到周五的每天早
+上9点到下午6点,可为空,表示不限
+制
+37nationalitystring否国籍:国家二字代码,可录入多个用/
+隔开表示或的关系,为空表示不限制
+38excludeNationalitystring否除外国籍:同上
+39penaltiesint否
+退费费用:当"是否公布转私有"为"
+是"时,"退改费用"为必填值,1至2位
+的正整数.该字段为百分比
+40ticketingCitystring否出票城市:录入一个城市三代; 当运
+价类型为amadeus时必填，改回B
+SP时记得去除
+41isPenaltiesAdvantageshort否是否退改公转优:0:否,1:是 默认否
+,已废弃，只能传否
+42shareAirlineCodestring否
+适用共享航司:航司二字代码，允许
+录入多个用/隔开表示或的关系，空
+表示不限；与除外共享航司互斥二
+选一
+43shareAirlineCodeExceptstring否除外共享航司:航司二字代码，允许
+录入多个用/隔开表示或的关系，空
+表示不限；与适用共享航司互斥二
+选一
+44routingExceptstring否除外航线:支持大区四代、国家二代
+，城市三代；多个用/隔开；格式：
+SEL-TYO/CN-TYO
+45saleMarketstring否销售市场，可多个，多个用/隔开
+
+13
+行号字段数据类型是否必填描述
+46brandNamestring否
+品牌运价，航司brandname，多个
+用/隔开
+47priceRangestring否票价区间，格式0-200/201-301，
+多个用/隔开。为空表示不限
+48interlineApplicableNewint否
+是否适用于联运(新) 0.不适用联运
+1.不限 2.仅适用联运 ;需要和携程
+确认权限已经开通，若已经开通，
+可以为interlineApplicableNew赋值
+49excludeSaleMarketstring否除外销售市场，可多个，多个用/隔
+开
+50fareBasisstring否
+FareBasis（票价基础），可录入
+多个用/隔开表示多个；为空表示不
+限制
+51IsStandardPenaltiesPrivateboolean否IsStandardPenaltiesPrivate
+综合特惠
+52IsAllowStopoverOutboundint否
+是否允许去程中转停留
+0=不限；1=仅适用停留；2=否
+53IsAllowStopoverInboundint否是否允许回程中转停留
+0=不限；1=仅适用停留；2=否
+54ExcludeSeatClassstring否
+除外舱位 舱位代码,可录入多个用/
+隔开表示多个;为空表示不限制;修
+改时NONE表示置空
+55OfficeNostring是
+订位officeNo,运价类型（fareType
+字段）=website时，officeno允许
+为空；其他情况下必传
+56flightNosstring否指定航班号，多个用/隔开；修改时
+NONE表示置空
+57excludeFlightNosstring否除外航班号，多个用/隔开；修改时
+NONE表示置空
+58excludeFareBasisstring否除外FareBasis，可录入多个用/隔
+开；修改时NONE表示置空
+59isStopSalesshort否提前1小时关闭销售，0=是，1=否
+2.4.2私有单程运价
+2.4.2.1请求示例报文
+{
+  "requestHeader": {
+    "requestID": "705f42a1-84bd-4408-8c0f-55f2eabf56ab",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "records": [
+    {
+      "seq": 1,
+      "productType": 1,
+      "owner": "CA",
+      "airport": false,
+      "departCity": "SHA",
+      "arriveCity": "VII",
+      "routing": "SHA-CA-VII",
+      "routingClass": "Y",
+      "allowStopoverOutbound": false,
+      "outboundDayTime": "1234567",
+      "outboundDayTimeIndicator": 0,
+      "fCOutboundTravelDate": "2015-07-10>2020-10-31",
+      "fCOutboundTravelDateIndicator": 1,
+      "salesDate": "2015-07-10>2020-12-31",
+      "eligibility": 0,
+      "minPax": 1,
+      "maxPax": 9,
+      "fareType": "BSP",
+      "ticketType": 1,
+      "salesPrice": 2000,
+      "currency": "CNY",
+      "commition": "12.12",
+      "profit": -21,
+      "ticketingDeadline": "20-365,7,3/0-19,0,0",
+      "needPnr": false,
+      "invoiceType": 1,
+      "outboundChangeable": true,
+      "refundable": false,
+      "noshowReValidation": false,
+      "noshowRefund": true,
+      "saleType": 0,
+      "outboundBaggage": "20  ",
+      "fareID": null,
+      "externalID": "066cb028-ca84-4a91-800c-41eeef65fc26",
+      "policyID": "",
+      "fareBasis": "",
+      "forbiddenFlight": "",
+      "flight": "",
+      "outboundTravelDateExcept": "",
+      "chdDiscountRate": "",
+      "infantRate": "",
+      "nationality": "",
+
+14
+      "excludeNationality": "",
+      "age": "",
+      "outboundReBookingFee": "200",
+      "outboundReBookingCurrency": "CNY",
+      "cancellationFee": "",
+      "cancellationCurrency": "",
+      "revNoshowCondition": "",
+      "revNoshowOutFee": "",
+      "revNoshowOutCurrency": "",
+      "refNoshowCondition": "0H",
+      "refNoshowFee": "151",
+      "refNoshowCurrency": "CNY",
+      "yourOfficeNO": "",
+      "ticketingRemark": "",
+      "workingTime": "",
+      "infOutboundBaggage": "",
+      "notificationID": 0,
+      "saleMarket": "DE/TW",
+      "excludeSaleMarket": "",
+      "brandName": "",
+      "officeNo": "SHA888"
+    },
+    {
+      "seq": 2,
+      "productType": 1,
+      "owner": "CA",
+      "airport": false,
+      "departCity": "SHA",
+      "arriveCity": "VII",
+      "routing": "SHA-CA-VII",
+      "routingClass": "Y",
+      "allowStopoverOutbound": false,
+      "outboundDayTime": "1234567",
+      "outboundDayTimeIndicator": 0,
+      "fCOutboundTravelDate": "2015-07-10>2020-10-31",
+      "fCOutboundTravelDateIndicator": 1,
+      "salesDate": "2015-07-10>2020-12-31",
+      "eligibility": 0,
+      "minPax": 1,
+      "maxPax": 9,
+      "fareType": "BSP",
+      "ticketType": 1,
+      "salesPrice": 2000,
+      "currency": "CNY",
+      "commition": "12.12",
+      "profit": -21,
+      "ticketingDeadline": "20-365,7,3/0-19,0,0",
+      "needPnr": false,
+      "invoiceType": 1,
+      "outboundChangeable": true,
+      "refundable": false,
+      "noshowReValidation": false,
+      "noshowRefund": true,
+      "saleType": 0,
+      "outboundBaggage": "20  ",
+      "fareID": null,
+      "externalID": "266986e6-fb0b-40d8-bdd2-b267c2cea032",
+      "policyID": "",
+      "fareBasis": "",
+      "forbiddenFlight": "",
+      "flight": "",
+      "outboundTravelDateExcept": "",
+      "chdDiscountRate": "",
+      "infantRate": "",
+      "nationality": "",
+      "excludeNationality": "",
+      "age": "",
+      "outboundReBookingFee": "200",
+      "outboundReBookingCurrency": "CNY",
+      "cancellationFee": "",
+      "cancellationCurrency": "",
+      "revNoshowCondition": "",
+      "revNoshowOutFee": "",
+      "revNoshowOutCurrency": "",
+      "refNoshowCondition": "0H",
+      "refNoshowFee": "151",
+      "refNoshowCurrency": "CNY",
+      "yourOfficeNO": "",
+      "ticketingRemark": "",
+      "workingTime": "",
+      "infOutboundBaggage": "",
+      "notificationID": 0,
+      "saleMarket": "",
+      "excludeSaleMarket": "DE/TW",
+      "brandName": "",
+      "officeNo": "SHA888"
+    }
+  ]
+}
+2.4.2.2新增请求(PrvOwFareAddRequest)字段说明
+行号字段数据类型是否必填描述
+1requestHeaderRequestHeader是
+请求头:2.2.2
+请求头(RequestHeader)字段说明
+2recordslist是
+新增记录列表:每个元素为2.4.2.3
+私有单程运价记录(PrvOwFareRec
+ord)字段说明
+
+15
+2.4.2.3私有单程运价记录(PrvOwFareRecord)字段说明
+行号字段数据类型是否必填描述
+1seqint是序号:从1开始,请求内唯一不可重复
+,批量操作结果回填此字段，根据S
+eq值关联对应结果
+2productTypeint是产品类型:(1=申请;7=特价)
+3ownerstring是开票航空公司:航空公司二字代码
+4airportboolean是是否为机场码:(false=城市码
+true=机场码)
+5departCitystring是
+出发城市:城市三字代码/机场三字
+码,允许录入多个可用/隔开表示或
+的关系
+6arriveCitystring是到达城市:同上
+7routingstring是航路:(格式1=城市代码-销售航司-
+城市代码;格式2=城市代码-销售航
+司-城市代码-销售航司-城市代码),
+航路的首尾必须和出发到达城市一
+致,PS:无需录入完整航路,如果航路
+录入选择格式1则录入机场码
+8routingClassstring是
+舱位代码:直飞航路只允许录入一个
+舱位;转机航路当每段的预订舱位不
+同时用-隔开,如Y-B;当两段的舱位
+一致时只需录入一个,如Y-Y只需录
+入Y即可;舱位之间不可用/隔开
+9allowStopoverOutboundboolean是是否允许中途停留:(false=否
+true=是)
+10outboundDayTimestring是
+去程班期:1234567 作用在航段上,1
+2:00-14:00表示每天的12点到14点;
+12:00FRI-12:00SAT 表示周五的中
+午12点至周六的中午12点
+11outboundDayTimeIndicatorint是
+去程班期作用点:单选(0=第一国际
+段;1=始发航段;2=主航段)
+输入0,1,2中一个
+12fCOutboundTravelDatestring是去程旅行日期:2014-05-01>2014-0
+6-01 要做日期check
+13fCOutboundTravelDateIndicatorint是
+去程旅行日期作用点:单选(0=第一
+国际段;1=始发航段;2=主航段)
+输入0,1,2中一个
+14salesDatestring是销售日期:2014-05-01>2014-06-01
+要做日期check
+15eligibilityint是
+旅客资质:单选(0=普通成人;1=留学
+生)
+16minPaxint是最小出行人数
+17maxPaxint是最大出行人数
+18fareTypestring是
+运价类型 单选(B2B、B2C、BSP
+、Amadeus、Abacus、Galileo、
+Sabre、WorldSpan),请录入字母
+19ticketTypeint是票种:单选(1=BSP电子票;2=航空公
+司本票电子客票),请录入1或2
+20currencystring是币种:币种三字码,比如:CNY 与出发
+地国家币种不符判断为异常运价,状
+态为挂起需要手动解挂
+21commitionstring是返点:整数或两位小数,当返点大于2
+0时不可以保存
+22profitint是
+留钱:只支持正负整数输入;-20表示
+返20元,20代表留20元 当留钱小于-
+1000或者小于票面的-15%时不可
+以保存
+23ticketingDeadlinestring是出票时限:举例:20-365,7,3/0-19,0,0
+表示起飞前20天以前的预订,至少
+于预订后7天内出票或起飞前3天前
+出票/起飞前20天内的预订,预定后
+立即出票(航班起飞日期,预订后多
+久出票,航班起飞前多久出票)
+24needPnrboolean是是否创建PNR
+25invoiceTypeint是报销凭证:单选(0=旅行发票;1=行程
+单;2=电子发票，廉航才可以选)
+26outboundChangeableboolean是去程可否更改
+27refundableboolean是全部未使用可否退票
+28noshowReValidationboolean是是否允许NOSHOW改期
+29noshowRefundboolean是是否允许NOSHOW退票
+30saleTypeint是销售类型:(0=普通;1=多票)
+31outboundBaggagestring是去程行李额:只允许录入两种格式：
+1.XX公斤 2.X件，每件XX公斤
+
+16
+行号字段数据类型是否必填描述
+32fareIDlong否运价ID:由API生成
+33externalIDstring否
+外部编号 自由录入格式,如SHA570
+0FF500:不可重复,最大长度50(中
+文占2个长度)
+34policyIDstring否
+文件编号:自由录入格式,如SHA570
+0FF500,最大长度50(中文占2个长
+度)
+35fareBasisstring产品类型为综合特惠（8）时必填运票价基础价类型:只允许录入一个
+,
+36forbiddenFlightstring否
+禁售航班:航班限制表达格式(1
+CA001-999,CA3000-3999 表示CA
+001至999以及3000至3999之间航
+班号的航班;2 MU
+表示所有MU开头的航班;3
+CA(LH\AZ) 表示CA开头的实际承
+运人为LH或AZ的航班;4 CA(*) 表
+示CA代码共享航班/CA开头的实际
+承运人为其他航空公司的航班;5
+CA(CA) 表示CA自营航班/CA实际
+承运航班;6 CA(OZ)001-999 表示C
+A开头航班号为001-999之间且实
+际承运人为OZ的航班;7
+为空表示无限制,多程用/分割)
+37flightstring否可售航班:同上
+38outboundTravelDateExceptstring否去程除外旅行日期:格式2014-07-1
+0>2014-10-31/2014-11-02>2014-
+12-31,要做日期check
+39chdDiscountRatestring否儿童价:百分比或整数金额,只允许
+录入一种
+40infantRatestring否无座婴儿价:百分比或整数金额,只
+允许录入一种
+41nationalitystring否适用乘客国籍:国家二字代码,可录
+入多个用/隔开表示或的关系,为空
+表示不限制 要做是否存在check
+42excludeNationalitystring否除外乘客国籍:同上
+43agestring否
+年龄:数字,可录入范围
+如21-25表示21周岁至25周岁, 最
+小年龄>70岁会进入异常运价，状
+态为挂起需要手动解挂
+44outboundReBookingFeestring否
+去程改期费:固定金额或百分比只可
+录入一种;当要录入百分比时币种必
+须为空默认是CNY
+当可更改时必填
+45outboundReBookingCurrencystring否去程改期币种:币种三字码,比如:CN
+Y 当费用为固定金额时必填
+46cancellationFeestring否
+全部未使用退票费用:固定金额或百
+分比只可录入一种;当要录入百分比
+时币种必须为空默认是CNY
+当可退票时为必填
+47cancellationCurrencystring否
+全部未使用退票币种:币种三字码,
+比如:CNY
+当费用为固定金额时必填
+48RevNoshowConditionstring否改期时航班起飞前多久算NOSHO
+W:24H,表示24小时
+当NOSHOW可改时必填
+49RevNoshowOutFeestring否去程NOSHOW改期费用:固定金额
+或百分比只可录入一种;当要录入百
+分比时币种必须为空默认是CNY
+当NOSHOW可改时必填
+50RevNoshowOutCurrencystring否
+去程NOSHOW改期币种:币种三字
+码,比如:CNY 当NOSHOW当费用
+为固定金额时必填
+51RefNoshowConditionstring否
+退票时航班起飞前多久段NOSHO
+W:24H:表示24小时
+当NOSHOW可退时必填
+52RefNoshowFeestring否
+NOSHOW退票费用:固定金额或百
+分比只可录入一种;当要录入百分比
+时币种必须为空默认是CNY
+当NOSHOW可退时必填
+53RefNoshowCurrencystring否
+NOSHOW退票币种:币种三字码,比
+如:CNY 当费用为固定金额时必填
+54YourOfficeNOstring否授权OFFICE号
+55TicketingRemarkstring否出票备注:QTE需使用特使指令QT
+E:/XXXX
+
+17
+行号字段数据类型是否必填描述
+56WorkingTimestring否
+工作时间:09:00-18:00表示每一天
+的早上9点到下午6点 09:00MON-1
+8:00FRI表示周一到周五的每天早
+上9点到下午6点,可以为空,表示不
+限制
+57InfOutboundBaggagestring否
+婴儿去程行李额:只允许录入两种格
+式：1.XX公斤 2.X件，每件XX公斤
+有婴儿价时必填
+58NotificationIDstring否特殊备注ID:整数
+59TariffCodestring产品类型为综合特惠（8）时必填运价类型枚举:PUB、PRI
+60SaleMarketstring否适用市场，可多个，多个用/隔开I
+61ExcludeSaleMarketstring否
+除外市场市场，可多个，多个用/隔
+开I
+62SalesPriceint是销售票面价 正整数 必填
+63BrandNamestring否品牌名
+64OfficeNostring是订位officeNo
+2.4.3私有往返运价
+2.4.3.1请求示例报文
+{
+  "requestHeader": {
+    "requestID": "9fa212d5-654d-4f67-8baa-c76e5e50f2c4",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "records": [
+    {
+      "seq": 1,
+      "productType": 1,
+      "owner": "CA",
+      "airport": false,
+      "departCity": "SHA",
+      "arriveCity": "VII",
+      "routing": "SHA-CA-VII",
+      "routingClass": "Y",
+      "allowStopoverOutbound": false,
+      "outboundDayTime": "1234567",
+      "outboundDayTimeIndicator": 0,
+      "fCOutboundTravelDate": "2015-07-10>2020-10-31",
+      "fCOutboundTravelDateIndicator": 1,
+      "salesDate": "2015-07-10>2020-12-31",
+      "eligibility": 0,
+      "minPax": 1,
+      "maxPax": 9,
+      "fareType": "BSP",
+      "ticketType": 1,
+      "salesPrice": 2000,
+      "currency": "CNY",
+      "commition": "12.12",
+      "profit": -21,
+      "ticketingDeadline": "20-365,7,3/0-19,0,0",
+      "needPnr": false,
+      "invoiceType": 1,
+      "outboundChangeable": true,
+      "refundable": false,
+      "noshowReValidation": false,
+      "noshowRefund": false,
+      "saleType": 0,
+      "outboundBaggage": "20  ",
+      "fareID": null,
+      "externalID": "bd29d0ef-4f81-4b5f-83e0-c343923889e8",
+      "policyID": "",
+      "fareBasis": "",
+      "forbiddenFlight": "",
+      "flight": "",
+      "outboundTravelDateExcept": "",
+      "chdDiscountRate": "",
+      "infantRate": "",
+      "nationality": "",
+      "excludeNationality": "",
+      "age": "",
+      "outboundReBookingFee": "200",
+      "outboundReBookingCurrency": "CNY",
+      "cancellationFee": "",
+      "cancellationCurrency": "",
+      "revNoshowCondition": "",
+      "revNoshowOutFee": "",
+      "revNoshowOutCurrency": "",
+      "refNoshowCondition": "0H",
+      "refNoshowFee": "",
+      "yourOfficeNO": "",
+      "ticketingRemark": "",
+      "workingTime": "",
+      "infOutboundBaggage": "",
+      "notificationID": 0,
+      "allowCombination": false,
+      "allowOpenJaw": false,
+      "allowStopoverInbound": false,
+      "minStay": "1D",
+      "maxStay": "12M",
+
+18
+      "partlyUsedRefundable": false,
+      "fCInboundTravelDate": "2015-07-10>2020-10-31",
+      "fCInboundTravelDateIndicator": 0,
+      "inboundDayTime": "1234567",
+      "inboundDayTimeIndicator": 0,
+      "inboundBaggage": "20  ",
+      "inboundChangeable": false,
+      "CommissionCalculation": 2,
+      "other": false,
+      "saleMarket": "DE/TW",
+      "excludeSaleMarket": "",
+      "brandName": "",
+      "officeNo": "SHA888"
+    },
+    {
+      "seq": 2,
+      "productType": 1,
+      "owner": "CA",
+      "airport": false,
+      "departCity": "SHA",
+      "arriveCity": "VII",
+      "routing": "SHA-CA-VII",
+      "routingClass": "Y",
+      "allowStopoverOutbound": false,
+      "outboundDayTime": "1234567",
+      "outboundDayTimeIndicator": 0,
+      "fCOutboundTravelDate": "2015-07-10>2020-10-31",
+      "fCOutboundTravelDateIndicator": 1,
+      "salesDate": "2015-07-10>2020-12-31",
+      "eligibility": 0,
+      "minPax": 1,
+      "maxPax": 9,
+      "fareType": "BSP",
+      "ticketType": 1,
+      "salesPrice": 2000,
+      "currency": "CNY",
+      "commition": "12.12",
+      "profit": -21,
+      "ticketingDeadline": "20-365,7,3/0-19,0,0",
+      "needPnr": false,
+      "invoiceType": 1,
+      "outboundChangeable": true,
+      "refundable": false,
+      "noshowReValidation": false,
+      "noshowRefund": false,
+      "saleType": 0,
+      "outboundBaggage": "20  ",
+      "fareID": 2,
+      "externalID": "31f9baf4-78c0-4df2-b335-f8f427f7b951",
+      "policyID": "",
+      "fareBasis": "",
+      "forbiddenFlight": "",
+      "flight": "",
+      "outboundTravelDateExcept": "",
+      "chdDiscountRate": "",
+      "infantRate": "",
+      "nationality": "",
+      "excludeNationality": "",
+      "age": "",
+      "outboundReBookingFee": "200",
+      "outboundReBookingCurrency": "CNY",
+      "cancellationFee": "",
+      "cancellationCurrency": "",
+      "revNoshowCondition": "",
+      "revNoshowOutFee": "",
+      "revNoshowOutCurrency": "",
+      "refNoshowCondition": "0H",
+      "refNoshowFee": "",
+      "yourOfficeNO": "",
+      "ticketingRemark": "",
+      "workingTime": "",
+      "infOutboundBaggage": "",
+      "notificationID": 0,
+      "allowCombination": false,
+      "allowOpenJaw": false,
+      "allowStopoverInbound": false,
+      "minStay": "1D",
+      "maxStay": "12M",
+      "partlyUsedRefundable": false,
+      "fCInboundTravelDate": "2015-07-10>2020-10-31",
+      "fCInboundTravelDateIndicator": 0,
+      "inboundDayTime": "1234567",
+      "inboundDayTimeIndicator": 0,
+      "inboundBaggage": "20  ",
+      "inboundChangeable": false,
+      "CommissionCalculation": 1,
+      "other": false,
+      "saleMarket": "",
+      "excludeSaleMarket": "DE/TW",
+      "brandName": "",
+      "officeNo": "SHA888"
+    }
+  ]
+}
+2.4.3.2新增请求(PrvRtFareAddRequest)字段说明
+行号字段数据类型是否必填描述
+1requestHeaderRequestHeader是请求头:2.2.2
+请求头(RequestHeader)字段说明
+
+19
+行号字段数据类型是否必填描述
+2recordslist是
+新增记录列表:每个元素为2.4.3.3
+私有往返运价记录(PrvRtFareReco
+rd)字段说明
+2.4.3.3私有往返运价记录(PrvRtFareRecord)字段说明
+私有往返运价包含2.4.2.3私有单程运价记录(PrvOwFareRecord)字段说明所有字段，下面表格仅描述在私有单程运价记录基础
+上增加的字段：
+行号字段数据类型是否必填描述
+1allowCombinationboolean是是否允许1/2RT组合主键:必填
+2allowOpenJawboolean是是否允许缺口:必填
+3allowStopoverInboundboolean是是否允许回程中途停留:必填
+4minStaystring是
+最短停留期:3D表示3天;
+4M表示4个月 SAT表示周六;
+3D/SAT表示3天或者周六 必填
+5maxStaystring是最长停留期:同上
+6partlyUsedRefundableboolean是
+部分未使用可否退票:(false:否;true:
+是),必填
+7fCInboundTravelDatestring是回程旅行日期:2014-05-01>2014-0
+6-01 要做日期check 必填
+8fCInboundTravelDateIndicatorint是
+回程旅行日期作用点:单选(0=第一
+国际段;1=始发航段;2=主航段)
+输入0,1,2中一个 必填
+9InboundDayTimestring是
+是否允许中途停留:(false=否
+true=是)
+10InboundDayTimeIndicatorint是回程班期作用点:单选(0=第一国际
+段;1=始发航段;2=主航段),请传入0,
+1,2中一个 必填
+11InboundBaggagestring是
+回程行李额:只允许录入两种格式:1
+.XX公斤 2.X件,每件XX公斤 必填
+12CombinablePolicyIDstring否可组文件编号:自由录入格式,如SH
+A5700FF500
+当允许1/2RT时为必填
+13OpenJawTypeint否
+缺口类型:单选(0:空,1:双缺、2:单
+缺、3:始发缺、4:目的地缺),请输入
+数字 允许缺口时必填
+14CombinableOJPolicyNumberstring否可组缺口文件编号:可为空,也可输
+入文件编号
+15PUOutboundTravelDatestring否
+取严旅行日期:可为空,2014-07-10>
+2014-10-31/2014-11-02>2014-12-
+31 不为空时要做日期check
+16PUOutboundTravelDateIndicatorint否
+取严旅行日期作用点:单选(0=第一
+国际段;1=始发航段;2=主航段),请
+传入0,1,2中一个
+取严日期有值时必填
+17InfInboundBaggagestring否婴儿回程行李额:只允许录入两种格
+式:1.XX公斤 2.X件,每件XX公斤
+有婴儿价时必填
+18InboundChangeableboolean否程可否更改:单选(false=否 true=是)
+允许改期时必填
+19InboundReBookingFeestring否
+回程改期费:固定金额或百分比只可
+录入一种;当要录入百分比时币种必
+须为空默认是CNY
+当可更改时为必填
+20InboundReBookingCurrencystring否回程改期币种:币种三字码,比如:CN
+Y 当费用为固定金额时必填
+当费用为固定金额时必填
+21PartlyUsedRefundFeestring否部分未使用退票金额 固定金额或百
+分比只可录入一种;当要录入百分比
+时币种必须为空默认是CNY
+当费用为固定金额时必填
+22PartlyUsedRefundCurrencystring否
+部分未使用退票币种
+币种三字码,比如:CNY
+允许退票时必填
+23CommissionCalculationint否1/2RT佣金计算方式 单选(1=取严
+2=各取各),请录入1或2
+允许1/2RT时必填
+
+20
+行号字段数据类型是否必填描述
+24Otherboolean否是否特殊运价
+单选(false=否、true=是) 1)"是否允
+许1/2RT组合"为"否";2)"可组文件编
+号":不可填;3)"1/2RT佣金计算方式"
+:默认取严;4)航路:包含出发/到达城
+市,首尾城市需一致;最大允许来回
+程一程中转,即航路最大四段,例如S
+HA-KA-HKG-CX-BKK-CX-HKG-K
+A-SHA;5)舱位:航路有几段,舱位就
+有几段;每段只能录入一个舱,用"-"
+隔开,例如Y-M-N-Y
+25InboundTravelDateExceptstring否回程除外旅行日期 可为空,2014-07
+-10>2014-10-31/2014-11-02>201
+4-12-31 不为空时要做日期check
+26RevNoshowInFeestring否回程NOSHOW改期费用 固定金额
+或百分比只可录入一种;当要录入百
+分比时币种必须为空默认是CNY
+当NOSHOW可改时必填
+27RevNoshowInCurrencystring否
+回程NOSHOW改期币种 币种三字
+码,比如:CNY当费用为固定金额时
+必填
+28RefNoshowPartlyFeestring否NOSHOW部分退票费用 固定金额
+或百分比只可录入一种;当要录入百
+分比时币种必须为空默认是CNY
+当NOSHOW可退时必填
+29RefNoshowPartlyCurrencystring否
+NOSHOW部分退票币种
+币种三字码,比如:CNY
+当费用为固定金额时必填
+2.4.4响应结构
+详见 2.3.4 新增/修改/删除/调价批量操作响应(BatchOperationResponse)
+2.5删除
+公布运价、私有单程运价，私有往返运价处理逻辑相同：
+• 删除接口按指定条件删除匹配运价记录，支持fareIDList/externalIDList/deleteFareConditionList/deleteAllType作为条件，
+其中fareIDList/externalIDList/deleteFareConditionList为单选，同时指定多个条件时接口将调用失败，并给予错误提示，
+deleteAllType支持与另外3个条件的其中1个进行组合
+• 当条件字段是fareIDList或externalIDList时，list长度上限为5W，超出将调用失败，给予错误提示
+• 当条件字段是deleteFareConditionList时，owner与policyID为and关系，list长度上限为5，超出将调用失败，给予错误提示
+• deleteAllType为true时表示删除手工录入，Excel导入以及API创建的数据，默认为false仅删除API创建的数据
+• fareIDList/externalIDList/deleteFareConditionList三种条件至少指定一个
+删除上限为1W条,超出限制时接口将调用失败，并给予错误提示
+2.5.1fareIDList作为删除条件报文示例
+{
+"requestHeader": {
+    "requestID": "19f38700-d1fa-49d5-ade8-fdad9c05f1f1",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+"fareIDList": [
+  {
+    "seq": 1,
+    "fareID": 1588745
+  },
+  {
+    "seq": 2,
+    "fareID": 1590118
+  }
+],
+"externalIDList": [],
+"deleteFareConditionList": [],
+"deleteAllType": false
+}
+2.5.2externalIDList作为删除条件报文示例
+{
+  "requestHeader": {
+    "requestID": "8fe64a02-d8ec-4801-a3ce-1de7f2ec6589",
+    "loginName": "your login name",
+    "password": "your password"
+
+21
+  },
+  "fareIDList": [],
+  "externalIDList": [
+    {
+      "seq": 1,
+      "externalID": "742c125f-11f7-4b1c-b4d9-a8abd49dbd27"
+    },
+    {
+      "seq": 2,
+      "externalID": "66bca9bb-1d23-4f54-893e-b739d55b9ec7"
+    }
+  ],
+  "deleteFareConditionList": [],
+  "deleteAllType": false
+}
+2.5.3deleteFareConditionList作为删除条件报文示例
+{
+  "requestHeader": {
+    "requestID": "6def0fdb-6403-4512-a3d1-951e2b26d33f",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "fareIDList": [],
+  "externalIDList": [],
+  "deleteFareConditionList": [
+    {
+      "seq": 1,
+      "owner": "CZ",
+      "policyID": "f059f1b1-3f3c-40d6-bd1e-b49c8be2e1ba"
+    },
+    {
+      "seq": 2,
+      "owner": "CA",
+      "policyID": "150e6381-25ce-4fa3-a7e9-42c1ee2e670a"
+    }
+  ],
+  "deleteAllType": false
+}
+2.5.4删除请求(DeleteRequest)字段说明
+行号字段数据类型是否必填描述
+1requestHeaderRequestHeader是请求头:2.2.2
+请求头(RequestHeader)字段说明
+2fareIDListlist否运价ID列表:每个元素为运价ID:Far
+eID类型
+3externalIDListlist否外部编号列表:每个元素为外部编号
+:ExternalID类型
+4deleteFareConditionListlist否删除条件列表:每个元素为删除条件
+5deleteAllTypeboolean是是否删除全部类型:true 表示能删除
+手工录入/Excel导入/API录入三部
+分数据, false 仅删除API录入数据
+2.5.5原始运价ID(FareID)字段说明
+行号字段数据类型是否必填描述
+1seqint是
+序号 从1开始,请求内唯一不可重复
+,批量操作结果回填此字段，根据S
+eq值关联对应结果
+2fareIDlong否原始运价ID
+2.5.6外部编号(ExternalID)字段说明
+行号字段数据类型是否必填描述
+1seqint是
+序号 从1开始,请求内唯一不可重复
+,批量操作结果回填此字段，根据S
+eq值关联对应结果
+2externalIDlong否外部编号
+2.5.7删除运价条件(DeleteFareCondition)字段说明
+行号字段数据类型是否必填描述
+1seqint是序号 从1开始,请求内唯一不可重复
+,批量操作结果回填此字段，根据S
+eq值关联对应结果
+2ownerlong否
+开票航司:与policyID字段至少有一
+个字段不为空,支持两个字段同时输
+入
+3policyIDlong否
+文件编号:与owner字段至少有一个
+字段不为空,支持两个字段同时输入
+
+22
+2.5.8响应结构
+详见 2.3.4 新增/修改/删除/调价批量操作响应(BatchOperationResponse)
+2.6修改
+• fareID和externalID字段至少其中一个有值，否则将被忽略，给予错误提示
+• fareID和externalID同时有值，优先用fareID，并更新externalID
+• fareID和externalID验证合法性，有效的保留在更新列表中，无效的将被忽略，给予错误提示
+• 当某个字段为null值时，默认是不对其进行处理（即不更新此值），对需要更新的字段，需要赋予合法有效的值，在验证通过后
+才予以更新，否则会有不合法提示，对于要赋予空值("")的字段，string类型需要赋值为"NONE",int类型需要赋值为214748364
+7 如（depCityExcept="NONE"，表明depCityExcept将被更新为"";penalties=2147483647,表明penalties将被更新为null）
+修改接口的请求和响应与新增相同,详见 2.4 新增
+2.7查询
+• fareIDList/externalIDList/queryCondition作为条件，其中fareIDList/externalIDList/queryCondition为单选，
+同时指定多个条件时,按优先级高的条件将生效，低优先级的条件将被忽略，条件优先级 fareIDList > externalIDList >
+queryCondition
+• fareIDList精确匹配
+• externalIDList精确匹配
+• queryCondition内字段为组合条件，多个字段为and关系
+• queryCondition字段匹配性：(SeatClass、RoutingClass、DepCity、ArrCity为模糊匹配，其它条件为等值完全匹配)
+• 当字段无值或为空时，将不作为条件字段
+• IsActivated，如果没有传值，默认为true
+2.7.1fareIDList作为查询条件报文示例
+{
+  "requestHeader": {
+    "requestID": "fe97c07c-74bb-4530-8707-587c4ae11080",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "fareIDList": [
+    1588745,
+    1590118
+  ],
+  "externalIDList": [],
+  "queryCondition": {},
+  "encryptedFareIDList": []
+}
+2.7.2externalIDList作为查询条件报文示例
+{
+  "requestHeader": {
+    "requestID": "19d535c0-2bf2-4a5f-a4a8-f3a3d35cea66",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "fareIDList": [],
+  "externalIDList": [
+    "742c125f-11f7-4b1c-b4d9-a8abd49dbd27",
+    "66bca9bb-1d23-4f54-893e-b739d55b9ec7"
+  ],
+  "queryCondition": {},
+  "encryptedFareIDList": []
+}
+2.7.3公布运价queryCondition作为查询条件报文示例
+{
+  "requestHeader": {
+    "requestID": "05e0e480-1cf2-4bf3-92b8-502a162d5136",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "fareIDList": [],
+  "externalIDList": [],
+  "queryCondition": {
+    "policyID": "742c125f-11f7-4b1c-b4d9-a8abd49dbd27",
+    "tripType": "OW",
+    "publicToPrivate": true,
+    "fareStatus": 1,
+
+23
+    "owner": "CA",
+    "depCity": "SHA",
+    "arrCity": "LAX",
+    "seatClass": "Y",
+    "createUser": "your user name",
+    "activated": true,
+    "isPenaltiesAdvantage": 0
+  }
+}
+2.7.4私有运价queryCondition作为查询条件报文示例
+{
+  "requestHeader": {
+    "requestID": "0ebf7573-6f97-4fbb-b1c7-25f7335ac436",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "fareIDList": [],
+  "externalIDList": [],
+  "queryCondition": {
+    "policyID": "742c125f-11f7-4b1c-b4d9-a8abd49dbd27",
+    "depCity": "BJS",
+    "arrCity": "LAX",
+    "fareStatus": 1,
+    "owner": "CZ",
+    "routingClass": "Y",
+    "productType": 1,
+    "nfFareId": "123456",
+    "createUser": "your user name",
+    "activated": true
+  }
+}
+2.7.5未指定任何查询条件报文示例
+{
+  "requestHeader": {
+    "requestID": "f9bde484-fcd4-4549-b708-32bdf42eded6",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "fareIDList": [],
+  "externalIDList": [],
+  "queryCondition": {}
+}
+2.7.6查询请求(QueryRequest)字段说明
+行号字段数据类型是否必填描述
+1requestHeaderRequestHeader是
+请求头:2.2.2
+请求头(RequestHeader)字段说明
+2fareIDListlist否
+运价ID列表:每个元素为运价ID:lon
+g类型
+3externalIDListlist否外部编号列表:每个元素为外部编号
+:string类型
+4queryConditionQueryCondition否删除条件列表:每个元素为删除条件
+5encryptedFareIDListlist否加密后运价ID列表, 与fareIDList互
+斥:每个元素为加密后的外部编号:s
+tring类型
+2.7.7公布运价查询条件(PubFareQueryCondition)字段说明
+行号字段数据类型是否必填描述
+1policyIDstring否文件编号列表
+2tripTypestring否行程类型(OW:单程,RT:往返,BOTH
+:全部)
+3publicToPrivatestring否是否公布转私有 (true=是 false=否)
+4fareStatusboolean否运价状态 (1=有效 2=挂起 3=异常
+4=停用)
+5ownerstring否出发地 CTU/BJS/CN/AFRI/TC1
+6depCitystring否出发地 CTU/BJS/CN/AFRI/TC1
+7arrCitystring否目的地 同出发地
+8seatClassstring否适用舱位
+9createUserstring否创建人
+10activatedstring否是否有效:true=有效;false=无效
+11isPenaltiesAdvantageshort否是否退改公转优:0:否,1:是
+2.7.8私有运价查询条件(PrvFareQueryCondition)字段说明
+私有单程、往返运价查询条件相同
+
+24
+行号字段数据类型是否必填描述
+1policyIDListlist否文件编号列表
+2depCitystring否出发地 CTU/BJS/CN/AFRI/TC1
+3arrCitystring否目的地 同出发地
+4fareStatusstring否运价状态 (1=有效 2=挂起 3=异常
+4=停用)
+5ownerstring否开票航司
+6routingClassstring否适用舱位
+7productTypestring否产品类型
+8nfFareIdstring否原始政策拆分后进单时对应的政策I
+D，即tooking进单政策编号
+9createUserstring否创建人
+20activatedstring否是否有效:true=有效;false=无效
+2.7.9公布运价查询响应示例报文
+{
+  "ResponseStatus": {
+    "Timestamp": 1567415921367,
+    "Ack": "Success",
+    "Errors": [],
+    "Extension": []
+  },
+  "responseHeader": {
+    "requestID": "da84b2dc-adf6-4c0f-a87f-7227380f3466",
+    "transactionID": "daad6b19-41d1-4e86-8c85-e64bc976332f",
+    "replyStatus": "SUCCESS",
+    "message": "   1   "
+  },
+  "records": [
+    {
+      "fareID": 892777945,
+      "externalID": "315010c9-b20d-46f0-a296-ab50ff6aa534",
+      "tripType": "RT",
+      "owner": "CA",
+      "depCity": "BJS",
+      "arrCity": "LAX",
+      "commition": "20.50",
+      "profit": 20,
+      "transferApplication": 2,
+      "transferPoint": "SHA",
+      "interlineApplicable": true,
+      "allowOpenJaw": 2,
+      "publicToPrivate": false,
+      "policyID": "315010c9-b20d-46f0-a296-ab50ff6aa526",
+      "combinablePolicyID": "315010c9-b20d-46f0-a296-ab50ff6aa526",
+      "penalties": 0,
+      "activated":true,
+      "createUser": "your user name@API",
+      "createTime": "2019-09-02 10:49:04",
+      "updateUser": "your user name@API",
+      "updateLastTime": "2019-09-02 10:49:04",
+      "ticketingRemark": "^       ;  24    ;"
+    }
+  ]
+}
+2.7.10私有运价查询响应示例报文
+{
+  "ResponseStatus": {
+    "Timestamp": 1567416547857,
+    "Ack": "Success",
+    "Errors": [],
+    "Extension": []
+  },
+  "responseHeader": {
+    "requestID": "01d7c1a3-02f9-40cb-b79c-f904e9f3a8e9",
+    "transactionID": "d6a33053-ed14-4ba6-a98d-a23f485cfd56",
+    "replyStatus": "SUCCESS",
+    "message": "   1   "
+  },
+  "records": [
+    {
+      "fareID": 1475973164,
+      "owner": "CA",
+      "depCity": "SHA",
+      "arrCity": "LAX",
+      "routingClass": "Y",
+      "fCOutboundTravelDate": "2015-07-10>2020-10-31",
+      "salesPrice": 2000,
+      "currency": "CNY",
+      "commition": "12.12",
+      "profit": -21,
+      "externalID": "8012fc57-b7f7-4c80-80b6-ee6239ae4601",
+      "activated":true,
+      "createUser": "your user name@API",
+      "createTime": "2019-09-02 17:27:59",
+      "updateUser": "your user name@API",
+      "updateLastTime": "2019-09-02 17:27:59",
+      "ticketingRemark": "^       ;  24    ;"
+    }
+  ]
+
+25
+}
+2.7.11查询响应结构(QueryResponse)字段说明
+行号字段数据类型是否必填描述
+1ResponseStatusResponseStatus是
+2.3.2 响应状态(ResponseStatus)
+字段说明
+2responseHeaderResponseHeader是
+2.3.3 响应状态(ResponseStatus)
+字段说明
+3recordslist是匹配运价记录列表
+2.7.12公布运价查询记录结构(PubFareQueryRecord)字段说明
+行号字段数据类型是否必填描述
+1fareIDlong否运价ID
+2externalIDstring否外部编号
+3tripTypestring是行程类型(OW:单程 RT:往返
+BOTH:全部 )
+4ownerstring是开票航司
+5depCitystring是出发地 CTU/BJS/CN/AFRI/TC1
+6arrCitystring是同上
+7seatClassstring是适用舱位
+8commitionstring是返点
+9profitshort是留钱
+10transferApplicationshort是是否适用于中转 0:否,1:是,2:不限
+11transferPointstring是指定转机点
+12interlineApplicableboolean是是否适用于联运 true是,false否
+13allowOpenJawshort是是否允许缺口 true 是 false 否
+14publicToPrivatestring是是否公布转私有 true 是 false 否
+15policyIDstring是文件编号
+16combinablePolicyIDstring是可组文件编号:单程运价无值，往返
+运价有值
+17penaltiesstring是退改费用百分比
+18activatedstring是是否有效 true 是,false 否
+19createUserstring否创建者
+20createTimestring否创建时间
+21updateUserstring否修改者
+22updateLastTimestring否修改时间
+23ticketingRemarkstring否出票备注
+24isPenaltiesAdvantageshort是是否退改公转优 0:否,1:是
+,已废弃，只能传否
+25shareAirlineCodestring否适用共享航司
+26shareAirlineCodeExceptstring否除外共享航司
+27routingExceptstring否除外航线
+28SaleMarketstring否销售市场，可多个
+29BrandNamestring否品牌运价，航司brandname，可多
+个，多个用/隔开
+30PriceRangestring否
+票价区间，可多个，多个用/隔开。
+为空表示不限
+31InterlineApplicableNewshort否是否适用于联运(新)
+0.不适用联运1.仅适用联运 2.不限
+32ExcludeSaleMarketstring否除外销售市场，可多个，多个用/隔
+开
+33fareBasisstring否票价基础
+34isStandardPenaltiesPrivateboolean否是否综合特惠产品
+35IsAllowStopoverOutboundint否是否允许去程中转停留
+0=不限；1=仅适用停留；2=否
+36IsAllowStopoverInboundint否
+是否允许回程中转停留
+0=不限；1=仅适用停留；2=否
+37ExcludeSeatClassstring否除外舱位
+38EncryptedFareIDstring否加密后运价ID
+39DepCityExceptstring否出发地除外
+40ArrCityExceptstring否目的地除外
+41InterlineAirlineCodestring否适用联运航司
+42InterlineAirlineCodeExceptstring否除外联运航司
+
+26
+行号字段数据类型是否必填描述
+43OutboundTravelDatestring否去程旅行日期
+44FCInboundTravelDatestring否回程旅行日期
+45SalesDatestring否销售日期
+46PassengerTypestring否乘客类型
+47Eligibilitystring否旅客资质
+48CommissionCalculationshort否1/2RT佣金计算方式
+49FareTypeshort否运价类型
+50Nationalitystring否适用乘客国籍
+51ExcludeNationalitystring否除外乘客国籍
+52TicketingDeadlinestring否出票时限
+53IsCSApplicableNewshort否是否适用于代码共享航班
+54IsForSmallGroupshort否是否适用小团价
+55IsForFilePubFareshort否是否适用文件公布运价
+56InvoiceTypeshort否报销凭证
+57TicketingCitystring否出票城市
+58ApplicableFareSourceshort否可适用运价来源
+59FlightNosstring否指定航班号
+60ExcludeFlightNosstring否除外航班号
+61ExcludeFareBasisstring否除外FareBasis
+62IsStopSalesshort否提前1小时关闭销售，0=是，1=否
+2.7.13私有运价查询记录结构(PrvFareQueryRecord)字段说明
+行号字段数据类型是否必填描述
+1fareIDlong是运价ID
+2externalIDstring是外部编号
+3ownerstring是开票航司
+4depCitystring是出发地 CTU/BJS/CN/AFRI/TC1
+5arrCitystring是同上
+6routingClassstring是适用舱位
+7fCOutboundTravelDatestring是去程旅行日期
+8fCInboundTravelDatestring是回程旅行日期:单程运价无值，往返
+运价有值
+9salesPriceint是是否适用于中转 0:否,1:是,2:不限
+10currencystring是币种
+11commitionstring是返点
+12profitshort是留钱
+13policyIDstring是文件编号
+14combinablePolicyIDstring是可组文件编号:单程运价无值，往返
+运价有值
+15activatedboolean是是否有效 true 是,false 否
+16createUserstring是创建者
+17createTimestring是创建时间
+18updateUserstring是修改者
+19updateLastTimestring是修改时间
+20ticketingRemarkstring否出票备注
+21EncryptedFareIDstring否加密后运价ID
+22ProductTypeshort否产品类型
+23SaleTypeshort否销售类型
+24Routingstring否航路
+25ForbiddenFlightstring否禁售航班
+26Flightstring否可售航班
+27IsAllowStopoverOutboundboolean否允许去程中途停留
+28FCOutboundTravelDateIndicatorshort否去程旅行日期作用点
+29SalesDatestring否销售日期
+30OutboundDayTimestring否去程班期
+31Eligibilityshort否旅客资质
+32MinPaxshort否最小出行人数
+33MaxPaxshort否最大出行人数
+34FareTypeshort否运价类型
+35TicketTypeshort否票种
+
+27
+行号字段数据类型是否必填描述
+36FareBasisstring否票价基础(farebasis)
+37ChdDiscoundRatestring否儿童价
+38TicketingDeadlinestring否出票时限
+39IsNeedPnrboolean否创建PNR
+40Nationalitystring否适用乘客国籍
+41ExcludeNationalitystring否除外乘客国籍
+42Agestring否乘客年龄
+43OutboundBaggagestring否成人去程行李额
+44InfOutboundBaggagestring否婴儿去程行李额
+45YourOfficeNOstring否授权OFFICE号
+46InfantRatestring否无座婴儿价
+47IsOutboundChangeableboolean否去程可否更改
+48OutboundRebooingFeestring否去程改期费用
+49OutboundRebookingCurrencystring否去程改期币种
+50IsRefundableboolean否全部未使用可否退票
+51CancellationFeestring否全部未使用退票费用
+52CancellationCurrencystring否全部未使用退票币种
+53OutboundDayTimeIndicatorshort否去程班期作用点
+54InvoiceTypeshort否报销凭证
+55IsAirportboolean否录入方式
+56OutboundTravelDateExceptstring否去程除外旅行日期
+57IsNoshowRevalidationboolean否是否允许NOSHOW改期
+58RevNoshowConditionstring否NOSHOW改期条件
+59IsNoshowRefundboolean否是否允许NOSHOW退票
+60RefNoshowConditionstring否NOSHOW退票条件
+61RefNoshowFeestring否NOSHOW全部未使用退票费用
+62RefNoshowCurrencystring否NOSHOW全部未使用退票币种
+63RevNoshowOutFeestring否去程NOSHOW改期费用
+64RevNoshowOutCurrencystring否去程NOSHOW改期币种
+65NotificationIDint否特殊提示
+66TariffCodestring否运价属性
+67SaleMarketstring否适用市场
+68ExcludeSaleMarketstring否除外市场
+69BrandNamestring否品牌名
+70IsAllowCombinationboolean否允许1/2RT组合
+71IsAllowOpenJawboolean否是否允许缺口
+72OpenJawTypeshort否缺口类型
+73IsAllowStopoverInboundboolean否允许回程中途停留
+74PUOutboundTravelDatestring否取严旅行日期
+75PUOutboundTravelDateIndicatorshort否取严旅行日期作用点
+76FCInboundTravelDateIndicatorshort否回程旅行日期作用点
+77InboundDayTimestring否回程班期
+78MinStaystring否最短停留期
+79MaxStaystring否最长停留期
+80InboundBaggagestring否成人回程行李额
+81InfInboundBaggagestring否婴儿回程行李额
+82IsInboundChangeableboolean否回程可否更改
+83InboundRebooingFeestring否回程改期费用
+84InboundRebookingCurrencystring否回程改期币种
+85IsPartlyUsedRefundableboolean否部分未使用可否退票
+86PartlyUsedRefundFeestring否部分未使用退票费用
+87PartlyUsedRefundCurrencystring否部分未使用退票币种
+88InboundDayTimeIndicatorshort否回程班期作用点
+89CommissionCalculationshort否1/2RT佣金计算方式
+90isOtherboolean否是否特殊运价
+91InboundTravelDateExceptstring否回程除外旅行日期
+92RevNoshowInFeestring否回程NOSHOW改期费用
+93RevNoshowInCurrencystring否回程NOSHOW改期币种
+94RefNoshowPartlyFeestring否NOSHOW部分未使用退票费用
+95RefNoshowPartlyCurrencystring否NOSHOW部分未使用退票币种
+
+28
+2.8调价
+公布运价、私有单程运价，私有往返运价处理逻辑相同：
+• fareID和externalID字段至少其中一个有值，否则将被忽略，给予错误提示
+• commition不为空且能够为正确转换为decimal数字类型时，profit不为空，调整运价的Commition 与
+Profit,每条运价有不同的返点跟留钱，否则将忽略这条记录，
+给予错误提示
+• 调价逻辑为在原有返点，留钱的基础上进行相加或者相减，即原为a值，传递b值（正负都可）。调价后为：a = a+b
+2.8.1请求示例报文
+{
+  "requestHeader": {
+    "requestID": "f923a50d-c247-422e-8572-eaf15ad1fb16",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "records": [
+    {
+      "seq": 1,
+      "fareID": 892777949,
+      "externalID": "2b173bcd-be1f-45c8-8064-1bccaebfafe4",
+      "commition": "1.5",
+      "profit": 10
+    },
+    {
+      "seq": 2,
+      "fareID": 892777948,
+      "externalID": "98ec26ad-b7bd-4bc8-9d9d-6508dee75a5e",
+      "commition": "2.5",
+      "profit": 20
+    }
+  ]
+}
+2.8.2调价请求(ChangePriceRequest)字段说明
+行号字段数据类型是否必填描述
+1ResponseStatusResponseStatus是响应状态:2.3.2 响应状态(Respons
+eStatus)字段说明
+2responseHeaderResponseHeader是响应头:2.3.3 响应头(ResponseHe
+ader)字段说明
+3recordslist是调价记录列表
+2.8.3调价记录(ChangePriceRecord)字段说明
+行号字段数据类型是否必填描述
+1seqint是序号 从1开始,请求内唯一不可重复
+,批量操作结果回填此字段，根据S
+eq值关联对应结果
+2fareIDlong否运价ID
+3externalIDstring否外部编号 供应商自用编号,格式不
+限,不可重复
+4Commitionstring是
+返点 整数,不能为空最多允许保留
+两位小数,当返点大于20时不可以
+保存
+5profitstring是结算留钱 只支持正负整数输入不能
+为空;-20表示返20元,20代表留20
+元,当留钱小于-1000时或者小于票
+面的-15%时不可以保存
+2.8.4响应结构
+详见 2.3.4 新增/修改/删除/调价批量操作响应(BatchOperationResponse)
+2.9低价看板查询
+限制：
+• 每分钟请求次数上限为210次,超出将给予错误提示2.0
+2.9.1请求示例报文
+{
+
+29
+    "requestHeader": {
+        "requestID": "c444550d-cd07-4dbb-b4fd-17f4c705ae8e",
+        "loginName": "your user name",
+        "password": "your password",
+        "language": "zh_CN"
+    },
+    "queryCondition": {
+        "tripType": "OW",
+        "validatingCarrier": "WE",
+        "seatGrade": "W",
+        "segments": [
+            {
+             "segmentNo": 1,
+                "departCity": "BKK",
+                "arriveCity": "HKT",
+                "departDate": "2023-01-13"
+            }
+        ],
+        "travelerCount": 1,
+        "childTravelerCount": 0,
+        "channel": "FlightIntlOnline",
+        "subChannel": 0,
+        "scMarket": null,
+        "specialParam": null,
+        "agencyID": 3399,
+        "babyTravelerCount": 0
+    }
+}
+2.9.2低价请求(LowPriceRequest)字段说明
+行号字段数据类型是否必填描述
+1RequestHeaderRequestHeader是
+请求头:2.2.2
+请求头(RequestHeader)字段说明
+2queryConditionLowPriceQueryCondition是
+低价查询条件:2.9.3 低价查询条件(
+LowPriceQueryCondition)字段说
+明
+2.9.3低价查询条件(LowPriceQueryCondition)字段说明
+行号字段数据类型是否必填描述
+1tripTypestring是行程类型（OW;RT;MT）
+2validatingCarrierstring否开票航司二字码
+3segmentslist是
+list每个元素是Segment对象:2.9.4
+用户行程段(Segment)字段说明
+4travelerCountint是成人乘客人数（选择数字1-9）
+5childTravelerCountint否儿童人数（选择数字1-9），可为
+空 （为空是只请求成人，不为空表
+示请求儿童+成人）
+6seatGradestring是舱等（Y;C;F）
+7channelstring是主渠道；FlightIntlOnline、English
+Site，Mobile
+8subChannelint是子渠道；主站传0
+9specialParamstring是特殊参数，多个用逗号分隔,Speci
+alSupply-特价产品
+10childTravelerCountint否婴儿乘客数量
+2.9.4用户行程段(Segment)字段说明
+行号字段数据类型是否必填描述
+1segmentNoint是用户行程段号，从1开始
+2departCitystring是出发城市（标准城市三字码）
+3arriveCitystring是到达城市（标准城市三字码）
+4departDatestring是出发日期（日期格式：2015-03-08
+）
+2.9.5低价响应示例报文
+{
+    "ResponseStatus": {
+        "Timestamp": "2022-12-26T18:03:46.085+08:00",
+        "Ack": "Success",
+        "Errors": [],
+        "Build": null,
+        "Version": null,
+        "Extension": []
+    },
+    "responseHeader": {
+        "requestID": "c444550d-cd07-4dbb-b4fd-17f4c705ae8e",
+        "transactionID": "a5f24ff6-6cb8-463a-9ff3-b730770f1ae1",
+        "replyStatus": "SUCCESS",
+        "message": "   10   "
+    },
+
+30
+    "responseBody": {
+        "flights": [
+            {
+                "flightId": "13",
+                "departCity": "BKK",
+                "arriveCity": "HKT",
+                "departAirport": "BKK",
+                "arriveAirport": "HKT",
+                "flightNo": "WE201",
+                "takeOffDateTime": "2023-01-13 07:45:00",
+                "arriveDateTime": "2023-01-13 09:10:00"
+            },
+            {
+                "flightId": "14",
+                "departCity": "BKK",
+                "arriveCity": "HKT",
+                "departAirport": "BKK",
+                "arriveAirport": "HKT",
+                "flightNo": "WE217",
+                "takeOffDateTime": "2023-01-13 17:35:00",
+                "arriveDateTime": "2023-01-13 19:05:00"
+            },
+            {
+                "flightId": "4",
+                "departCity": "BKK",
+                "arriveCity": "HKT",
+                "departAirport": "BKK",
+                "arriveAirport": "HKT",
+                "flightNo": "WE289",
+                "takeOffDateTime": "2023-01-13 07:40:00",
+                "arriveDateTime": "2023-01-13 09:10:00"
+            },
+            {
+                "flightId": "15",
+                "departCity": "BKK",
+                "arriveCity": "HKT",
+                "departAirport": "BKK",
+                "arriveAirport": "HKT",
+                "flightNo": "WE215",
+                "takeOffDateTime": "2023-01-13 14:00:00",
+                "arriveDateTime": "2023-01-13 15:25:00"
+            },
+            {
+                "flightId": "7",
+                "departCity": "BKK",
+                "arriveCity": "HKT",
+                "departAirport": "BKK",
+                "arriveAirport": "HKT",
+                "flightNo": "WE283",
+                "takeOffDateTime": "2023-01-13 15:05:00",
+                "arriveDateTime": "2023-01-13 16:35:00"
+            },
+            {
+                "flightId": "19",
+                "departCity": "BKK",
+                "arriveCity": "HKT",
+                "departAirport": "BKK",
+                "arriveAirport": "HKT",
+                "flightNo": "WE207",
+                "takeOffDateTime": "2023-01-13 11:30:00",
+                "arriveDateTime": "2023-01-13 13:00:00"
+            },
+            {
+                "flightId": "8",
+                "departCity": "BKK",
+                "arriveCity": "HKT",
+                "departAirport": "BKK",
+                "arriveAirport": "HKT",
+                "flightNo": "WE211",
+                "takeOffDateTime": "2023-01-13 19:10:00",
+                "arriveDateTime": "2023-01-13 20:35:00"
+            },
+            {
+                "flightId": "9",
+                "departCity": "BKK",
+                "arriveCity": "HKT",
+                "departAirport": "BKK",
+                "arriveAirport": "HKT",
+                "flightNo": "WE209",
+                "takeOffDateTime": "2023-01-13 13:00:00",
+                "arriveDateTime": "2023-01-13 14:30:00"
+            },
+            {
+                "flightId": "20",
+                "departCity": "BKK",
+                "arriveCity": "HKT",
+                "departAirport": "BKK",
+                "arriveAirport": "HKT",
+                "flightNo": "WE221",
+                "takeOffDateTime": "2023-01-13 18:15:00",
+                "arriveDateTime": "2023-01-13 19:45:00"
+            },
+            {
+                "flightId": "10",
+                "departCity": "BKK",
+                "arriveCity": "HKT",
+                "departAirport": "BKK",
+                "arriveAirport": "HKT",
+                "flightNo": "WE203",
+                "takeOffDateTime": "2023-01-13 08:10:00",
+                "arriveDateTime": "2023-01-13 09:35:00"
+            }
+        ],
+        "lowPrices": [
+            {
+
+31
+                "flightRefs": [
+                    {
+                        "segmentNo": 1,
+                        "sequenceNo": 1,
+                        "seatClass": "U",
+                        "flightId": "4",
+                        "flightNo": "WE289"
+                    }
+                ],
+                "prices": [
+                    {
+                        "gds": "GDS-WS",
+                        "productType": null,
+                        "productTypeName": "   ",
+                        "adtPolicyInfos": null,
+                        "chdPolicyInfos": null,
+                        "seatClass": "U",
+                        "travelerEligibility": "ADT",
+                        "baggage": "BKK-HKT:   :  30   ",
+                        "passengerRestriction": "",
+                        "invoiceType": "      ",
+                        "quantifyFlagRemark": "LOW_PRICE:N       |STANDARD_PRICE      |BAGGAGE:30    30     ",
+                        "quantifyFlag": "LOW_PRICE:N,STANDARD_PRICE,BAGGAGE:30",
+                        "sortIndicator": 869.0,
+                        "scPrice": null,
+                        "showState": 1,
+                        "isOwn": null,
+                        "infPolicyInfos": null,
+                        "adtTax": 50.0,
+                        "chdTax": 0.0,
+                        "infTax": 0.0,
+                        "adtPublishPrice": 869.0,
+                        "chdPublishPrice": 0.0,
+                        "infPublishPrice": 0.0,
+                        "currency": "CNY",
+                        "adtFareBasis": "NO",
+                        "chdFareBasis": "",
+                        "infFareBasis": "",
+                        "csdDataId": ""
+                    },
+                    {
+                        "gds": "GDS-WS",
+                        "productType": null,
+                        "productTypeName": "    ",
+                        "adtPolicyInfos": null,
+                        "chdPolicyInfos": null,
+                        "seatClass": "U",
+                        "travelerEligibility": "ADT",
+                        "baggage": "BKK-HKT:   :  30   ",
+                        "passengerRestriction": "",
+                        "invoiceType": "  ",
+                        "quantifyFlagRemark": "INVOICE     ",
+                        "quantifyFlag": "INVOICE",
+                        "sortIndicator": 908.0,
+                        "scPrice": null,
+                        "showState": 1,
+                        "isOwn": null
+                    }
+                ]
+            },
+            {
+                "flightRefs": [
+                    {
+                        "segmentNo": 1,
+                        "sequenceNo": 1,
+                        "seatClass": "U",
+                        "flightId": "13",
+                        "flightNo": "WE201"
+                    }
+                ],
+                "prices": [
+                    {
+                        "gds": "GDS-WS",
+                        "productType": null,
+                        "productTypeName": "   ",
+                        "adtPolicyInfos": null,
+                        "chdPolicyInfos": null,
+                        "seatClass": "U",
+                        "travelerEligibility": "ADT",
+                        "baggage": "BKK-HKT:   :  30   ",
+                        "passengerRestriction": "",
+                        "invoiceType": "      ",
+                        "quantifyFlagRemark": "LOW_PRICE:N       |STANDARD_PRICE      |BAGGAGE:30    30     ",
+                        "quantifyFlag": "LOW_PRICE:N,STANDARD_PRICE,BAGGAGE:30",
+                        "sortIndicator": 869.0,
+                        "scPrice": null,
+                        "showState": 1,
+                        "isOwn": null
+                    },
+                    {
+                        "gds": "GDS-WS",
+                        "productType": null,
+                        "productTypeName": "    ",
+                        "adtPolicyInfos": null,
+                        "chdPolicyInfos": null,
+                        "seatClass": "U",
+                        "travelerEligibility": "ADT",
+                        "baggage": "BKK-HKT:   :  30   ",
+                        "passengerRestriction": "",
+                        "invoiceType": "  ",
+                        "quantifyFlagRemark": "INVOICE     ",
+                        "quantifyFlag": "INVOICE",
+                        "sortIndicator": 908.0,
+                        "scPrice": null,
+                        "showState": 1,
+
+32
+                        "isOwn": null
+                    }
+                ]
+            },
+            {
+                "flightRefs": [
+                    {
+                        "segmentNo": 1,
+                        "sequenceNo": 1,
+                        "seatClass": "U",
+                        "flightId": "10",
+                        "flightNo": "WE203"
+                    }
+                ],
+                "prices": [
+                    {
+                        "gds": "GDS-WS",
+                        "productType": null,
+                        "productTypeName": "   ",
+                        "adtPolicyInfos": null,
+                        "chdPolicyInfos": null,
+                        "seatClass": "U",
+                        "travelerEligibility": "ADT",
+                        "baggage": "BKK-HKT:   :  30   ",
+                        "passengerRestriction": "",
+                        "invoiceType": "      ",
+                        "quantifyFlagRemark": "LOW_PRICE:N       |STANDARD_PRICE      |BAGGAGE:30    30     ",
+                        "quantifyFlag": "LOW_PRICE:N,STANDARD_PRICE,BAGGAGE:30",
+                        "sortIndicator": 869.0,
+                        "scPrice": null,
+                        "showState": 1,
+                        "isOwn": null
+                    },
+                    {
+                        "gds": "GDS-WS",
+                        "productType": null,
+                        "productTypeName": "    ",
+                        "adtPolicyInfos": null,
+                        "chdPolicyInfos": null,
+                        "seatClass": "U",
+                        "travelerEligibility": "ADT",
+                        "baggage": "BKK-HKT:   :  30   ",
+                        "passengerRestriction": "",
+                        "invoiceType": "  ",
+                        "quantifyFlagRemark": "INVOICE     ",
+                        "quantifyFlag": "INVOICE",
+                        "sortIndicator": 908.0,
+                        "scPrice": null,
+                        "showState": 1,
+                        "isOwn": null
+                    }
+                ]
+            },
+            {
+                "flightRefs": [
+                    {
+                        "segmentNo": 1,
+                        "sequenceNo": 1,
+                        "seatClass": "U",
+                        "flightId": "19",
+                        "flightNo": "WE207"
+                    }
+                ],
+                "prices": [
+                    {
+                        "gds": "GDS-WS",
+                        "productType": null,
+                        "productTypeName": "   ",
+                        "adtPolicyInfos": null,
+                        "chdPolicyInfos": null,
+                        "seatClass": "U",
+                        "travelerEligibility": "ADT",
+                        "baggage": "BKK-HKT:   :  30   ",
+                        "passengerRestriction": "",
+                        "invoiceType": "      ",
+                        "quantifyFlagRemark": "LOW_PRICE:N       |STANDARD_PRICE      |BAGGAGE:30    30     ",
+                        "quantifyFlag": "LOW_PRICE:N,STANDARD_PRICE,BAGGAGE:30",
+2.9.6低价查询响应结构(LowPriceResponse)字段说明
+行号字段数据类型是否必填描述
+1ResponseStatusResponseStatus是
+响应状态:2.3.2 响应状态(Respons
+eStatus)字段说明
+2responseHeaderResponseHeader是响应头:2.3.3 响应头(ResponseHe
+ader)字段说明
+3responseBodyLowPriceResponseBody是
+响应结果实体:2.9.7 响应结果主体
+信息(LowPriceResponseBody)字
+段说明
+2.9.7响应结果主体信息(LowPriceResponseBody)字段说明
+行号字段数据类型是否必填描述
+1flightslist是每个元素为航班基础信息说明2.9.8
+航班信息(FlightDataType)字段说
+明
+
+33
+行号字段数据类型是否必填描述
+2lowPriceslist是
+每个元素为航组引用信息及关联的
+价格列表信息:2.9.9 航组价格信息(
+LowPriceDataType)字段说明
+2.9.8航班基础信息(FlightDataType)字段说明
+行号字段数据类型是否必填描述
+1flightIdstring是航班ID
+2departCitystring是出发城市（标准城市三字码）
+3arriveCitystring是到达城市 （标准城市三字码）
+4departAirportstring是出发机场 （标准机场三字码）
+5arriveAirportstring是到达机场 （标准机场三字码）
+6flightNostring是航班号
+7takeOffDateTimestring是出发时间 格式:2023-11-27
+15:41:00
+8arriveDateTimestring是到达时间 格式:2023-11-28
+19:35:00
+2.9.9航组价格信息(LowPriceDataType)字段说明
+行号字段数据类型是否必填描述
+1flightRefslist是
+航班引用信息，其中的flightId与2.
+9.8关联对应2.9.10 航班引用信息(
+FlightRefDataType)字段说明
+2priceslist是当前航班下包含的价格信息2.9.11
+价格信息(PriceDataType)字段说明
+2.9.10航班引用信息(FlightRefDataType)字段说明
+行号字段数据类型是否必填描述
+1flightIdstring是航班ID, 例:flightId=1,对应response
+Body->flights->flightId=1的航班记
+录
+2segmentNoint是用户行程段序号,从1开始,与入参对
+应
+3sequenceNoint是航班在用户行程段内序号，从1开
+始
+4seatClassstring是航班舱位
+5flightNostring是航班号，对应responseBody->fligh
+ts->flightId=1的航班记录
+2.9.11价格信息(PriceDataType)字段说明
+行号字段数据类型是否必填描述
+1productTypeNamestring是productTypeName 产品类型(私有
+运价(含公转私),公布运价(纯公布))
+2gdsstring是引擎标识
+3adtPolicyInfoslist是
+成人政策列表:2.9.12
+政策信息(Policy)字段说明
+4chdPolicyInfoslist是儿童政策列表:2.9.12
+政策信息(Policy)字段说明
+5seatClasseslist是舱位列表
+6travelerEligibilitystring是PassengerEligibility 乘客资质
+7baggagestring是托运行李额
+8passengerRestrictionstring是限制类型
+9invoiceTypestring是报销凭证
+10quantifyFlagstring是属性标签
+11quantifyFlagRemarkstring是属性标签解析文字
+12sortIndicatordouble是平均含税底价
+13scPricedouble是SC指导价
+14showStateint是输出状态 0-不展示 1-展示
+15isOwnboolean是是否我的价格 true-是 false-不是
+16infPolicyInfoslist是
+婴儿政策列表:2.9.12
+政策信息(Policy)字段说明
+17adtTaxdouble是成人税金
+18chdTaxdouble是儿童税金
+
+34
+行号字段数据类型是否必填描述
+19infTaxdouble是婴儿税金
+20adtPublishPricedouble是成人票面价
+21chdPublishPricedouble是儿童票面价
+22infPublishPricedouble是婴儿票面价
+23currencystring是币种
+24adtFareBasisstring是成人FareBasis
+25chdFareBasisstring是儿童FareBasis
+26infFareBasisstring是婴儿FareBasis
+27csdDataIdstring是csd报价对应查询data
+28adtBrandNameslist是成人品牌列表:2.9.13
+品牌信息(BrandName)字段说明
+29chdBrandNameslist是儿童品牌列表:2.9.13
+品牌信息(BrandName)字段说明
+30infBrandNameslist是婴儿品牌列表:2.9.13
+品牌信息(BrandName)字段说明
+2.9.12政策信息(Policy)字段说明
+行号字段数据类型是否必填描述
+1policyIdstring是政策编号
+2externalPolicyIdstring是政策外部编号
+2.9.13品牌信息(BrandName)字段说明
+行号字段数据类型是否必填描述
+1segmentNoint是用户程编号
+2sequenceNoint是用户程航班编号
+3brandNamestring是品牌名
+2.10运价池公布运价查询
+2.10.1请求示例报文
+{
+  "requestHeader": {
+    "requestID": "c444550d-cd07-4dbb-b4fd-17f4c705ae8e",
+    "loginName": "your login name",
+    "password": "your password",
+    "language": "zh_CN"
+  },
+  "conditions": [
+    {
+      "tripType": "RT",
+      "validatingCarrier": "OZ",
+      "departCity": "HKG",
+      "arriveCity": "SFO",
+      "outboundDate": "2023-03-20",
+      "inboundDate": "2023-03-21",
+      "brandName": "",
+      "channel": "Mobile",
+      "FareType": "Amadeus"
+    }
+  ]
+}
+2.10.2请求(MegaFareSearchRequest)字段说明
+行号字段数据类型是否必填描述
+1RequestHeaderRequestHeader是请求头:2.2.2
+请求头(RequestHeader)字段说明
+2Conditionslist是查询条件,list每个元素是MegaFare
+SearchCondition对象:2.10.3 查询
+条件(MegaFareSearchCondition)
+字段说明
+2.10.3查询条件(MegaFareSearchCondition)字段说明
+行号字段数据类型是否必填描述
+1tripTypestring是行程类型（OW;RT;MT）
+2validatingCarrierstring是开票航司二字码
+3fareTypestring是运价类型:Amadeus,WebSite
+4departCitystring是出发城市（标准城市三字码）
+
+35
+行号字段数据类型是否必填描述
+5arriveCitystring是到达城市（标准城市三字码）
+6outboundDatestring是去程日期 格式 yyyy-MM-dd
+7InboundDatestring否回程日期 格式 yyyy-MM-dd
+8channelstring是
+主渠道；FlightIntlOnline、English
+Site，Mobile
+9brandNamestring否品牌运价,仅支持单个
+2.10.4响应示例报文
+{
+  "ResponseStatus": {
+    "Timestamp": "2023-02-22T14:23:48.327+08:00",
+    "Ack": "Success",
+    "Errors": [],
+    "Build": null,
+    "Version": null,
+    "Extension": []
+  },
+  "responseHeader": null,
+  "records": [
+    {
+      "tripType": "RT",
+      "validatingCarrier": "OZ",
+      "fareType": "Amadeus",
+      "departCity": "HKG",
+      "arriveCity": "SFO",
+      "outboundDate": "2023-03-20",
+      "inboundDate": "2023-03-21",
+      "channel": "Mobile",
+      "brandName": "",
+      "hasFare": false
+    }
+  ]
+}
+2.10.5查询响应结果(MegaFareSearchResponse)字段说明
+行号字段数据类型是否必填描述
+1ResponseStatusResponseStatus是
+响应状态:2.3.2 响应状态(Respons
+eStatus)字段说明
+2ResponseHeaderResponseHeader是响应头:2.3.3 响应头(ResponseHe
+ader)字段说明
+3Recordslist是
+list每个元素是MegaFareData对象,
+响应结果节点实体:2.10.6 响应结
+果节点信息(MegaFareData)字段
+说明
+2.10.6响应结果节点信息(MegaFareData)字段说明
+行号字段数据类型是否必填描述
+1tripTypestring是行程类型（OW;RT;MT）
+2validatingCarrierstring是开票航司二字码
+3fareTypestring是运价类型:Amadeus,WebSite
+4departCitystring是出发城市（标准城市三字码）
+5arriveCitystring是到达城市（标准城市三字码）
+6outboundDatestring是去程日期 格式 yyyy-MM-dd
+7InboundDatestring否回程日期 格式 yyyy-MM-dd
+8channelstring是主渠道；FlightIntlOnline、English
+Site，Mobile
+9brandNamestring否品牌运价,仅支持单个
+10HasFareboolean是是否有运价
+3.CSD航线策略接口说明
+提供CSD票台(非kwp)航线策略模块(新增/修改/删除/查询)接口。
+3.1限制
+• 新增/修改/删除 每次请求间隔不低于20秒，高于这个频率，携程OPS可能会认为是恶意攻击，封锁IP，导致API无法正常使用
+• 查询功能目前为分页查询，单页最大2000，每10s限制5次查询
+• 新增接口支持批量，单次新增不超过500条
+• 删除接口支持批量，单次删除不超过2000条
+
+36
+3.2接口
+3.2.1查询接口
+3.2.1.1查询请求示例报文
+{
+  "requestHeader": {
+    "requestID": "19f38700-d1fa-49d5-ade8-fdad9c05f1f1",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "queryCondition": {
+    "tripType": "RT",
+    "originType": 1,
+    "origin": "SHA",
+    "destinationType": 1,
+    "destination": "LON"
+  },
+  "pageNo": 1,
+  "sizePerPage": 50
+}
+3.2.1.2查询请求(CsdAllocationStrategyQueryRequest)字段说明
+行号字段数据类型是否必填描述
+1requestHeaderRequestHeader是
+请求头:2.2.2
+请求头(RequestHeader)字段说明
+2queryConditionCsdAllocationStrategyQueryCondi
+tion
+否
+查询条件为3.2.1.3 Csd航线策略查
+询条件(CsdAllocationStrategyQue
+ryCondition)字段说明字段说明)
+3pageNoint否页码,默认1
+4sizePerPageint否每页记录数,默认2000
+3.2.1.3Csd航线策略查询条件(CsdAllocationStrategyQueryCondition)字段说明
+行号字段数据类型是否必填描述
+1tripTypestring否行程类型（OW;RT;MT）
+2originTypeint否出发地类型, 1-城市/2-国家/4-大区/
+8-TC区/16-全部
+3originstring否出发地
+4destinationTypeint否到达地类型, 1-城市/2-国家/4-大区/
+8-TC区/16-全部
+5destinationstring否到达地
+3.2.1.4查询返回示例报文
+{
+  "ResponseStatus": {
+    "Timestamp": "2025-11-11T14:07:25.174+08:00",
+    "Ack": "Success",
+    "Errors": [
+    ],
+    "Build": null,
+    "Version": null,
+    "Extension": [
+    ]
+  },
+  "responseHeader": {
+    "requestID": "e8ba396f-bd27-40a7-86a6-b06aa014224",
+    "transactionID": "af084672-f0b0-4238-b49d-12a7e5a23f33",
+    "replyStatus": "SUCCESS",
+    "message": "SUCCESS"
+  },
+  "csdAllocationStrategyList": [
+    {
+      "allocationID": 10001,
+      "agentID": 1000,
+      "tripType": "RT",
+      "originType": 1,
+      "origin": "BKK",
+      "destinationType": 1,
+      "destination": "KUL",
+      "travelStartDate": "2025-11-10",
+      "travelEndDate": "2025-12-10"
+    },
+    {
+      "allocationID": 10002,
+      "agentID": 1000,
+      "tripType": "",
+      "originType": 1,
+      "origin": "BKK",
+      "destinationType": 1,
+      "destination": "KUL",
+      "travelStartDate": null,
+      "travelEndDate": null
+    }
+
+37
+  ],
+  "total": 4
+}
+3.2.1.5查询返回(CsdAllocationStrategyQueryResponse)字段说明
+行号字段数据类型是否必填描述
+1ResponseStatusResponseStatus是响应状态:2.3.2 响应状态(Respons
+eStatus)字段说明
+2responseHeaderResponseHeader是响应头:2.3.3 响应头(ResponseHe
+ader)字段说明
+3csdAllocationStrategyListlist是
+list每个元素是CsdAllocationStrate
+gy对象,响应结果节点实体:3.2.1.6
+Csd航线策略(CsdAllocationStrate
+gy)字段说明字段说明)
+4totalint是符合查询条件的总记录数
+3.2.1.6Csd航线策略(CsdAllocationStrategy)字段说明
+行号字段数据类型是否必填描述
+1allocationIDint是策略ID，新增请求不传
+2agentIDint否票台ID
+3tripTypestring否行程类型（OW;RT;MT）
+4originTypeint是出发地类型, 1-城市/2-国家/4-大区/
+8-TC区/16-全部
+5originstring是出发地
+6destinationTypeint是
+到达地类型, 1-城市/2-国家/4-大区/
+8-TC区/16-全部
+7destinationstring是到达地
+8travelStartDatestring否旅行开始日期，格式yyyy-MM-dd
+9travelEndDatestring否旅行结束日期，格式yyyy-MM-dd
+3.2.2新增接口
+3.2.2.1新增请求示例报文
+{
+  "requestHeader": {
+    "requestID": "19f38700-d1fa-49d5-ade8-fdad9c05f1f1",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "csdAllocationStrategyList": [
+    {
+      "tripType": "OW",
+      "originType": 1,
+      "origin": "BKK",
+      "destinationType": 1,
+      "destination": "KUL",
+      "travelStartDate": null,
+      "travelEndDate": null
+    },
+    {
+      "tripType": "RT",
+      "originType": 1,
+      "origin": "BKK",
+      "destinationType": 1,
+      "destination": "KUL",
+      "travelStartDate": "2025-11-10",
+      "travelEndDate": "2025-12-11"
+    }
+  ]
+}
+3.2.2.2新增请求(CsdAllocationStrategyAddRequest)字段说明
+行号字段数据类型是否必填描述
+1requestHeaderRequestHeader是
+请求头:2.2.2
+请求头(RequestHeader)字段说明
+2csdAllocationStrategyListlist是
+list每个元素是CsdAllocationStrate
+gy对象,结果节点实体:3.2.1.6Csd
+航线策略(CsdAllocationStrategy)
+字段说明字段说明)
+3.2.2.3新增返回示例报文
+{
+  "ResponseStatus": {
+    "Timestamp": "2025-11-11T14:22:58.171+08:00",
+    "Ack": "Success",
+
+38
+    "Errors": [
+    ],
+    "Build": null,
+    "Version": null,
+    "Extension": [
+    ]
+  },
+  "responseHeader": {
+    "requestID": "e8ba396f-bd27-40a7-86a6-b06aa014224",
+    "transactionID": "7c50ee5b-37b3-450c-b1df-ebce7b9e5e5c",
+    "replyStatus": "SUCCESS",
+    "message": "SUCCESS"
+  }
+}
+3.2.2.4新增返回(CsdAllocationStrategyAddResponse)字段说明
+行号字段数据类型是否必填描述
+1ResponseStatusResponseStatus是响应状态:2.3.2 响应状态(Respons
+eStatus)字段说明
+2responseHeaderResponseHeader是响应头:2.3.3 响应头(ResponseHe
+ader)字段说明
+3.2.3更新接口
+3.2.3.1更新请求示例报文
+{
+  "requestHeader": {
+    "requestID": "19f38700-d1fa-49d5-ade8-fdad9c05f1f1",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "csdAllocationStrategy": {
+    "tripType": "OW",
+    "originType": 1,
+    "origin": "BKK",
+    "destinationType": 1,
+    "destination": "KUL",
+    "travelStartDate": null,
+    "travelEndDate": null
+  }
+}
+3.2.3.2更新请求(CsdAllocationStrategyUpdateRequest)字段说明
+行号字段数据类型是否必填描述
+1requestHeaderRequestHeader是请求头:2.2.2
+请求头(RequestHeader)字段说明
+2csdAllocationStrategyCsdAllocationStrategy是CsdAllocationStrategy对象,节点实
+体:3.2.1.6Csd航线策略(CsdAllocat
+ionStrategy)字段说明字段说明)
+3.2.3.3更新返回示例报文
+{
+  "ResponseStatus": {
+    "Timestamp": "2025-11-11T14:22:58.171+08:00",
+    "Ack": "Success",
+    "Errors": [
+    ],
+    "Build": null,
+    "Version": null,
+    "Extension": [
+    ]
+  },
+  "responseHeader": {
+    "requestID": "e8ba396f-bd27-40a7-86a6-b06aa014224",
+    "transactionID": "7c50ee5b-37b3-450c-b1df-ebce7b9e5e5c",
+    "replyStatus": "SUCCESS",
+    "message": "SUCCESS"
+  }
+}
+3.2.3.4更新返回(CsdAllocationStrategyUpdateResponse)字段说明
+行号字段数据类型是否必填描述
+1ResponseStatusResponseStatus是
+响应状态:2.3.2 响应状态(Respons
+eStatus)字段说明
+2responseHeaderResponseHeader是响应头:2.3.3 响应头(ResponseHe
+ader)字段说明
+3.2.4删除接口
+
+39
+3.2.4.1删除请求示例报文
+{
+  "requestHeader": {
+    "requestID": "19f38700-d1fa-49d5-ade8-fdad9c05f1f1",
+    "loginName": "your login name",
+    "password": "your password"
+  },
+  "allocationIDList": [
+    100000001,
+    100000002,
+    100000003
+  ]
+}
+3.2.4.2删除请求(CsdAllocationStrategyDeleteRequest)字段说明
+行号字段数据类型是否必填描述
+1requestHeaderRequestHeader是
+请求头:2.2.2
+请求头(RequestHeader)字段说明
+2allocationIDListlist是航线策略id列表
+3.2.4.3删除返回示例报文
+{
+  "ResponseStatus": {
+    "Timestamp": "2025-11-11T14:22:58.171+08:00",
+    "Ack": "Success",
+    "Errors": [
+    ],
+    "Build": null,
+    "Version": null,
+    "Extension": [
+    ]
+  },
+  "responseHeader": {
+    "requestID": "e8ba396f-bd27-40a7-86a6-b06aa014224",
+    "transactionID": "7c50ee5b-37b3-450c-b1df-ebce7b9e5e5c",
+    "replyStatus": "SUCCESS",
+    "message": "SUCCESS"
+  }
+}
+3.2.4.4删除返回(CsdAllocationStrategyDeleteResponse)字段说明
+行号字段数据类型是否必填描述
+1ResponseStatusResponseStatus是
+响应状态:2.3.2 响应状态(Respons
+eStatus)字段说明
+2responseHeaderResponseHeader是响应头:2.3.3 响应头(ResponseHe
+ader)字段说明

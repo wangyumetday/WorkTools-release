@@ -173,6 +173,10 @@
     }
 
     /* ============ 任务行样式 ============ */
+    .tl-row-wrap {
+      border-bottom: 1px solid #f0f0f0;
+    }
+
     .tl-row {
       position: relative;
       display: flex;
@@ -180,14 +184,18 @@
       height: 36px;
       line-height: 36px;
       overflow: hidden;
-      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;   /* 点击展开/收起 */
+      user-select: none;
+
+      &:hover {
+        filter: brightness(0.98);
+      }
 
       .tl-row-bg {
         position: absolute;
         top: 0;
         left: 0;
         bottom: 0;
-        /* margin-bottom: 2px; */
         border-top: 1px solid #ffffff;
         border-bottom: 1px solid #ffffff;
         /* 宽度用 100%，实际缩放用 transform scaleX（走 GPU 合成，不触发重排） */
@@ -202,8 +210,21 @@
         z-index: 1;
         display: flex;
         flex-flow: row nowrap;
+        align-items: center;
         width: 100%;
         height: 100%;
+
+        .tl-row-expand {
+          width: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          color: #999;
+          flex-shrink: 0;
+          transition: transform 0.2s ease;
+        }
+        .tl-row-expand.open { transform: rotate(90deg); }
 
         .tab-header-item {
           flex: 1;
@@ -214,6 +235,111 @@
           overflow: hidden;
           text-overflow: ellipsis;
         }
+      }
+    }
+
+    /* ============ 展开详情面板（紧凑版） ============ */
+    .tl-detail {
+      padding: 6px 12px 8px 36px;
+      background: #fafbfc;
+      border-top: 1px dashed #e5e5e5;
+      font-size: 12px;
+      color: #333;
+      line-height: 1.5;
+
+      .tld-section { margin-bottom: 6px; }
+      .tld-section:last-child { margin-bottom: 0; }
+
+      /* ===== 顶部 meta 条：核心信息一行横排 chip ===== */
+      .tld-meta {
+        display: flex;
+        flex-flow: row wrap;
+        align-items: center;
+        gap: 10px 16px;
+        font-size: 12px;
+        line-height: 1.7;
+      }
+      .tld-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        white-space: nowrap;
+      }
+      .tld-chip__label {
+        color: #999;
+      }
+      .tld-chip__value {
+        color: #333;
+        font-weight: 500;
+      }
+      .tld-chip__value--fail { color: #cf1322; font-weight: 600; }
+      .tld-chip__value--ok { color: #389e0d; font-weight: 600; }
+      .tld-chip__value--warn { color: #d48806; font-weight: 600; }
+      .tld-chip__value--run { color: #1890ff; font-weight: 600; }
+      .tld-chip__sep {
+        width: 1px;
+        height: 12px;
+        background: #e5e5e5;
+        align-self: center;
+      }
+
+      /* ===== 核心结果块：失败/跳过/成功 一屏可见 ===== */
+      .tld-result {
+        border-radius: 3px;
+        padding: 5px 8px;
+        font-family: Consolas, 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+      .tld-result--fail {
+        background: #fff1f0;
+        border-left: 3px solid #ff7875;
+        color: #cf1322;
+      }
+      .tld-result--skip {
+        background: #fffbe6;
+        border-left: 3px solid #ffc53d;
+        color: #d48806;
+      }
+      .tld-result--ok {
+        background: #f6ffed;
+        border-left: 3px solid #73d13d;
+        color: #389e0d;
+      }
+
+      /* ===== 次要信息折叠：默认收起，不占视觉 ===== */
+      .tld-collapse-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11.5px;
+        color: #888;
+        cursor: pointer;
+        user-select: none;
+        &:hover { color: #1890ff; }
+      }
+      .tld-collapse-toggle .caret {
+        transition: transform 0.15s ease;
+        display: inline-block;
+      }
+      .tld-collapse-toggle.open .caret { transform: rotate(90deg); }
+
+      /* data 对象预览：折叠后才展开 */
+      .tld-data-json {
+        margin-top: 4px;
+        background: #fff;
+        border: 1px solid #eee;
+        border-radius: 3px;
+        padding: 4px 6px;
+        font-family: Consolas, 'Courier New', monospace;
+        font-size: 11px;
+        color: #555;
+        white-space: pre-wrap;
+        word-break: break-all;
+        max-height: 100px;
+        overflow-y: auto;
       }
     }
 
@@ -341,6 +467,7 @@
         </div>
       </div>
       <div class="tab-header">
+        <div class="tab-header-item" style="max-width:20px;"></div>
         <div class="tab-header-item">ID</div>
         <div class="tab-header-item">类型</div>
         <div class="tab-header-item">进度</div>
@@ -350,23 +477,97 @@
       <div class="tab-list">
         <n-virtual-list ref="virtualListInst" class="tab-list__scrollbar" :item-size="42" :items="store.tasks">
           <template #default="{ item }">
-            <div :key="item.id" class="tl-row">
-              <!-- ★ 纯 CSS 背景进度条：transform scaleX 走 GPU，不触发重排 -->
-              <div class="tl-row-bg" :key="item.id" :class="progressClass(item)" :style="{
-                transform: `scaleX(${Math.max(0, Math.min(1, (progressWidth(item) || 0) / 100))})`,
-                transformOrigin: 'left center'
-              }"></div>
+            <div :key="item.id" class="tl-row-wrap">
+              <div class="tl-row" @click="toggleExpand(item.id)">
+                <!-- ★ 纯 CSS 背景进度条：transform scaleX 走 GPU，不触发重排 -->
+                <div class="tl-row-bg" :class="progressClass(item)" :style="{
+                  transform: `scaleX(${Math.max(0, Math.min(1, (progressWidth(item) || 0) / 100))})`,
+                  transformOrigin: 'left center'
+                }"></div>
 
-              <div class="tl-row-content">
-                <div class="tab-header-item">{{ shortId(item.id) }}</div>
-                <div class="tab-header-item">{{ typeMap[item.type] || item.type }}</div>
-                <!-- 百分比按状态着色 -->
-                <div class="tab-header-item" :class="pctClass(item)">{{ Math.round(item.progress || 0) }}%</div>
-                <!-- 状态文字按状态着色 -->
-                <div class="tab-header-item" :class="statusClass(item.status)">
-                  {{ statusMap[item.status]?.text || item.status }}
+                <div class="tl-row-content">
+                  <div class="tl-row-expand" :class="{ open: expandedTaskId === item.id }">▶</div>
+                  <div class="tab-header-item">{{ shortId(item.id) }}</div>
+                  <div class="tab-header-item">{{ typeMap[item.type] || item.type }}</div>
+                  <!-- 百分比按状态着色 -->
+                  <div class="tab-header-item" :class="pctClass(item)">{{ Math.round(item.progress || 0) }}%</div>
+                  <!-- 状态文字按状态着色 -->
+                  <div class="tab-header-item" :class="statusClass(item.status)">
+                    {{ statusMap[item.status]?.text || item.status }}
+                  </div>
+                  <div class="tab-header-item">{{ formatDuration(getDuration(item)) }}</div>
                 </div>
-                <div class="tab-header-item">{{ formatDuration(getDuration(item)) }}</div>
+              </div>
+
+              <!-- ★ 展开详情面板（紧凑版）：核心信息一目了然，次要信息折叠 -->
+              <div v-if="expandedTaskId === item.id" class="tl-detail">
+                <!-- ===== 顶部 meta 条：一行 chip 横排，替换原来 7 行竖排网格 ===== -->
+                <!--   删除：创建/开始/结束时间戳（对排查失败无用，用户只关心耗时） -->
+                <!--   删除：任务ID（行里已显示 shortId，想看 full ID 点展开输入数据里也有） -->
+                <div class="tld-section tld-meta">
+                  <span class="tld-chip">
+                    <span class="tld-chip__label">状态</span>
+                    <span class="tld-chip__value"
+                      :class="{
+                        'tld-chip__value--fail': item.status === 'failed',
+                        'tld-chip__value--ok': item.status === 'completed',
+                        'tld-chip__value--warn': item.status === 'skipped' || item.status === 'paused',
+                        'tld-chip__value--run': item.status === 'running'
+                      }">{{ statusMap[item.status]?.text || item.status }}</span>
+                  </span>
+                  <span class="tld-chip__sep"></span>
+                  <span class="tld-chip">
+                    <span class="tld-chip__label">平台</span>
+                    <span class="tld-chip__value">{{ typeMap[item.type] || item.type }}</span>
+                  </span>
+                  <span class="tld-chip__sep"></span>
+                  <span class="tld-chip">
+                    <span class="tld-chip__label">耗时</span>
+                    <span class="tld-chip__value">{{ formatDuration(getDuration(item)) }}s</span>
+                  </span>
+
+                  <template v-if="item.result?._usedCredential">
+                    <span class="tld-chip__sep"></span>
+                    <span class="tld-chip" :title="`账号：${item.result._usedCredential.name || '-'} / 用户：${item.result._usedCredential.username || '-'}`">
+                      <span class="tld-chip__label">账号</span>
+                      <span class="tld-chip__value">{{ item.result._usedCredential.name || '-' }}</span>
+                    </span>
+                  </template>
+
+                  <!-- 致命错误徽章 inline，不再独立 section -->
+                  <span v-if="item.result?.isFatal" class="tld-chip__sep"></span>
+                  <n-tag v-if="item.result?.isFatal" type="error" size="small" round>已停止剩余任务</n-tag>
+                </div>
+
+                <!-- ===== 核心结果：失败原因 / 跳过原因 / 处理结果 ===== -->
+                <!--   不再额外包 section + 标题标签，色块本身即语义 + 压缩为左边框样式 -->
+                <div v-if="item.status === 'failed' && item.result?.error"
+                     class="tld-section tld-result tld-result--fail">{{ item.result.error }}</div>
+
+                <div v-else-if="item.status === 'skipped' && item.result?.error"
+                     class="tld-section tld-result tld-result--skip">{{ item.result.error }}</div>
+
+                <div v-else-if="item.status === 'completed' && item.result"
+                     class="tld-section tld-result tld-result--ok">{{ summarizeResult(item.result) }}</div>
+
+                <!-- ===== 输入数据：默认折叠，需要才展开 ===== -->
+                <!--   失败排查时可能有用，但大部分失败看上面错误文本就够了，不占高度 -->
+                <div v-if="item.data || item.result?._usedCredential" class="tld-section">
+                  <span class="tld-collapse-toggle"
+                        :class="{ open: inputDataExpandedId === item.id }"
+                        @click.stop="toggleInputData(item.id)">
+                    <span class="caret">▶</span>
+                    <span>{{ inputDataExpandedId === item.id ? '收起详情' : '展开输入数据' }}</span>
+                  </span>
+
+                  <div v-if="inputDataExpandedId === item.id">
+                    <div v-if="item.result?._usedCredential" style="margin-top:4px; font-size:11.5px; color:#777;">
+                      使用账号：{{ item.result._usedCredential.name }} / {{ item.result._usedCredential.username }}
+                      <span v-if="item.result._usedCredential.platform">· 平台：{{ item.result._usedCredential.platform }}</span>
+                    </div>
+                    <div v-if="item.data" class="tld-data-json">{{ prettyJson(item.data, 30) }}</div>
+                  </div>
+                </div>
               </div>
             </div>
           </template>
@@ -385,6 +586,57 @@ import {
 import { useTaskStore } from '../stores/task.js'
 
 const store = useTaskStore()
+
+// ===== 任务行展开详情 =====
+//   - 点击行切换展开/收起（同一行再点关闭）
+//   - 只展开一行（简单，数据不会太挤）
+const expandedTaskId = ref(null)
+function toggleExpand(id) {
+  expandedTaskId.value = expandedTaskId.value === id ? null : id
+  // 收起行时同步收起该任务的输入数据折叠（避免下次展开残留）
+  if (expandedTaskId.value === null && inputDataExpandedId.value === id) {
+    inputDataExpandedId.value = null
+  }
+}
+
+// ===== 输入数据折叠（详情里的二级折叠，每任务独立）=====
+const inputDataExpandedId = ref(null)
+function toggleInputData(id) {
+  inputDataExpandedId.value = inputDataExpandedId.value === id ? null : id
+}
+
+// 汇总成功任务的结果（提取 processedCount / summary / reason 等字段）
+function summarizeResult(result) {
+  if (!result || typeof result !== 'object') return '无详情'
+  const parts = []
+  // 处理条数
+  if (typeof result.processedCount === 'number') parts.push(`处理条数：${result.processedCount}`)
+  if (typeof result.processed === 'number') parts.push(`processed=${result.processed}`)
+  // 摘要
+  if (result.summary && typeof result.summary === 'object') {
+    if (typeof result.summary.flightCount === 'number') parts.push(`航班数=${result.summary.flightCount}`)
+    if (typeof result.summary.lowPriceCount === 'number') parts.push(`底价条数=${result.summary.lowPriceCount}`)
+  }
+  // 0 结果原因（BUG-4 记录的 reason）
+  if (result.reason) parts.push(`备注：${result.reason}`)
+  // 致命标记
+  if (result.isFatal) parts.push('（致命错误）')
+  return parts.length > 0 ? parts.join('  |  ') : '请求完成'
+}
+
+// 格式化输入数据为可读 JSON（限制字符数，避免太长）
+function prettyJson(obj, maxLines = 40) {
+  try {
+    const text = JSON.stringify(obj, null, 2)
+    const lines = text.split('\n')
+    if (lines.length > maxLines) {
+      return lines.slice(0, maxLines).join('\n') + `\n... (共 ${lines.length} 行，已截断)`
+    }
+    return text
+  } catch {
+    return String(obj ?? '')
+  }
+}
 
 // ===== 顶部状态指示灯 + 文字（真实状态，非硬编码"运行中"）=====
 //   灯色：未运行灰(稳) / 运行中蓝(闪) / 已暂停黄(闪) / 有失败红(闪) / 已完成绿(稳)

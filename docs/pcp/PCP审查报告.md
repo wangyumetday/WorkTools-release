@@ -399,3 +399,184 @@ electron/features/pcp/
 > 4. **数据模型隐式**（ARCH-4）—— a1/a2/a3 无类型定义，字段散落
 >
 > 建议先修 P0 的 3 个 bug（改动小、风险高），再做 P2 的架构优化。
+
+---
+
+## 6. 用户批复与执行计划
+
+> 以下为用户对审查报告的逐条批复，以及助理的回答。执行时以此为准。
+
+### BUG-1 批复
+
+**用户**：对于为什么会有两份实现我不知道，但我知道前端的跑文件的方式有两种：dev:on 模式点开始自动跑全流程；dev:off 模式都需要用户分别点击步骤流按钮。你说的某个东西的两种实现是否与此有关。
+
+**回答**：**无关。** 查前端代码确认：
+- dev on 自动跑：前端调 `pipelineStart` → pipeline.start() → `_invokeAddBatchByStage`
+- dev off 手动点：前端调 `pipelineTriggerStep('jxgj'/'o_combo')` → pipeline.triggerStep() → `_invokeAddBatchByStage`
+
+两条路径**都走 pipeline**，从不调 controller 的 `pcp:task:addBatchByStage`。前端 `src/` 搜不到 `taskAddBatchByStage` 调用，只有 preload.js 暴露但无人使用。
+
+**用户批复**：同意。
+
+**结论**：controller.js 的 `pcp:task:addBatchByStage` handler（L44-116）是**死代码**，直接删除。BUG-1 和 BUG-8 一起消失。
+
+### BUG-2 批复
+
+**用户**：有时请求查询到结果为 0 是正常的，比如当天没有此航班等等。这种 0 是正常的，其他比如密码错误，参数不对等等的报错都要弹给前端页面且弹框不会自动关闭，但同类型错误弹框可堆叠为一处，不然可能会错误把页面堆满。
+
+**执行方向**：
+1. mergeResult 区分"正常 0 结果"vs"错误 0 结果"：检查 replyStatus / 业务错误码，错误时 throw
+2. 错误弹窗机制：主进程捕获 throw 的错误 → 推 IPC 给前端 → 前端弹窗
+3. 弹窗不自动关闭，同类型错误堆叠为一（按错误类型或错误码分组）
+4. 正常 0 结果（无航班）不弹错误，正常走流程
+
+### BUG-3 批复
+
+**用户**：可能确实是个 bug
+
+**执行方向**：确认 taskScheduler 是否 await onAllComplete；不 await 则改 handleStageComplete 为同步或 promise chain。
+
+### BUG-4 批复
+
+**用户**：可能需要记录下 0 结果的原因，供用户看到
+
+**执行方向**：a2 缺 date_obj / dateValue=null 时，任务结果带上原因说明（如"无日期数据"），前端可见。
+
+### BUG-5 批复
+
+**用户**：同意建议
+
+**执行方向**：trip 匹配增加 null/undefined 检查，改用 `===` 严格比较。
+
+### BUG-6 批复
+
+**用户**：同意建议
+
+**执行方向**：限流器 cooldown 结束后重新走滑动窗口检查。
+
+### BUG-7 批复
+
+**用户**：业务需要，业务需要时效性，必须重新跑。
+
+**结论**：**不处理。** 重启后 stages 重置为 idle 是业务需要（数据有时效性，必须重新跑）。pipelineState.json 保持只存 mode。
+
+### BUG-8 批复
+
+**用户**：不知道你说的是不是业务需求，我需要更详细的信息去判断。
+
+**回答**：跟 BUG-1 是同一件事。controller 的 `addBatchByStage` 是死代码（无调用方），"绕过 pipeline 状态管理"的问题实际不会触发。
+
+**结论**：跟 BUG-1 一起处理——删掉 controller 的死代码。
+
+### BUG-9 批复
+
+**用户**：属于待优化项。暂不处理。
+
+**结论**：暂不处理。
+
+### ARCH-1（fileManager God Object）批复
+
+**用户**：文件管理模块，管所有文件相关实现不好吗，多么好维护，会有什么坑存在吗？你把他拆分到各处好维护吗
+
+**回答**：
+- **坑在于"修改爆炸"**：700 行 7 个职责堆一起，改导出格式和改解析逻辑要在同一个文件里找；不相关职责共享内部状态（如 `_pathWithSeq` 被导出和 buildHumanReadableFile 共用），改一个可能影响另一个
+- **拆太碎也不好**：建议折中**只拆 2 个**：
+  - `ExcelExporter`（exportResult + buildHumanReadableFile + 路径管理）—— 导出逻辑聚合
+  - `fileManager` 保留其余（解析 + 持久化 + 合并 + 目录）—— 数据生命周期在一起
+- **可暂缓**：现在 700 行还在可控范围，如果改得动、没踩过坑，可以暂缓
+
+**结论**：**暂缓，列为 P3。** 等规模再增长或出现耦合 bug 时再拆。
+
+**用户最终批复**：同意建议，拆 2 个（ExcelExporter + fileManager）。**升级为 P2 执行。**
+
+### ARCH-2（mergeResult 签名不统一）批复
+
+**用户**：我不知道会有什么影响或后果。
+
+**回答**：
+- jxgj 的 mergeResult **修改入参**（挂字段到 a1Item），trip 的 mergeResult **不改入参**（返回新数组）
+- 调用方必须记住每个平台的行为差异，新增平台时容易写错
+- **但影响不算大**：只有 2 个平台，合并逻辑在 fileManager 里是分开的两个方法
+
+**结论**：**暂缓。** 如果以后 O 平台增多再统一。
+
+**用户最终批复**：统一行为，都不改入参，创建副本以供修改和 return。**升级为 P2 执行。**
+
+### ARCH-3（pipeline 和 fileManager 耦合过紧）批复
+
+**用户**：建议听起来不错，此做法有什么好处？
+
+**回答**：
+- 现在 pipeline 直接访问 `fileManager.getA1().data`、`item.date_obj` —— 知道 a1/a2 的内部结构
+- 如果 fileManager 把 `.data` 改名 `.items`，pipeline 也要跟着改
+- 解耦后 fileManager 暴露 `getA1Data()` / `getA2Data()`，pipeline 只调接口不访问内部，改名只改一处
+- **好处**：边界清晰，各自可改，互不影响
+
+**结论**：**列为 P2。** 当前只有 2 处调用，改动量小，做了更好但不紧急。
+
+**用户最终批复**：同意解耦。**保持 P2 执行。**
+
+### ARCH-4（a1/a2/a3 无类型定义）批复
+
+**用户**：同意建议
+
+**执行方向**：增加 JSDoc typedef 定义 A1Item/A2Item/A3Item shape。
+
+### ARCH-5（硬编码平台列表）批复
+
+**用户**：同意建议
+
+**执行方向**：从 registry 动态获取 O 平台列表，或定义 `O_PLATFORMS` 常量。
+
+### ARCH-6/7（命名不一致 / 魔法字符串 / priceComparisonPolicy）批复
+
+**用户**：暂时搁置
+
+**结论**：暂不处理。
+
+### ARCH-7（a1/a2/a3 三阶段隐式）批复
+
+**用户**：搁置
+
+**结论**：暂不处理。
+
+---
+
+## 7. 最终执行清单
+
+> 基于用户批复后的执行优先级
+
+### P0（立即执行）
+
+| 编号 | 任务 | 改动文件 |
+|------|------|---------|
+| BUG-1 + BUG-8 | 删除 controller.js 的 `pcp:task:addBatchByStage` 死代码 handler（L44-116）+ preload.js 对应暴露 | controller.js, preload.js |
+| BUG-2 | trip mergeResult 增加 replyStatus 校验 + 错误弹窗机制（不自动关闭 + 同类型堆叠） | trip/adapter.js, controller.js, 前端弹窗组件 |
+| BUG-3 | 确认 taskScheduler 是否 await onAllComplete，不 await 则改为同步/promise chain | pipeline.js, taskScheduler.js |
+
+### P1（近期执行）
+
+| 编号 | 任务 |
+|------|------|
+| BUG-4 | a2 缺 date_obj 时任务结果带原因说明 |
+| BUG-5 | trip 匹配增加 null/undefined 检查 |
+| BUG-6 | 限流器 cooldown 后重新检查滑动窗口 |
+| ARCH-4 | 增加 JSDoc typedef 定义 A1Item/A2Item/A3Item |
+| ARCH-5 | 从 registry 动态获取 O 平台列表 |
+
+### P2（架构优化）
+
+| 编号 | 任务 |
+|------|------|
+| ARCH-1 | 拆 fileManager → ExcelExporter（导出+路径）+ fileManager（解析+持久化+合并+目录） |
+| ARCH-2 | 统一 mergeResult 签名为无副作用（创建副本以供修改和 return） |
+| ARCH-3 | pipeline 和 fileManager 解耦（fileManager 暴露 getA1Data/getA2Data） |
+| ARCH-3.3 | 字段名跨模块硬编码 → 抽取 fieldNames.js 常量 |
+
+### 暂不处理
+
+| 编号 | 原因 |
+|------|------|
+| BUG-7 | 业务需要时效性，重启必须重跑 |
+| BUG-9 | 待优化项，暂不处理 |
+| ARCH-6/7 | 命名/三阶段隐式，搁置 |

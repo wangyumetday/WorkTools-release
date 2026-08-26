@@ -29,18 +29,19 @@ import { ipcRenderer } from 'electron'
 const api = {
   // ---------- PCP feature：数据处理 ----------
   pcp: {
-    // Task：任务队列（添加/删除/清空/启动/暂停/查状态/批量按阶段添加/设并发数）
+    // Task：任务队列（添加/删除/清空/启动/暂停/查状态/设并发数）
     taskAdd:             (task)              => ipcRenderer.invoke('pcp:task:add', task),
     taskDelete:          (taskId)            => ipcRenderer.invoke('pcp:task:delete', taskId),
     taskClear:           ()                  => ipcRenderer.invoke('pcp:task:clear'),
     taskStart:           (stage)             => ipcRenderer.invoke('pcp:task:start', stage),
     taskPause:           ()                  => ipcRenderer.invoke('pcp:task:pause'),
     taskGetState:        ()                  => ipcRenderer.invoke('pcp:task:getState'),
-    taskAddBatchByStage: (stage)             => ipcRenderer.invoke('pcp:task:addBatchByStage', stage),
     taskSetConcurrency:  (n)                 => ipcRenderer.invoke('pcp:task:setConcurrency', n),
     // 订阅型：任务进度推送 / 全部完成推送
     onTaskProgress:      (callback)          => ipcRenderer.on('pcp:task:progress',    (_event, data) => callback(data)),
     onTaskAllComplete:   (callback)          => ipcRenderer.on('pcp:task:allComplete', (_event, data) => callback(data)),
+    // 订阅型：任务错误推送（BUG-2：失败任务的错误按内容分组推送，前端弹 notification 不自动关闭）
+    onTaskError:         (callback)          => ipcRenderer.on('pcp:task:error',       (_event, data) => callback(data)),
     // 订阅型：任务列表完整状态推送（addBatch 后 / stage 切换时主进程主动推，渲染层据此刷新列表 + 重建 id 索引）
     onTaskState:         (callback)          => ipcRenderer.on('pcp:task:state', (_event, data) => callback(data)),
 

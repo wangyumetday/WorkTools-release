@@ -13,6 +13,16 @@ import o3 from './o3/adapter.js'
 const _registry = new Map()
 
 /**
+ * ARCH-5：O 平台 key 常量（替代散落各处的 ['trip','o2','o3'] 硬编码）
+ *   新增 O 平台时只需在此数组追加 key + 在下方 register
+ *   jxgj 是数据源平台（非 O 平台），不在此列表
+ */
+export const O_PLATFORM_KEYS = ['trip', 'o2', 'o3']
+
+/** 数据源平台 key（jxgj，非 O 平台） */
+export const SOURCE_PLATFORM_KEYS = ['jxgj']
+
+/**
  * 注册一个平台 adapter
  * @param {object} adapter - PlatformAdapter（必须含 key + 7 方法）
  */
@@ -44,10 +54,15 @@ export function keys() {
   return Array.from(_registry.keys())
 }
 
+/** 所有 O 平台 adapter（ARCH-5：动态过滤） */
+export function oPlatforms() {
+  return O_PLATFORM_KEYS.map(k => _registry.get(k)).filter(Boolean)
+}
+
 // ===== 初始化：注册内置平台 =====
 register(jxgj)
 register(trip)
 register(o2)
 register(o3)
 
-export default { register, get, all, keys }
+export default { register, get, all, keys, oPlatforms, O_PLATFORM_KEYS, SOURCE_PLATFORM_KEYS }

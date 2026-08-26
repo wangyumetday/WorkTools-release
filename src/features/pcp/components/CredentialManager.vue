@@ -72,6 +72,7 @@
         colon
         :show-required-mark="false"
         style="max-width: 420px; margin: 0 auto"
+        @keyup.enter="handleSave"
       >
       <!-- 空格代码是&nbsp; -->
         <n-form-item label="名  &nbsp;称" path="name">
@@ -273,7 +274,13 @@ async function handleSave() {
     message.warning('请填写必填项')
     return
   }
-  await api.pcp.credentialAdd({ ...formData.value })
+  // 账密验证：trip 平台会在主进程验证账密，失败返回 { success: false, message }
+  //   验证失败不关闭弹窗，让用户修改后重试
+  const res = await api.pcp.credentialAdd({ ...formData.value })
+  if (res && res.success === false) {
+    message.error(res.message || '账号验证失败')
+    return
+  }
   message.success('添加成功（若该平台此前未选账号，会自动选中这条）')
   showAddModal.value = false
   resetForm()

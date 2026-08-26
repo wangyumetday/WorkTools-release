@@ -100,6 +100,20 @@ export class PlatformRunner {
     }
     report(STEP_PROGRESS.credential)
 
+    // BUG-4：a2 缺 date_obj 时 dateValue=null，跳过请求返回带原因的空结果
+    //   避免无效 API 调用 + 让任务结果带上 0 结果的原因供用户看到
+    if (data && data.dateValue === null && data.dateKey === null) {
+      report(STEP_PROGRESS.merge)
+      return {
+        platform,
+        status: 'ok',
+        processedData: [],
+        summary: { flightCount: 0, lowPriceCount: 0 },
+        reason: '无日期数据（a2 项缺少 date_obj，可能 jxgj 未返回航班日期）',
+        _usedCredential: { id: credential.id, name: credential.name, username: credential.username, platform: credential.platform }
+      }
+    }
+
     // 步骤 2：使用该平台账密登录
     const loginResult = await adapter.login(credential)
     report(STEP_PROGRESS.login)
@@ -155,7 +169,7 @@ export class PlatformRunner {
    * @param {function} onStep
    */
   async runCombo(data, { onStep } = {}) {
-    const platforms = ['trip', 'o2', 'o3'].filter(p => this.credentialManager?.getSelected(p))
+    const platforms = registry.O_PLATFORM_KEYS.filter(p => this.credentialManager?.getSelected(p))
     const total = platforms.length || 1
     const report = (p) => onStep?.(p)
 
