@@ -59,6 +59,9 @@
           <div class="btn">+</div>
         </div>
       </div> -->
+
+      <!-- <platform-config-form-item v-else-if="field.type == 'PriceRange'" :field="field" /> -->
+
       <n-input v-else v-model:value="localConfig[field.key]" :placeholder="field.help ? field.help : ''" />
       <!-- 字段 help（小字说明，schema 注释即 UI 提示） -->
       <template v-if="field.help && field.type !== 'string'" #feedback>
