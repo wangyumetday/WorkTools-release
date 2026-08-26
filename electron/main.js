@@ -107,7 +107,11 @@ function createWindow() {
   //   - 整个应用生命周期只做这一次，不会循环检查
   if (app.isPackaged) {
     mainWindow.webContents.once('did-finish-load', () => {
-      setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 2000)
+      setTimeout(() => {
+        autoUpdater.checkForUpdates().catch(err => {
+          console.error('[updater] checkForUpdates failed:', err?.message || err)
+        })
+      }, 2000)
     })
   }
 
@@ -245,10 +249,10 @@ function registerIpcHandlers() {
   if (!app.isPackaged) return // 开发态跳过，省得每次启动都去请求 Gitee 超时
 
   autoUpdater.logger = {
-    info: () => {},  // (...a) => console.log('[updater]', ...a)  ← 打包时不再输出 updater 日志
+    info: (...a) => console.log('[updater]', ...a),
     warn: (...a) => console.warn('[updater]', ...a),
     error: (...a) => console.error('[updater]', ...a),
-    debug: () => {}
+    debug: (...a) => console.debug('[updater]', ...a)
   }
   autoUpdater.autoDownload = true                // 查到新版本直接后台下载，不再先问用户
   autoUpdater.autoInstallOnAppQuit = true        // 用户主动关软件时，若更新包已下载则静默装完再退出
