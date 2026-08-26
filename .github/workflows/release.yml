@@ -28,3 +28,18 @@ jobs:
         run: npm run build && npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Auto-generate release notes from git log
+        run: |
+          # 找最近的一个 tag（排除当前这个 v* tag 本身）
+          $prevTag = git tag --sort=-creatordate | Where-Object { $_ -ne "${{ github.ref_name }}" } | Select-Object -First 1
+          if ($prevTag) {
+            # 有上一个 tag → 生成其间所有 commit 作为 changelog
+            git log "$prevTag"..${{ github.ref_name }} --pretty=format:'- %s' --no-merges | Out-File -FilePath CHANGELOG_TMP.txt -Encoding utf8
+          } else {
+            # 第一个正式发布 → 从仓库起点取所有 commit
+            git log --pretty=format:'- %s' --no-merges | Out-File -FilePath CHANGELOG_TMP.txt -Encoding utf8
+          }
+          gh release edit ${{ github.ref_name }} --body-file CHANGELOG_TMP.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
