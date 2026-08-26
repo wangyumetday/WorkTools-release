@@ -8,6 +8,25 @@ out/
 release/
 dist/
 dist_electron/
+asar-list.txt
+
+# 旧引用/备份（已误删，残留 git 跟踪）
+.ref/
+
+# 开发过程草稿 / scratch
+.scratch/
+
+# 测试数据 / fixture
+testfold/
+
+# 临时 / 调试脚本
+*.tmp-*
+tmp-*.ps1
+test-debug.mjs
+test-fold-snapshot.mjs
+
+# 中间产物
+docs/pcp/pdf_text.txt
 
 # 日志
 *.log

@@ -10,59 +10,25 @@
        - o_config    + platform=trip → 抖动（trip 作为"第一个 O"引导用户去启用）
      说明：纯展示+表单组件，无 IPC 调用
      ============================================================ -->
-<style scoped>
-.qujian {
-  width: 100%;
-
-  .wrap {
-    width: 100%;
-    border: 1px solid #ccc;
-    padding: 8px;
-    border-radius: 4px;
-    display: flex;
-    flex-flow: row nowrap;
-    justify-content: flex-start;
-    align-items: center;
-
-
-    .gongshi {
-      margin-left: 8px;
-    }
-
-    .btn {
-      margin-left: 8px;
-    }
-  }
-}
-</style>
 <template>
   <n-form :model="localConfig" label-placement="left" label-width="160px" :show-required-mark="false"
-    style="max-width: 640px; margin-top: 16px" :class="{ 'pcp-blink-shake': shouldBlink }">
+    :disabled="disabled" style="max-width: 640px; margin-top: 16px" :class="{ 'pcp-blink-shake': shouldBlink }">
+    <!-- jxgj 专属：底价公式与区间底价二选一提示（区间优先；未命中区间回落底价公式） -->
+    <n-alert v-if="isJxgj" type="warning" :show-icon="true" style="margin-bottom: 12px">
+      底价公式与区间底价二选一：区间优先 —— 只要配置了任意一行区间，底价公式就被忽略；
+      票价未命中任何区间时，回落到底价公式计算。
+    </n-alert>
     <n-form-item v-for="field in schemaFields" :key="field.key" :label="field.label"
       :validation-status="fieldValidationStatus(field)" :feedback="fieldFeedback(field)">
       <!-- boolean → 开关 -->
-      <n-switch v-if="field.type === 'boolean'" v-model:value="localConfig[field.key]" />
+      <n-switch v-if="field.type === 'boolean'" v-model:value="localConfig[field.key]" :disabled="disabled" />
       <!-- number → 数字输入 -->
-      <n-input-number v-else-if="field.type === 'number'" v-model:value="localConfig[field.key]" style="width: 100%" />
+      <n-input-number v-else-if="field.type === 'number'" v-model:value="localConfig[field.key]" style="width: 100%" :disabled="disabled" />
       <!-- formula / string → 文本输入 -->
-      <!-- PriceRange → 数组输入，格式为 [min, max,drop] -->
-      <!-- <n-space vertical v-else-if="field.type === 'PriceRange'" v-model:value="localConfig[field.key]"
-        style="width: 100%">
-        <n-cascader v-model:value="value" placeholder="没啥用的值" :expand-trigger="hover" :options="options"
-          :show-path="showPath" :bordered="true" @update:value="handleUpdateValue" />
-      </n-space> -->
-      <!-- <div class="qujian" v-else-if="field.type == 'PriceRange'">
-        <div class="wrap">
-          <n-cascader v-model:value="value" :options="options" placeholder="qujian " expand-trigger="hover"
-            :show-path="false" clearable/>
-          <input type="text" placeholder="公式" />
-          <div class="btn">+</div>
-        </div>
-      </div> -->
+      <!-- PriceRange → 区间底价数组：RangePricing 组件负责 级联选择+公式校验+增删行 -->
+      <RangePricing v-else-if="field.type === 'PriceRange'" v-model="localConfig[field.key]" :disabled="disabled" />
 
-      <!-- <platform-config-form-item v-else-if="field.type == 'PriceRange'" :field="field" /> -->
-
-      <n-input v-else v-model:value="localConfig[field.key]" :placeholder="field.help ? field.help : ''" />
+      <n-input v-else v-model:value="localConfig[field.key]" :placeholder="field.help ? field.help : ''" :disabled="disabled" />
       <!-- 字段 help（小字说明，schema 注释即 UI 提示） -->
       <template v-if="field.help && field.type !== 'string'" #feedback>
         <span style="color: #999; font-size: 12px">{{ field.help }}</span>
@@ -74,18 +40,27 @@
 
 <script setup>
 import { ref, watch, computed, nextTick } from 'vue'
-import { NForm, NFormItem, NInput, NInputNumber, NSwitch, NButton, NCascader } from 'naive-ui'
+import { NForm, NFormItem, NInput, NInputNumber, NSwitch, NAlert } from 'naive-ui'
 import { useTaskStore } from '../stores/task.js'
+import RangePricing from './RangePricing.vue'
+import message from '@/shared/message.js'
 
-// 父组件注入：平台配置值 + 平台 key + schema
+// 父组件注入：平台配置值 + 平台 key + schema + 是否进行中锁定
 const props = defineProps({
   config: { type: Object, default: () => ({}) },
   platform: { type: String, default: '' },
-  schema: { type: Object, default: () => ({}) }
+  schema: { type: Object, default: () => ({}) },
+  disabled: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['save'])
 const store = useTaskStore()
+
+// 纯 JSON 深拷贝（配置对象只有基础类型/数组/Plain Object，完全可序列化）
+function deepClone(o) {
+  if (o == null) return o
+  return JSON.parse(JSON.stringify(o))
+}
 
 // 本地编辑副本（避免直接改 props）
 const localConfig = ref({ ...props.config })
@@ -111,6 +86,15 @@ watch(
   () => JSON.stringify(localConfig.value),
   (newStr, oldStr) => {
     if (suppressWatch) return
+    // 进行中：禁止一切本地修改 → 如果 Naive UI disabled 不生效有漏网之鱼，这里兜底
+    if (props.disabled) {
+      // 回滚 localConfig 到 props.config（用户操作无效，显示原配置）
+      suppressWatch = true
+      localConfig.value = deepClone(props.config || {})
+      nextTick(() => { suppressWatch = false })
+      message?.warning && message.warning('步骤流进行中，基础配置已锁定；请完成或终止后再修改')
+      return
+    }
     const newObj = JSON.parse(newStr)
     const oldObj = oldStr ? JSON.parse(oldStr) : {}
     let changedKey = null
@@ -120,14 +104,13 @@ watch(
     if (changedKey === null) return
 
     if (changedKey === 'enabled') {
-      // 自动脏标记产生的 enabled 变化 → 跳过保存
       if (autoDisabling) return
-      // 用户手动拨启用开关（两向都同步）→ emit save 持久化
-      emit('save', { platform: props.platform, data: { ...localConfig.value } })
+      // 用户手动拨启用开关 → emit save
+      emit('save', { platform: props.platform, data: { ...deepClone(localConfig.value) } })
       return
     }
 
-    // 其他字段变化 → 自动未启用（脏标记，等用户重新启用才同步）
+    // 其他字段变化 → 自动未启用（脏标记）
     if (newObj.enabled !== false) {
       autoDisabling = true
       localConfig.value.enabled = false
@@ -195,45 +178,6 @@ const shouldBlink = computed(() => {
   return false
 })
 
-// 区间底价公式
-function getOptions(depth = 3, iterator = 1, prefix = "") {
-  const length = 12;
-  const options = [];
-  for (let i = 1; i <= length; ++i) {
-    if (iterator === 1) {
-      options.push({
-        value: `v-${i}`,
-        label: `l-${i}`,
-        disabled: i % 5 === 0,
-        children: getOptions(depth, iterator + 1, `${String(i)}`)
-      });
-    } else if (iterator === depth) {
-      options.push({
-        value: `v-${prefix}-${i}`,
-        label: `l-${prefix}-${i}`,
-        disabled: i % 5 === 0
-      });
-    } else {
-      options.push({
-        value: `v-${prefix}-${i}`,
-        label: `l-${prefix}-${i}`,
-        disabled: i % 5 === 0,
-        children: getOptions(depth, iterator + 1, `${prefix}-${i}`)
-      });
-    }
-  }
-  return options;
-}
-const checkStrategyIsChild = ref(true);
-const showPath = ref(true);
-const hoverTrigger = ref(false);
-const filterable = ref(false);
-const value = ref(null);
-const options = getOptions();
-function handleUpdateValue(value, option) {
-  console.log(value, option);
-}
-
-
-
+// jxgj 才显示"底价公式与区间底价二选一"提示
+const isJxgj = computed(() => props.platform === 'jxgj')
 </script>

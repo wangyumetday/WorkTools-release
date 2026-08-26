@@ -60,6 +60,59 @@ function formatDijiaWithCut(dijia, adultTotal) {
 }
 
 /**
+ * 底价命中公式文本：与前端 TaskList 调试标签 formatFloorMeta 输出一致
+ *   range   → 「区间 [500,700] cost*0.48」
+ *   global  → 「全局 cost*0.2」
+ *   fallback→ 「降级 原价」
+ *   缺失/格式错误 → 空字符串
+ */
+function formatFloorMeta(meta) {
+  if (!meta || typeof meta !== 'object') return ''
+  const type = String(meta.formulaType || '?')
+  let typeLabel = ''
+  if (type === 'range') typeLabel = '区间'
+  else if (type === 'global') typeLabel = '全局'
+  else if (type === 'fallback') typeLabel = '降级'
+  else typeLabel = type
+  const rangeStr = Array.isArray(meta.rangeHit) && meta.rangeHit.length === 2
+    ? `[${meta.rangeHit[0]},${meta.rangeHit[1]}] `
+    : ''
+  const isFallbackCost = String(meta.formulaStr || '') === 'cost' && type === 'fallback'
+  const formulaStr = isFallbackCost ? '原价' : (String(meta.formulaStr || '?'))
+  return `${typeLabel} ${rangeStr}${formulaStr}`.trim()
+}
+
+/**
+ * xlsx sheet 所有单元格 水平垂直居中 + 默认 14px 字体与边框（轻量美化）
+ *   - 遍历 !ref 范围内所有单元格，设置 s.alignment = { horizontal:'center', vertical:'center', wrapText:true }
+ *   - 无 !ref（空 sheet）时跳过
+ *   - 内容单元格已存在自定义 s 的，浅合并（只改 alignment，保留其他样式）
+ */
+function centerSheetCells(ws) {
+  if (!ws || !ws['!ref']) return
+  const range = XLSX.utils.decode_range(ws['!ref'])
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const addr = XLSX.utils.encode_cell({ r: R, c: C })
+      const cell = ws[addr]
+      if (!cell) continue
+      const baseStyle = (cell.s && typeof cell.s === 'object') ? cell.s : {}
+      cell.s = {
+        ...baseStyle,
+        alignment: {
+          horizontal: 'center',
+          vertical: 'center',
+          wrapText: true
+        }
+      }
+    }
+  }
+  // 列宽：兜底稍微宽一点，避免中文列被挤成 ###（14px 字体大概 8~16 字符）
+  const colCount = Math.max(1, range.e.c - range.s.c + 1)
+  ws['!cols'] = new Array(colCount).fill(null).map(() => ({ wch: 14 }))
+}
+
+/**
  * Excel 导出器
  *   - 由 FileManager 实例化并注入（fileManager 提供 a3 数据访问）
  *   - registry 直接 import（与 fileManager 同款用法），无需注入
@@ -211,6 +264,8 @@ export class ExcelExporter {
         } else {
           worksheet = XLSX.utils.json_to_sheet(flatData)
         }
+        // 系统导入文件：所有单元格水平垂直居中显示
+        centerSheetCells(worksheet)
         const workbook = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(workbook, worksheet, p)
 
@@ -266,24 +321,42 @@ export class ExcelExporter {
         [r[A3_FIELDS.H航班号], r[A3_FIELDS.C出发机场], r[A3_FIELDS.D到达机场], r[A3_FIELDS.C出发时间_Date]]
           .map(v => (v == null ? '' : String(v))).join('|')
 
-      // 3. 其他平台底价索引：platform → { 匹配键: 底价 }
+      // 3. 其他平台底价 & 命中公式索引：platform → { 匹配键: value }
       const otherPriceMap = {}
+      const otherMetaMap = {}
       for (const p of presentKeys) {
         if (p === mainKey) continue
-        const m = {}
-        for (const r of groups[p]) m[matchKey(r)] = r[A3_FIELDS.XC_dijia]
-        otherPriceMap[p] = m
+        const pm = {}, mm = {}
+        for (const r of groups[p]) {
+          const k = matchKey(r)
+          pm[k] = r[A3_FIELDS.XC_dijia]
+          mm[k] = r[A3_FIELDS._floorMeta]
+        }
+        otherPriceMap[p] = pm
+        otherMetaMap[p] = mm
       }
 
       // 4. 列顺序：航班号, 舱位, 出发机场, 到达机场, 成人总票价_CNY,
-      //            底价列(含预计减价), 出发城市, 到达城市, 航司名, 出发时间, 到达时间, 仓等
-      const priceHeaders = presentKeys.map(p => `${platformDisplayName(p)}底价(预计减价)`)
+      //            [ 各平台底价列 | 该平台命中公式列 成对插入 ... ],
+      //            出发城市, 到达城市, 航司名, 出发时间, 到达时间, 仓等
+      const platformColGroups = presentKeys.map(p => ({
+        priceHeader: `${platformDisplayName(p)}底价(预计减价)`,
+        metaHeader: '底价公式命中',
+        platform: p
+      }))
+      const interleavedPlatformCols = []
+      for (const g of platformColGroups) interleavedPlatformCols.push(g.priceHeader, g.metaHeader)
       const header = ['航班号', '舱位', '出发机场', '到达机场', '成人总票价_CNY'].concat(
-        priceHeaders,
+        interleavedPlatformCols,
         ['出发城市', '到达城市', '航司名', '出发时间', '到达时间', '仓等']
       )
-      const priceHeaderKeys = {}
-      presentKeys.forEach(p => { priceHeaderKeys[`${platformDisplayName(p)}底价(预计减价)`] = p })
+      // 表头 → 属于哪类：fieldMap / 某平台 底价列 / 某平台 命中公式列
+      const priceHeaderInfo = {}
+      const metaHeaderInfo = {}
+      for (const g of platformColGroups) {
+        priceHeaderInfo[g.priceHeader] = g.platform
+        metaHeaderInfo[g.metaHeader] = g.platform
+      }
       // 中文表头 → 原始字段
       const fieldMap = {
         '航班号': A3_FIELDS.H航班号, '舱位': A3_FIELDS.C舱位, '成人总票价_CNY': A3_FIELDS.C成人总票价_CNY,
@@ -295,43 +368,56 @@ export class ExcelExporter {
       // 5. 逐行组装（对象 key 插入顺序 = 表头列顺序）
       const rows = []
       const usedKeys = new Set()
-      const pushRow = (r, priceByPlat) => {
+      const pushRow = (r, priceByPlat, metaByPlat) => {
         const out = {}
         for (const h of header) {
           if (fieldMap[h] != null) {
             out[h] = r[fieldMap[h]]
-          } else {
+          } else if (priceHeaderInfo[h] != null) {
             // 底价列：底价（预计减价），如 2050（-30）
-            out[h] = formatDijiaWithCut(priceByPlat[priceHeaderKeys[h]], r[A3_FIELDS.C成人总票价_CNY])
+            out[h] = formatDijiaWithCut(priceByPlat[priceHeaderInfo[h]], r[A3_FIELDS.C成人总票价_CNY])
+          } else if (metaHeaderInfo[h] != null) {
+            // 命中公式列：区间[500,700] cost*0.48 / 全局 cost*0.2 / 降级 原价
+            out[h] = formatFloorMeta(metaByPlat[metaHeaderInfo[h]])
+          } else {
+            out[h] = ''
           }
         }
         rows.push(out)
       }
 
-      // 主体平台行（携程为主），其他平台底价按匹配键补列
+      // 主体平台行（携程为主），其他平台底价/公式按匹配键补列
       for (const r of groups[mainKey]) {
         const key = matchKey(r)
         usedKeys.add(key)
         const priceByPlat = { [mainKey]: r[A3_FIELDS.XC_dijia] }
+        const metaByPlat = { [mainKey]: r[A3_FIELDS._floorMeta] }
         for (const p of presentKeys) {
           if (p === mainKey) continue
           priceByPlat[p] = otherPriceMap[p][key] ?? ''
+          metaByPlat[p] = otherMetaMap[p][key] ?? null
         }
-        pushRow(r, priceByPlat)
+        pushRow(r, priceByPlat, metaByPlat)
       }
-      // 其他平台独有的航班（主体平台没有的行）追加，主体平台底价留空
+      // 其他平台独有的航班（主体平台没有的行）追加，主体平台底价/公式留空
       for (const p of presentKeys) {
         if (p === mainKey) continue
         for (const r of groups[p]) {
           const key = matchKey(r)
           if (usedKeys.has(key)) continue
           usedKeys.add(key)
-          pushRow(r, { [p]: r[A3_FIELDS.XC_dijia] })
+          pushRow(
+            r,
+            { [p]: r[A3_FIELDS.XC_dijia] },
+            { [p]: r[A3_FIELDS._floorMeta] }
+          )
         }
       }
 
       // 6. 写 xlsx：{主体平台中文名}底价检查{日期}.xlsx（如 携程底价检查2026-08-21.xlsx）
+      //   表头/内容全部单元格水平垂直居中显示
       const worksheet = XLSX.utils.json_to_sheet(rows)
+      centerSheetCells(worksheet)
       const workbook = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(workbook, worksheet, '底价检查')
       const finalPath = seq != null

@@ -163,17 +163,30 @@ function hasTaskProgress(s) {
 }
 
 // ========== 可点击判断（只有 upload/jxgj/trip/export 四个"入口"能点）==========
+// 设计语义：
+//   · 真实步骤流「硬锁定」= running/paused（正在跑或任务暂停中）
+//     → upload/jxgj/trip 全部不可点；避免重入跑 jxgj 两次，也避免换输入文件混结果
+//   · dev 模式 waiting_next = 设计上预期"停在中间等用户点下一步手动触发"
+//     → waiting_next 不属于硬锁定，允许点 jxgj/trip 继续推流程；
+//       但 upload（换文件）在 waiting_next 仍然禁（跑了一半不能换文件）
+//   · 配置/账号锁定（pipelineInProgress = running/waiting_next/paused）与步骤点击是两件事：
+//     waiting_next 时配置和账号不能改（防止前后结果不一致），但允许手动点步骤推流程。
+//   · export 永远是独立伪步骤，只看 _exportGate.can。
 function isClickable(stage, i) {
-  // export 阶段：只要 _exportGate.can === true（无论 dev/auto；完成后用户都该点下载）
+  const status = ps.value.status || 'idle'
+  // 硬锁定：正在跑 / 已暂停 → 任何真实入口（upload/jxgj/trip）都不让点
+  const hardLock = status === 'running' || status === 'paused'
+
+  // export 阶段：伪步骤 → 不算真实步骤流；只要门控 can===true 就能下载（完成/失败都允许再导一份）
   if (stage.key === 'export') return exportGate.value.can === true
 
-  // running/paused 中不能点（避免重入）
-  if (ps.value.status === 'running' || ps.value.status === 'paused') return false
-
+  // upload：硬锁 + waiting_next 都禁止（流程开始后，半中间不能换文件/重传覆盖 a1）
   if (stage.key === 'upload') {
-    // upload 一直可以点（允许用户重新上传文件覆盖 a1）
-    return true
+    return !hardLock && status !== 'waiting_next'
   }
+
+  // 硬锁：jxgj/trip 手动触发也禁（重入保护）
+  if (hardLock) return false
 
   if (stage.key === 'jxgj') {
     if (!isDev.value) return false
@@ -185,6 +198,7 @@ function isClickable(stage, i) {
     if (!isDev.value) return false
     // O 组入口：trip 显示"点击执行 O 组合"
     // 前置：jxgj completed + O 组 4 个阶段 (trip/o2/o3/a3_merge) 都还没开始
+    // dev 模式下 jxgj 跑完就会停在 waiting_next → 这里必须允许点击才符合设计
     const jxgj = stages.value[1]
     const oGroup = ['trip','o2','o3','a3_merge'].map(k => stages.value.find(s => s.key === k))
     const allIdle = oGroup.every(s => !s || s.status === 'idle')

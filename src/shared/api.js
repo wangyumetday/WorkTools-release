@@ -70,7 +70,7 @@ const mockApi = {
       mockNotReady('pcp.configGet')
       return mockDelay({
         jxgj: { floorPriceFormula: '', markupPercent: 0, enabled: true },
-        trip: { floorPriceFormula: '', markupPercent: 0, enabled: true },
+        trip: { enabled: true, rateLimitPerMin: 200 },
         o2:   { floorPriceFormula: '', markupPercent: 0, enabled: true },
         o3:   { floorPriceFormula: '', markupPercent: 0, enabled: true }
       })

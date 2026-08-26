@@ -17,6 +17,20 @@ export const key = 'trip'
 export const displayName = '携程'
 export { configSchema, defaults }
 
+// ===== 请求写死参数（原 o1.js 硬编码在请求里的固定值，不作为配置项）=====
+const REQUEST_CONST = {
+  baseURL: 'https://intlresource-exchdata.ctrip.com/api/lowPriceSearch',
+  timeout: 10000,
+  language: 'zh_CN',
+  tripType: 'OW',
+  travelerCount: 1,
+  childTravelerCount: 0,
+  seatGrade: 'Y',
+  channel: 'EnglishSite',
+  subChannel: 0,
+  specialParam: null//'SpecialSupply-特价产品'
+}
+
 /** TRIP 无公式编译，透传字符串配置 */
 export const compileConfig = (raw = {}) => ({ ...raw })
 
@@ -127,14 +141,14 @@ function buildSegments(data) {
   return segments
 }
 
-function buildRequestBody(cfg, loginName, password, segments, validatingCarrier) {
+function buildRequestBody(loginName, password, segments, validatingCarrier) {
   return {
-    requestHeader: { requestID: randomUUID(), loginName, password, language: cfg.language },
+    requestHeader: { requestID: randomUUID(), loginName, password, language: REQUEST_CONST.language },
     queryCondition: {
-      tripType: cfg.tripType, validatingCarrier, segments,
-      travelerCount: cfg.travelerCount, childTravelerCount: cfg.childTravelerCount,
-      seatGrade: cfg.seatGrade, channel: cfg.channel, subChannel: cfg.subChannel,
-      scMarket: cfg.scMarket, specialParam: cfg.specialParam
+      tripType: REQUEST_CONST.tripType, validatingCarrier, segments,
+      travelerCount: REQUEST_CONST.travelerCount, childTravelerCount: REQUEST_CONST.childTravelerCount,
+      seatGrade: REQUEST_CONST.seatGrade, channel: REQUEST_CONST.channel, subChannel: REQUEST_CONST.subChannel,
+      specialParam: REQUEST_CONST.specialParam
     }
   }
 }
@@ -269,7 +283,7 @@ function priceComparisonPolicy(originalData, resData) {
 export function prepareRequest(a2Item, _dateKey, compiledConfig) {
   const cfg = { ...defaults, ...compiledConfig }
   const segments = buildSegments(a2Item)
-  const validatingCarrier = a2Item.dateValue[0][A3_FIELDS.H航司名] || cfg.validatingCarrier || ''
+  const validatingCarrier = a2Item.dateValue[0][A3_FIELDS.H航司名] || ''
   return { segments, validatingCarrier, cfg }
 }
 
@@ -291,9 +305,9 @@ export async function request(prepared, ctx) {
   //   设为 0 / 负数 = 关闭限流（dev 调试可设 0 跳过限流）
   await _rateLimiter.acquire(cfg.rateLimitPerMin)
 
-  const requestBody = buildRequestBody(cfg, loginName, password, segments, validatingCarrier)
+  const requestBody = buildRequestBody(loginName, password, segments, validatingCarrier)
   const gzippedBody = gzipSync(Buffer.from(JSON.stringify(requestBody), 'utf-8'))
-  const rawResponse = await postGzip(cfg.baseURL, gzippedBody, cfg.timeout)
+  const rawResponse = await postGzip(REQUEST_CONST.baseURL, gzippedBody, REQUEST_CONST.timeout)
 
   // ★ 429 被动冷却：携程服务端限流时返 429 + Retry-After（秒）
   //   触发 cooldown 后，后续所有 acquire 会自动等待冷却到期再放行
@@ -357,16 +371,15 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
 
 // ============================================================
 // 导出模板（阶段4）：每 O 平台一份异构 xlsx 列模板
-//   columns 定义 xlsx 的列顺序 + 每列值如何从 processedData item + 平台配置 算出
+//   columns 定义 xlsx 的列顺序 + 每列值如何从比价结果 item 算出
 //   - value: 静态字面量（优先级/是否启用/OTAType 等）
-//   - from(item, cfg): 动态从比价结果 item + 平台配置 cfg 取值
-//   cfg.agentName / cfg.agentRemark 写入政策 Name / Remark 列（业务员信息）
+//   - from(item): 动态从比价结果 item 取值
 // ============================================================
 export const exportTemplate = {
   platform: 'trip',
   columns: [
-    { key: 'Name',             from: (item, cfg) => `${cfg.agentName || '王宇'}_${item[A3_FIELDS.H航司名]}_携程/${item[A3_FIELDS.C出发机场]}-${item[A3_FIELDS.D到达机场]}` },
-    { key: 'Remark',           from: (_item, cfg) => cfg.agentRemark || '王宇_出官网' },
+    { key: 'Name',             from: (item) => `王宇_${item[A3_FIELDS.H航司名]}_携程/${item[A3_FIELDS.C出发机场]}-${item[A3_FIELDS.D到达机场]}` },
+    { key: 'Remark',           value: '王宇_出官网' },
     { key: '优先级',            value: '90' },
     { key: '是否启用',          value: 'TRUE' },
     { key: '航程类型',          value: null },
@@ -438,7 +451,6 @@ export const exportTemplate = {
  * @returns {Promise<{ success: boolean, message?: string }>}
  */
 export async function verifyCredential(credential) {
-  const cfg = { ...defaults, rateLimitPerMin: 0 }  // rateLimitPerMin=0 关闭限流
   const loginName = credential?.username || ''
   const password = credential?.password || ''
   if (!loginName || !password) {
@@ -446,11 +458,11 @@ export async function verifyCredential(credential) {
   }
   // 最小测试请求：1 条 OW 单程，固定航线 BKK→HKT（文档示例航线）
   const segments = [{ segmentNo: 1, departCity: 'BKK', arriveCity: 'HKT', departDate: '2025-12-31' }]
-  const requestBody = buildRequestBody(cfg, loginName, password, segments, '')
+  const requestBody = buildRequestBody(loginName, password, segments, '')
   let rawResponse
   try {
     const gzippedBody = gzipSync(Buffer.from(JSON.stringify(requestBody), 'utf-8'))
-    rawResponse = await postGzip(cfg.baseURL, gzippedBody, cfg.timeout)
+    rawResponse = await postGzip(REQUEST_CONST.baseURL, gzippedBody, REQUEST_CONST.timeout)
   } catch (err) {
     return { success: false, message: `网络请求失败：${err.message}` }
   }

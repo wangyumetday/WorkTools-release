@@ -164,6 +164,20 @@ export class Pipeline {
   // ========== 对外 API ==========
 
   /**
+   * 真实步骤流是否进行中
+   * 设计：选择文件/下载文件 不算真实步骤流；
+   * 只有点「开始」→ jxgj → OTA → a3_merge 的流程才算。
+   * 进行中时不允许修改平台配置/账号(凭证)等基础配置。
+   * true  when: status === 'running' | 'waiting_next' | 'paused'
+   * false when: status === 'idle'    | 'done'
+   */
+  isInProgress() {
+    this._syncLegacyFields()
+    const s = this.status
+    return s === 'running' || s === 'waiting_next' || s === 'paused'
+  }
+
+  /**
    * 启动流程（auto 模式入口）
    *   门禁通过 → upload 标记完成 → jxgj running → 调 runStage('jxgj')
    *   完成后 jxgj 回调里自动衔接 o_combo
@@ -380,15 +394,17 @@ export class Pipeline {
     if (a1Count === 0) missing.push('file')
 
     // 2. JXGJ 配置启用 + 账号选中
-    if (!this.configManager?.isEnabled('jxgj')) {
+    // ★ 从运行时配置栈（taskManager.compiledConfigs）取，统一"一条路径"
+    if (!this.taskManager?.isRuntimeEnabled('jxgj')) {
       missing.push('jxgj_config')
     } else if (!this.credentialManager?.getSelected('jxgj')) {
       missing.push('jxgj_credential')
     }
 
     // 3. 至少一个 O 平台启用 + 账号选中
+    // ★ 从运行时配置栈取
     const oPlatforms = O_PLATFORM_KEYS
-    const enabledO = oPlatforms.filter(p => this.configManager?.isEnabled(p))
+    const enabledO = oPlatforms.filter(p => this.taskManager?.isRuntimeEnabled(p))
     if (enabledO.length === 0) {
       missing.push('o_config')
     } else {
@@ -474,7 +490,7 @@ export class Pipeline {
         return Promise.resolve({ success: false, message: '未选择平台，请先在「账号管理」里为至少一个 O 平台选中账号' })
       }
       for (const p of O_PLATFORM_KEYS) {
-        const enabled = this.configManager?.isEnabled(p)
+        const enabled = this.taskManager?.isRuntimeEnabled(p)   // ★ 从运行时配置栈取
         const credOk = !!this.credentialManager?.getSelected(p)
         if (!enabled) {
           this._setStage(p, { status: 'skipped', skipReason: '平台未启用', finishedAt: Date.now() })
@@ -492,7 +508,8 @@ export class Pipeline {
     let tasks
     if (stage === 'o_combo') {
       const enabledO = O_PLATFORM_KEYS.filter(p =>
-        this.configManager?.isEnabled(p) && this.credentialManager?.getSelected(p))
+        this.taskManager?.isRuntimeEnabled(p)   // ★ 从运行时配置栈取
+        && this.credentialManager?.getSelected(p))
       tasks = []
       for (const item of sourceData) {
         const dateObj = item && typeof item.date_obj === 'object' && item.date_obj !== null ? item.date_obj : null

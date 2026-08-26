@@ -67,6 +67,21 @@ export const useTaskStore = defineStore('pcp-task', () => {
   const failedCount = computed(() => tasks.value.filter(t => t.status === 'failed').length)
   const pendingCount = computed(() => tasks.value.filter(t => t.status === 'pending' || t.status === 'paused').length)
 
+  /**
+   * 真实步骤流是否进行中（前端统一判定，与后端 Pipeline.isInProgress 规则一致）
+   * 设计：上传文件 / 下载结果 不算真实步骤流；
+   *       只有点「开始」→ jxgj → OTA → a3_merge 这段流程才算。
+   * true  when: pipelineStatus === 'running' | 'waiting_next' | 'paused' OR taskQueue isRunning
+   * false when: pipelineStatus === 'idle'    | 'done'
+   * 用于：PlatformConfig / CredentialManager 进行中禁用所有编辑控件，显示锁标示
+   */
+  const pipelineInProgress = computed(() => {
+    const s = pipelineState.value?.status || 'idle'
+    const pi = s === 'running' || s === 'waiting_next' || s === 'paused'
+    const ti = !!isRunning.value || !!isPaused.value || activeCount.value > 0
+    return pi || ti
+  })
+
   const a1Columns = computed(() => {
     if (a1Data.value.length === 0) return []
     const firstRow = a1Data.value[0]
@@ -100,6 +115,9 @@ export const useTaskStore = defineStore('pcp-task', () => {
 
   // ==================== 刷新方法 ====================
   async function refreshTasks() {
+    // ★ 取消未完成的 stagger：refreshTasks 做整体替换，
+    //   若 staggerTimer 还在跑，25ms 后会把闭包里的 stale 任务 push 到新数组末尾 → 重复显示
+    if (staggerTimer) { clearTimeout(staggerTimer); staggerTimer = null; staggerGen++ }
     const state = await api.pcp.taskGetState()
     tasks.value = state.tasks || []
     isRunning.value = state.isRunning
@@ -349,6 +367,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
   //   修复"任务列表卡住直到 allComplete 才整体刷新"——拆分后 o 阶段每平台任务实时可见、进度条实时动
   //   入队动画：新任务 stagger 增量追加（每 25ms 一条），让用户看到一条条进入队列而非瞬间全显
   let staggerTimer = null
+  let staggerGen = 0   // ★ generation counter：每次新 stagger 或 refreshTasks 时递增，过期 step 不会 push
   function handleTaskState(state) {
     if (!state) return
     // 新 state 到来，取消未完成的 stagger，以最新为准
@@ -385,7 +404,9 @@ export const useTaskStore = defineStore('pcp-task', () => {
     }
     // 小批量 stagger：每 25ms 追加一条，给"逐条入队"视觉
     let i = 0
+    const myGen = ++staggerGen   // ★ 捕获当前 generation，refreshTasks 或新 stagger 会让 staggerGen++ 导致过期
     const step = () => {
+      if (myGen !== staggerGen) { staggerTimer = null; return }  // ★ generation 变了 → 放弃过期 stagger
       if (i >= newTasks.length) { staggerTimer = null; return }
       tasks.value.push(newTasks[i])
       i++
@@ -514,7 +535,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
     pipelineState, blinkTarget,
     downloadDir, downloadProgress, lastDownloadFilename, lastDownloadPath,
     // getters
-    completedCount, failedCount, pendingCount, a1Columns,
+    completedCount, failedCount, pendingCount, a1Columns, pipelineInProgress,
     // actions
     getStageName,
     refreshTasks, refreshDataCounts, refreshAll, refreshPipelineState,

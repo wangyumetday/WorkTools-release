@@ -57,11 +57,17 @@ export class ConfigManager {
   }
 
   // 把 savedConfig 合并到 defaultConfig 之上（按平台对象浅合并）
-  // 兼容老结构：老 jxgj 只有 floorPriceFormula/markupPercent/enabled，新 defaults 会补全缺失字段
+  // 只保留 defaults 定义的键：老配置里的废弃字段（如 trip 曾有的 baseURL/validatingCarrier/agentName 等）自动剔除
   mergeConfig(defaultConfig, savedConfig) {
     const merged = {}
     for (const key of Object.keys(defaultConfig)) {
-      merged[key] = { ...defaultConfig[key], ...(savedConfig[key] || {}) }
+      const d = defaultConfig[key]
+      const s = savedConfig[key] || {}
+      const cleaned = {}
+      for (const k of Object.keys(d)) {
+        cleaned[k] = (k in s && s[k] !== undefined) ? s[k] : d[k]
+      }
+      merged[key] = cleaned
     }
     return merged
   }

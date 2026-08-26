@@ -112,6 +112,13 @@ function statusText(i) {
 function handleStepClick(i) {
   const s = stepStatus(i)
   if (s !== 'clickable') return
+  // 「硬锁定」running/paused：任何真实入口都禁（避免重入/换文件混结果）
+  // waiting_next（dev 模式停在中间等用户点下一步）→ 允许 jxgj/o_combo；
+  //              但 upload（i=0）仍然禁（流程过半后不能换文件/重传覆盖 a1）
+  const status = store.pipelineState.status || 'idle'
+  const hardLock = status === 'running' || status === 'paused'
+  if (hardLock && i !== 3) return
+  if (status === 'waiting_next' && i === 0) return
   if (i === 0) { store.handleUploadXlsx(); return }
   if (i === 1) { store.pipelineTriggerStep('jxgj'); return }
   if (i === 2) { store.pipelineTriggerStep('o_combo'); return }

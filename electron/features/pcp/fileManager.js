@@ -16,7 +16,7 @@ import path from 'node:path'
 import XLSX from 'xlsx'
 import * as registry from './platforms/registry.js'
 import { O_PLATFORM_KEYS as O_PLATFORMS } from './platforms/registry.js'
-import { A2_FIELDS } from './fieldNames.js'
+import { A2_FIELDS, A3_FIELDS } from './fieldNames.js'
 // ARCH-1：导出逻辑已抽离到 ExcelExporter，HR_FIELDS 由其统一导出（saveA3FromOTasks 仍要用）
 import { ExcelExporter, HR_FIELDS } from './ExcelExporter.js'
 
@@ -440,6 +440,10 @@ export class FileManager {
         for (const f of HR_FIELDS) {
           row[f] = item[f]
         }
+        // 底价命中公式（jxgj 舱位项 _floorMeta 的文本化，同前端调试标签）
+        //   系统导入文件里该字段因 exportTemplate.columns 未声明不会被写；
+        //   仅底价检查(人看)文件会用到这列
+        row[A3_FIELDS._floorMeta] = item[A3_FIELDS._floorMeta] || null
         a3arr.push(row)
       }
     })

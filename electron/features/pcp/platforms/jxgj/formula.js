@@ -7,6 +7,7 @@
 //   - 仅允许 + - * / 和 ( ) 的组合，变量名固定 cost（代表总价）
 //   - 拒绝 Math.* 函数、** 幂、% 取模、函数调用等一切非四则运算语法
 // 兜底：任一失败降级为原价，不让请求中断
+// 另提供 makeRangeFloorPriceFn：区间底价批预编译（区间优先查找，未命中回落全局公式）
 // ============================================================
 
 import Decimal from 'decimal.js'
@@ -96,5 +97,37 @@ export function makeFloorPriceFn(formulaStr) {
   }
 }
 
+/**
+ * 把"区间底价行列表"整批预编译成总查找函数
+ * 与底价公式二选一：配置了任意区间行就忽略底价公式；未命中区间回落全局底价公式
+ * @param {Array} rangeList - 每行三元组 [左界, 右界, 公式字符串]，如 [['100','199','cost*1.1'], ...]
+ * @param {string} fallbackFormulaStr - 全局底价公式字符串（未命中任何区间时兜底，缺省=原价）
+ * @returns {(totalPrice: number) => number}
+ *   1. Number(cost) → c（非数字交给兜底公式处理）
+ *   2. 按配置顺序找第一个 L <= c <= U 的行（区间闭区间；不排序，配置顺序即优先级）
+ *   3. 命中 → 该行公式 fn(c)；未命中 → 兜底公式 fallbackFn(c)
+ */
+export function makeRangeFloorPriceFn(rangeList, fallbackFormulaStr = '') {
+  const rows = []
+  for (const triple of (Array.isArray(rangeList) ? rangeList : [])) {
+    if (!Array.isArray(triple)) continue
+    const L = Number(triple[0])
+    const U = Number(triple[1])
+    // 跳过无左/右界或左界大于右界的脏行
+    if (!Number.isFinite(L) || !Number.isFinite(U) || L > U) continue
+    rows.push([L, U, makeFloorPriceFn(typeof triple[2] === 'string' ? triple[2] : '')])
+  }
+  const fallbackFn = makeFloorPriceFn(fallbackFormulaStr)
+
+  return (totalPrice) => {
+    const c = Number(totalPrice)
+    if (!Number.isFinite(c)) return fallbackFn(totalPrice)
+    for (const [L, U, fn] of rows) {
+      if (c >= L && c <= U) return fn(c)
+    }
+    return fallbackFn(c)
+  }
+}
+
 export { MONEY_DP }
-export default { makeFloorPriceFn, MONEY_DP }
+export default { makeFloorPriceFn, makeRangeFloorPriceFn, MONEY_DP }

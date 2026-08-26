@@ -1,0 +1,267 @@
+/* 任务列表共享样式(TaskList.vue / TaskListVirtual.vue 共用)
+   模板根元素: .tab-list(滚动容器)
+   结构: .tl-row-wrap > .tl-row(行) + .tl-detail(详情面板) */
+
+.tab-list {
+  min-height: 0;
+  flex: 1;
+  width: 100%;
+  overflow: auto;
+  border: 1px solid #e5e5e5;
+  border-top: none;
+
+  /* ============ 任务行样式 ============ */
+  .tl-row-wrap {
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .tl-row {
+    position: relative;
+    display: flex;
+    flex-flow: row nowrap;
+    height: 36px;
+    line-height: 36px;
+    overflow: hidden;
+    cursor: pointer;   /* 点击展开/收起 */
+    user-select: none;
+
+    &:hover {
+      filter: brightness(0.98);
+    }
+
+    .tl-row-bg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      border-top: 1px solid #ffffff;
+      border-bottom: 1px solid #ffffff;
+      /* 宽度用 100%，实际缩放用 transform scaleX（走 GPU 合成，不触发重排） */
+      width: 100%;
+      transition: transform 0.3s ease;
+      will-change: transform;
+      z-index: 0;
+    }
+
+    .tl-row-content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-flow: row nowrap;
+      align-items: center;
+      width: 100%;
+      height: 100%;
+
+      .tl-row-expand {
+        width: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        color: #999;
+        flex-shrink: 0;
+        transition: transform 0.2s ease;
+      }
+      .tl-row-expand.open { transform: rotate(90deg); }
+
+      .tab-header-item {
+        flex: 1;
+        text-align: center;
+        font-size: 13px;
+        color: #333;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+  }
+
+  /* ============ 展开详情面板 ============
+     内容撑开完整展示(不设高度上限、不内部滚动,随任务列表整体滚动) */
+  .tl-detail {
+    padding: 6px 12px;
+    background: #fafbfc;
+    border-top: 1px dashed #e5e5e5;
+    font-size: 12px;
+    color: #333;
+    line-height: 1.5;
+  }
+
+  .tl-detail .tld-section { margin-bottom: 6px; }
+  .tl-detail .tld-section:last-child { margin-bottom: 0; }
+
+  /* ===== 顶部 meta 条：核心信息一行横排 chip ===== */
+  .tld-meta {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: center;
+    gap: 10px 16px;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .tld-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+  .tld-chip__label { color: #999; }
+  .tld-chip__value { color: #333; font-weight: 500; }
+  .tld-chip__value--fail { color: #cf1322; font-weight: 600; }
+  .tld-chip__value--ok { color: #389e0d; font-weight: 600; }
+  .tld-chip__value--warn { color: #d48806; font-weight: 600; }
+  .tld-chip__value--run { color: #1890ff; font-weight: 600; }
+  .tld-chip__sep {
+    width: 1px;
+    height: 12px;
+    background: #e5e5e5;
+    align-self: center;
+  }
+
+  /* ===== 核心结果块：失败/跳过/成功 一屏可见 ===== */
+  .tld-result {
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .tld-result--fail {
+    background: #fff1f0;
+    border-left: 3px solid #ff7875;
+    color: #cf1322;
+  }
+  .tld-result--skip {
+    background: #fffbe6;
+    border-left: 3px solid #ffc53d;
+    color: #d48806;
+  }
+  .tld-result--ok {
+    background: #f6ffed;
+    border-left: 3px solid #73d13d;
+    color: #389e0d;
+  }
+
+  /* ===== 次要信息折叠：默认收起，不占视觉 ===== */
+  .tld-collapse-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11.5px;
+    color: #888;
+    cursor: pointer;
+    user-select: none;
+    &:hover { color: #1890ff; }
+  }
+  .tld-collapse-toggle .caret {
+    transition: transform 0.15s ease;
+    display: inline-block;
+  }
+  .tld-collapse-toggle.open .caret { transform: rotate(90deg); }
+
+  /* data 对象预览：折叠后才展开 */
+  .tld-data-json {
+    margin-top: 4px;
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 3px;
+    padding: 4px 6px;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 11px;
+    color: #555;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 100px;
+    overflow-y: auto;
+  }
+
+  /* ===== 航班信息区块(jxgj date_obj / OTA processedData) ===== */
+  .tld-flights {
+    display: flex;
+    flex-flow: column nowrap;
+    gap: 4px;
+  }
+  .tld-empty {
+    color: #999;
+    font-size: 12px;
+    padding: 2px 0;
+  }
+  /* 多条航班时的列表容器 */
+  .tld-flights-list {
+    margin-top: 2px;
+    display: flex;
+    flex-flow: column nowrap;
+    gap: 3px;
+  }
+  /* jxgj 每个日期组:左侧细线 + 缩进,视觉上属于同一日期 */
+  .tld-date-group {
+    padding-left: 10px;
+    border-left: 2px solid #e5e5e5;
+  }
+  /* 航班表格:紧凑、等宽字体、表头灰底 */
+  .tld-flight-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 2px;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 11.5px;
+
+    th, td {
+      padding: 2px 6px;
+      text-align: left;
+      border-bottom: 1px solid #f0f0f0;
+      white-space: nowrap;
+    }
+    th {
+      color: #999;
+      font-weight: 500;
+      background: #f5f5f5;
+    }
+    td { color: #333; }
+    tbody tr:hover { background: #fafafa; }
+  }
+
+  /* 底价调试标签(每条 jxgj 航班的底价后):小字、灰、不抢视觉 */
+  .tld-fp-meta {
+    font-size: 10px;
+    color: #999;
+    margin-left: 2px;
+    font-weight: 400;
+  }
+
+  /* ===== OTA 官网 vs 携程 对照(单行一项,横排逐行读) ===== */
+  /* 对照组上方:查询日期(同一任务 dateKey 共享,所有航班同日) */
+  .tld-cmp-date {
+    font-size: 12px;
+    color: #555;
+    font-weight: 500;
+  }
+  /* 对照区容器:上留白 */
+  .tld-cmp-section {
+    margin-top: 4px;
+  }
+  /* 斑马纹隔行底色,便于横向逐行对照 */
+  .tld-cmp-table .cmp-row-single:nth-child(even) { background: #fafafa; }
+
+  /* 进度条背景颜色（半透明，作为行底色） */
+  .pg-wait { background-color: rgba(160, 160, 160, 0.12); }
+  .pg-run { background-color: rgba(24, 144, 255, 0.18); }
+  .pg-done { background-color: rgba(82, 196, 26, 0.18); }
+  .pg-fail { background-color: rgba(255, 77, 79, 0.18); }
+  .pg-pause { background-color: rgba(250, 173, 20, 0.18); }
+
+  /* 百分比数字颜色 */
+  .p-wait { color: #999; }
+  .p-run { color: #1890ff; font-weight: 600; }
+  .p-done { color: #52c41a; font-weight: 600; }
+  .p-fail { color: #ff4d4f; font-weight: 600; }
+
+  /* 状态文字颜色(行内状态列,与 TaskMonitor 顶部状态指示灯共用同命名) */
+  .st-wait { color: #999; }
+  .st-run { color: #1890ff; font-weight: 500; }
+  .st-done { color: #52c41a; font-weight: 500; }
+  .st-fail { color: #ff4d4f; font-weight: 500; }
+  .st-pause { color: #faad14; font-weight: 500; }
+}

@@ -1,52 +1,54 @@
 // ============================================================
-// PCP TaskManager - 任务管理器 facade（阶段2 拆分后）
-// 职责：组合 TaskScheduler（队列+并发池）+ PlatformRunner（登录+三步执行）
-//   对外保持阶段1 接口不变（addTask/addBatch/deleteTask/clearAll/
-//   start/pause/getState/setConcurrency/serializeProgress）
-//   内部把请求转发到 scheduler 或 runner
-//
-// 拆分前（阶段1）：单文件含队列+并发+登录+三步执行+进度模拟
-// 拆分后（阶段2）：
-//   - taskScheduler.js  负责队列/并发/runNextTask 自驱/进度推送
-//   - platformRunner.js 负责账密读取/登录/prepareRequest/request/mergeResult/真实进度
-//   - taskManager.js    facade：注入依赖、start 时预编译配置+门禁检查+组合二者
-//
-// 依赖：
-//   - credentialManager: 注入，按平台取该平台当前选中的账密
-//   - configManager:     注入，按平台取该平台的字符串配置（公式等）
-//   - platforms/registry.js: 各平台 adapter（login/prepareRequest/request/mergeResult/compileConfig）
+// PCP TaskManager - 任务管理器 facade（唯一"运行时配置栈"持有者）
+// 职责：
+//   1. 队列/并发调度（TaskScheduler）
+//   2. 平台任务执行（PlatformRunner）
+//   3. ★ 运行时配置栈 compiledConfigs：前端点启用后 & 任务开始前 统一从文件加载+预编译进
+//      compiledConfigs 内存对象，后续任何需要配置的地方（门禁/底价公式/其他字段）
+//      都只从 compiledConfigs 取，不再读磁盘，保证"一条路径"使用。
 // ============================================================
 
 import * as registry from './platforms/registry.js'
 import { TaskScheduler } from './taskScheduler.js'
 import { PlatformRunner } from './platformRunner.js'
 
-/**
- * 中文说明：
- *   业务需求里，锦绣国际(JXGJ) / 携程OTA(TRIP) / O2 / O3 四个平台**各自都有自己的账号密码**，
- *   请求锦绣国际时必须使用"锦绣国际当前选中的账密"去登录，
- *   请求 O 组合（o_combo）时需要同时使用 TRIP、O2、O3 各自的选中账密分别登录。
- *
- *   因此 TaskManager 不再靠"全局唯一的 selectedId"，
- *   而是通过构造参数拿到 credentialManager 引用，
- *   在执行对应平台任务前，用 getSelected(platform) 拿到**该平台**的账密。
- */
+/** 深拷贝（配置仅 JSON 可序列化字段） */
+function deepClone(obj) {
+  if (obj === undefined || obj === null) return obj
+  return JSON.parse(JSON.stringify(obj))
+}
+
 export class TaskManager {
   constructor({ onProgress, onAllComplete, credentialManager, configManager }) {
     this.credentialManager = credentialManager || null
     this.configManager = configManager || null
-    // 预编译后的平台配置缓存（floorPriceFormula 已是函数）
-    this.compiledConfigs = {}
 
-    // ★ scheduler 持有队列+并发，回调注入
+    /**
+     * ★ 运行时配置栈（唯一使用路径）：
+     * {
+     *   jxgj: { enabled:true, floorPriceFormula:fn, floorPrice:{compute, debugInfo}, (用户保存的其他字段)... }
+     *   trip: { enabled:true, (trip 平台各字段)... },
+     *   o2:   { ... }, o3: { ... }
+     * }
+     * 刷新时机：
+     *   a) TaskManager 构造后立刻加载一次（App 启动就有默认/上次保存值可用）
+     *   b) 用户在前端点启用触发 IPC `pcp:config:set` → ConfigManager 存文件后，controller 立刻调 reloadRuntimeConfigs()
+     *   c) start(stage) 开始任务前 再 reload 一次（兜底，确保和磁盘一致）
+     */
+    this.compiledConfigs = {}
+    this._runtimeRevision = 0   // 单调递增版本号，前后端日志对齐用
+
+    // 队列 + 并发池
     this.scheduler = new TaskScheduler({ onProgress, onAllComplete })
 
-    // ★ runner 持有平台执行逻辑
-    //   compiledConfigs 通过 getter 注入：保证 start() 时预编译后，runner 能拿到最新值
+    // runner 从 getter 拿 compiledConfigs — 每次任务执行时读到最新的 reload 结果
     this.runner = new PlatformRunner({
       credentialManager,
       getCompiledConfigs: () => this.compiledConfigs
     })
+
+    // ★ App 启动时立刻把配置文件 → 内存栈（保证"一条路径"立即可用，门禁/启动判断都走这）
+    this.reloadRuntimeConfigs('init')
   }
 
   // ========== facade 转发：队列/并发/状态 ==========
@@ -57,9 +59,71 @@ export class TaskManager {
   deleteTask(taskId) { return this.scheduler.deleteTask(taskId) }
   clearAll() { return this.scheduler.clearAll() }
   pause() { return this.scheduler.pause() }
-  /** 终止（硬中断）：转发到 scheduler.abort() */
   abort() { return this.scheduler.abort() }
   getState() { return this.scheduler.getState() }
+
+  // ========== 一条路径 · 运行时配置栈 ==========
+  /**
+   * 把 ConfigManager 内存里的用户配置（已落盘的那份）
+   * 做每个平台 adapter.compileConfig → 写入 compiledConfigs 内存栈。
+   * @param {string} reason 日志标记：init(构造初始化)/start(任务开始)/save(用户保存)
+   * @returns {{ revision: number, summary: object }}
+   */
+  reloadRuntimeConfigs(reason = 'manual') {
+    const before = this._runtimeRevision
+    this.compiledConfigs = {}
+    if (!this.configManager) {
+      console.warn(`[TaskManager:reloadRuntimeConfigs reason=${reason}] 未注入 ConfigManager，保持空栈`)
+      return { revision: this._runtimeRevision, summary: {} }
+    }
+    for (const adapter of registry.all()) {
+      const rawConfig = this.configManager.getPlatformConfig(adapter.key)
+      this.compiledConfigs[adapter.key] = adapter.compileConfig(rawConfig)
+    }
+    this._runtimeRevision++
+    // 只打非敏感信息：版本号 + 各平台 enabled + jxgj 公式字符串摘要
+    const summary = {}
+    for (const k of Object.keys(this.compiledConfigs)) {
+      const c = this.compiledConfigs[k] || {}
+      summary[k] = { enabled: !!c.enabled }
+      if (k === 'jxgj') {
+        // floorPrice.debugInfo() 是 jxgj 独立模块暴露的快照；包含全局公式+区间行编译状态
+        if (typeof c.floorPrice?.debugInfo === 'function') {
+          const d = c.floorPrice.debugInfo()
+          summary[k].fpVersion = d.version
+          summary[k].globalFormula = d.globalFormula?.formulaStr || ''
+          summary[k].rangeCount = d.rangeCount || 0
+          summary[k].globalCompileType = d.globalFormula?.compileType || ''
+        } else if (typeof c.floorPriceFormula === 'function') {
+          summary[k].globalFormula = '<function>'
+        } else {
+          summary[k].globalFormula = String(c.floorPriceFormula || '')
+        }
+      }
+    }
+    console.log(
+      `[TaskManager:reloadRuntimeConfigs] revision ${before} → ${this._runtimeRevision} (reason=${reason})`,
+      `\n  enabled:`, JSON.stringify(Object.keys(summary).filter(k => summary[k].enabled)),
+      `\n  summary =`, summary
+    )
+    return { revision: this._runtimeRevision, summary }
+  }
+
+  /** 从运行时配置栈取某平台配置（深拷贝，避免调用方改到内存栈本身） */
+  getRuntimeConfig(platform) {
+    const c = this.compiledConfigs[platform]
+    return c ? deepClone(c) : {}
+  }
+
+  /** 某平台是否启用（直接从运行时栈取，不再走 ConfigManager） */
+  isRuntimeEnabled(platform) {
+    return !!(this.compiledConfigs[platform]?.enabled)
+  }
+
+  /** 所有启用的平台 key（从运行时栈取，统一） */
+  getRuntimeEnabledPlatforms() {
+    return Object.keys(this.compiledConfigs).filter(k => this.compiledConfigs[k]?.enabled)
+  }
 
   // ========== 业务编排 ==========
   start(stage = null) {
@@ -67,7 +131,8 @@ export class TaskManager {
     const pendingTasks = this.scheduler.tasks.filter(t => t.status === 'pending' || t.status === 'paused')
     if (pendingTasks.length === 0) return { success: false, message: '没有待执行的任务' }
 
-    this.precompilePlatformConfigs()
+    // ★ 任务开始前再 reload 一次（兜底：确保此时内存栈和磁盘最新保存一致；revision+1）
+    this.reloadRuntimeConfigs(`start-${stage || 'all'}`)
 
     const credCheck = this.checkStageCredentials(stage)
     if (!credCheck.success) return credCheck
@@ -76,22 +141,6 @@ export class TaskManager {
       stage,
       execute: (task, { onStep }) => this.runner.runByType(task.type, task.data, { onStep })
     })
-  }
-
-  /**
-   * 预编译所有平台的字符串配置 → 函数版配置，缓存到 this.compiledConfigs
-   * 重构后：通过 registry.all() 遍历各 adapter.compileConfig，不再用硬编码映射表
-   */
-  precompilePlatformConfigs() {
-    this.compiledConfigs = {}
-    if (!this.configManager) {
-      console.warn('[TaskManager] 未注入 ConfigManager，跳过平台配置预编译')
-      return
-    }
-    for (const adapter of registry.all()) {
-      const rawConfig = this.configManager.getPlatformConfig(adapter.key)
-      this.compiledConfigs[adapter.key] = adapter.compileConfig(rawConfig)
-    }
   }
 
   checkStageCredentials(stage) {

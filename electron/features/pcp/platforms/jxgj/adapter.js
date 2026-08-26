@@ -4,7 +4,7 @@
 // 语义：JXGJ 是源数据平台（步骤3），a1 → a2（含航班 + date_obj），不产出政策 xlsx
 // ============================================================
 
-import { makeFloorPriceFn } from './formula.js'
+import { compileFloorPrice } from './floorPrice.js'
 import { configSchema, defaults } from './config.js'
 import { A1_FIELDS, A2_FIELDS, A3_FIELDS, JXGJ_RESPONSE_FIELDS } from '../../fieldNames.js'
 
@@ -84,11 +84,23 @@ export { configSchema, defaults }
 
 /**
  * 预编译配置（Pipeline 启动时一次，整批共用）
- * 把字符串公式编译成函数
+ * 底价计算：抽离到独立模块 floorPrice.js（单独维护，含命中区间/公式的日志与调试信息）
+ * 返回：
+ *   - floorPrice.compute(cost)     → ComputeResult（cost→底价，含命中来源/公式/区间/日志）
+ *   - floorPrice.debugInfo()       → 当前配置快照（供前端详情调试标签）
+ * 区间优先：rangePriceList 有任意行 → 区间优先查找，未命中回落到底价公式
+ *          rangePriceList 空 → 直接用底价公式
  */
 export function compileConfig(rawConfig = {}) {
-  const { floorPriceFormula: formulaStr = '', ...rest } = rawConfig
-  return { ...rest, floorPriceFormula: makeFloorPriceFn(formulaStr) }
+  const { floorPriceFormula, rangePriceList, ...rest } = rawConfig
+  const { compute, debugInfo } = compileFloorPrice({ floorPriceFormula, rangePriceList })
+  return {
+    ...rest,
+    floorPrice: { compute, debugInfo },
+    // 兼容老接口（平台 runner 读 platformConfig.floorPriceFormula 名称不变）：
+    // floorPriceFormula = cost → ComputeResult.floorPrice；mergeResult 里拿到 ComputeResult 后取 .floorPrice
+    floorPriceFormula: (cost) => compute(cost)
+  }
 }
 
 /** 平台登录（当前 mock，返回假 token） */
@@ -140,27 +152,36 @@ export async function request(prepared) {
  * @returns {object} a2 项（即增强后的 a1Item，含 cangwei_arr + date_obj）
  */
 export function mergeResult(rawResponse, a1Item, compiledConfig = {}) {
+  // floorPriceFormula 是 compileConfig 返回的兼容入口：(cost) => ComputeResult
   const { floorPriceFormula } = compiledConfig
   if (rawResponse.Msg != 'OK') {
     throw new Error(`G1 平台返回业务异常：${rawResponse.Msg || '未知错误'}`)
   }
   // ARCH-2：无副作用——创建 a1Item 副本，不修改入参
-  //   原代码直接 a1Item.cangwei_arr = [] 修改入参，现在改为副本上操作
   //   下游 fileManager.saveA2FromJxgjTasks 用返回的 inputData 作为 a2 项，副本即 a2
   const a2Item = { ...a1Item }
-  // cangwei_str 仅按英文逗号分隔拆舱位（用户语义：文件里给什么用什么，拆不出就是 0 个）
-  //   "Y,J,F" → ['Y', 'J', 'F']
-  //   "Y, J, F" → ['Y', 'J', 'F']（trim 空格）
-  //   "YJF" → ['YJF']（单元素，API 单字符舱位匹配不到 → 0 个，符合"拆不出就 0"）
-  //   "" → [] → 跳过整个 for 循环
+  // cangwei_str 仅按英文逗号分隔拆舱位（拆不出就 0 个）
   const cwstr = a2Item[A1_FIELDS.cangwei_str].split(',').map(s => s.trim()).filter(Boolean)
   const GW_data = rawResponse.Content.List
   a2Item[A2_FIELDS.cangwei_arr] = []
   for (const cw_item of cwstr) {
     const findItem = GW_data.find(item => findItemByCwItem(item, cw_item))
     if (findItem) {
+      // C成人总票价_CNY_INT：显示用整数（ceil 到元）
       findItem[A2_FIELDS.C成人总票价_CNY_INT] = Math.ceil(findItem[JXGJ_RESPONSE_FIELDS.C成人总票价_CNY])
-      findItem[A2_FIELDS.dijia] = Math.ceil(floorPriceFormula(findItem[JXGJ_RESPONSE_FIELDS.C成人总票价_CNY]))
+      // ★ 底价 dijia：走独立模块 floorPrice.js（区间优先→全局→降级原价）
+      //   ComputeResult.floorPrice = 公式原值(2 位小数)，不再外层 Math.ceil
+      //   同时把命中来源/公式/区间写到舱位项 _floorMeta，供前端详情调试标签展示
+      const fp = floorPriceFormula(findItem[JXGJ_RESPONSE_FIELDS.C成人总票价_CNY])
+      findItem[A2_FIELDS.dijia] = fp.floorPrice
+      findItem._floorMeta = {
+        version: fp.version,
+        formulaType: fp.formulaType,
+        formulaStr: fp.formulaStr,
+        rangeHit: fp.rangeHit,
+        cost: fp.cost,
+        rawResult: fp.rawResult
+      }
       findItem[JXGJ_RESPONSE_FIELDS.C出发日期] = findItem[JXGJ_RESPONSE_FIELDS.C出发时间_Date].split(' ')[0]
       a2Item[A2_FIELDS.cangwei_arr].push(findItem)
     }

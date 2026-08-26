@@ -26,13 +26,12 @@ export const configSchema = {
   //   show: false,
   //   help: '预留字段，当前未参与计算'
   // },
-  PriceRange: {
+  rangePriceList: {
     type: 'PriceRange',
-    label: '票价区间',
+    label: '区间底价',
     default: [],
-    show: false,
     required: true,
-    help: '票价区间，格式为 [min, max,drop]，min 为最小票价，max 为最大票价，drop 减价金额，单位为 CNY'
+    help: '区间底价列表，每行 [左界, 右界, 公式]。与底价公式二选一：区间优先，配置了任意区间行就忽略底价公式；票价未命中任何区间时回落到底价公式（变量 cost = 成人总票价 CNY）'
   },
 
 }
@@ -40,6 +39,7 @@ export const configSchema = {
 export const defaults = {
   enabled: true,
   floorPriceFormula: 'cost',
+  rangePriceList: [],
   markupPercent: 0
 }
 

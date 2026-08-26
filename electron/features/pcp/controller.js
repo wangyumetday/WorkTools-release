@@ -132,16 +132,52 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
   })
 
   // ========== Credential IPC ==========
+  // 设计：真实步骤流进行中（jxgj/OTA/a3_merge 执行/等待/暂停）禁止修改任何基础配置（含账号）
+  // list 只读永远放行；add/delete/select/update 写操作必须 isInProgress===false
+  function failIfInProgress(actionName) {
+    const pipelineRunning = pipeline?.isInProgress()
+    const taskRunning = taskManager?.getState()?.isRunning ||
+      taskManager?.scheduler?.isRunning ||
+      false
+    if (pipelineRunning || taskRunning) {
+      throw new Error(`步骤流/任务进行中，禁止「${actionName}」。请先完成步骤流（结束或终止）后再操作。`)
+    }
+  }
   ipcMain.handle('pcp:credential:list', () => credentialManager.list())
-  ipcMain.handle('pcp:credential:add', (_event, credential) => credentialManager.add(credential))
-  ipcMain.handle('pcp:credential:delete', (_event, id) => credentialManager.delete(id))
-  ipcMain.handle('pcp:credential:select', (_event, id) => credentialManager.select(id))
-  ipcMain.handle('pcp:credential:update', (_event, credential) => credentialManager.update(credential))
+  ipcMain.handle('pcp:credential:add', (_event, credential) => {
+    failIfInProgress('添加账号')
+    return credentialManager.add(credential)
+  })
+  ipcMain.handle('pcp:credential:delete', (_event, id) => {
+    failIfInProgress('删除账号')
+    return credentialManager.delete(id)
+  })
+  ipcMain.handle('pcp:credential:select', (_event, id) => {
+    failIfInProgress('切换账号选中')
+    return credentialManager.select(id)
+  })
+  ipcMain.handle('pcp:credential:update', (_event, credential) => {
+    failIfInProgress('修改账号')
+    return credentialManager.update(credential)
+  })
 
   // ========== Config IPC ==========
+  // 设计：get/getSchema 只读永远放行；set(保存平台配置/启用开关) 必须 isInProgress===false
   ipcMain.handle('pcp:config:get', () => configManager.get())
   ipcMain.handle('pcp:config:getSchema', () => configManager.getSchema())
-  ipcMain.handle('pcp:config:set', (_event, config) => configManager.set(config))
+  /**
+   * 用户在前端点启用 → 保存配置 → 立刻刷新运行时配置栈
+   * "一条路径"保证：保存动作完成后，taskManager.compiledConfigs 已同步为新值。
+   * ★ 真实步骤流进行中（running/waiting_next/paused）直接抛错：流程中禁用保存配置，
+   *   确保任务执行用的配置栈不被中途替换（否则已生成的任务结果和底价公式前后不一致）。
+   */
+  ipcMain.handle('pcp:config:set', (_event, config) => {
+    failIfInProgress('保存平台配置/启用平台')
+    const merged = configManager.set(config)
+    const runtimeInfo = taskManager.reloadRuntimeConfigs('save')
+    console.log(`[pcp:config:set] saved + runtime refreshed: revision=${runtimeInfo.revision}`)
+    return { merged, runtimeInfo }
+  })
 
   // ========== Pipeline IPC（阶段3：步骤流编排，收回主进程）==========
   // auto 模式：开始 → 门禁 → 跑到底（jxgj → o_combo → done）

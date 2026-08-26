@@ -30,6 +30,8 @@ export class TaskScheduler {
     this.currentStage = null
     // execute 回调由 start 注入（避免构造时耦合 platformRunner）
     this._execute = null
+    // 防并发链重复触发 onAllComplete：每次 start() 重置，进入 completion 块 CAS 置 true
+    this._completionFired = false
   }
 
   setConcurrency(n) {
@@ -118,6 +120,7 @@ export class TaskScheduler {
     this.isPaused = false
     this.currentStage = stage
     this.activeCount = 0
+    this._completionFired = false
 
     const initialWorkers = Math.min(this.concurrency, pendingTasks.length)
     for (let i = 0; i < initialWorkers; i++) {
@@ -206,20 +209,25 @@ export class TaskScheduler {
       if (this.activeCount === 0) {
         this.isRunning = false
         this.currentTaskIndex = -1
-        // 传全部任务（包含失败）给回调：Pipeline 需要算 failed 统计、
-        // fileManager 需要失败任务兜底生成 0 行不崩
-        const finishedTasks = this.tasks.slice()
-        const stage = this.currentStage
-        this.currentStage = null
-        // BUG-3 修复：onAllComplete 可能返回 Promise（Pipeline.handleStageComplete 是 async）
-        // 不 await 会导致 auto 模式阶段衔接 fire-and-forget + 未捕获 rejection
-        try {
-          const ret = this.onAllComplete(finishedTasks, stage)
-          if (ret && typeof ret.then === 'function') {
-            await ret
+        // 防并发链重复触发：多 worker 同时回零可能同时走到这
+        // 用一次性旗标保证 onAllComplete 每次 start() 只跑一次
+        if (!this._completionFired) {
+          this._completionFired = true
+          // 传全部任务（包含失败）给回调：Pipeline 需要算 failed 统计、
+          // fileManager 需要失败任务兜底生成 0 行不崩
+          const finishedTasks = this.tasks.slice()
+          const stage = this.currentStage
+          this.currentStage = null
+          // BUG-3 修复：onAllComplete 可能返回 Promise（Pipeline.handleStageComplete 是 async）
+          // 不 await 会导致 auto 模式阶段衔接 fire-and-forget + 未捕获 rejection
+          try {
+            const ret = this.onAllComplete(finishedTasks, stage)
+            if (ret && typeof ret.then === 'function') {
+              await ret
+            }
+          } catch (err) {
+            console.error('[TaskScheduler] onAllComplete 抛错', err)
           }
-        } catch (err) {
-          console.error('[TaskScheduler] onAllComplete 抛错', err)
         }
       }
       return

@@ -114,6 +114,7 @@
     <div class="tt-left tt-box">
       <div class="ttb-item ttb-top">
         <n-button type="default" class="ttb-btn" :class="{ 'pcp-blink-shake': store.blinkTarget === 'file' }"
+          :disabled="store.pipelineInProgress"
           @click="store.handleUploadXlsx">
           选择Excel文件
         </n-button>
@@ -183,16 +184,16 @@ const readyStatus = computed(() => {
 })
 
 // ==================== 开始执行按钮 ====================
-// 前置条件：a1 有数据 + Pipeline 不在 running 状态
-//   阶段3：autoChain 已移除，改由 Pipeline 在主进程编排
+// 前置条件：a1 有数据 + 真实步骤流不在进行中（running/waiting_next/paused）
+//   设计：只有"未开始(Idle)"或"已完成(Done)"才能点开始；
+//         pipelineInProgress=true(进行中/等待下一步/暂停) 必须先完成或终止。
 const canStart = computed(() =>
-  store.a1Count > 0 && store.pipelineState.status !== 'running'
+  store.a1Count > 0 && !store.pipelineInProgress
 )
 
-// 终止按钮：仅 Pipeline 正在 running 时可点
-const canAbort = computed(() =>
-  store.pipelineState.status === 'running'
-)
+// 终止按钮：真实步骤流进行中都可点（running 正常执行 / waiting_next 等待下一步手动点 / paused 任务暂停）
+//   idle/done 阶段没有可终止的东西 → 禁用
+const canAbort = computed(() => !!store.pipelineInProgress)
 
 /**
  * 一键执行入口：调 store.handleStartExecution

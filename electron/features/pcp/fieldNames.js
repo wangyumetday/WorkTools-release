@@ -32,6 +32,7 @@ export const A2_FIELDS = {
 // a3 阶段字段 / HR（「底价检查」人看）字段：O 平台比价结果行
 export const A3_FIELDS = {
   _platform: '_platform',
+  _floorMeta: '_floorMeta',
   H航班号: 'H航班号',
   H航司名: 'H航司名',
   C出发机场: 'C出发机场',

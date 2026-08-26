@@ -8,6 +8,12 @@
 
 <template>
   <div class="credential-manager">
+    <!-- 进行中锁定提示 -->
+    <n-alert v-if="disabled" type="info" show-icon style="margin-bottom: 16px">
+      步骤流进行中，账号管理已锁定（禁止新增、删除、选中/取消选中、清空选择）；
+      请等待步骤流完成，或手动停止后再管理账号。
+    </n-alert>
+
     <!-- 按平台分成 4 组，每组独立选择 -->
     <n-space vertical size="medium" style="width: 100%">
       <n-card
@@ -29,7 +35,7 @@
         </template>
 
         <template #header-extra>
-          <n-button size="small" :disabled="!group.currentSelected" @click="handleClearSelect(group.platform)">
+          <n-button size="small" :disabled="disabled || !group.currentSelected" @click="handleClearSelect(group.platform)">
             清空选择
           </n-button>
         </template>
@@ -71,27 +77,28 @@
         label-width="auto"
         colon
         :show-required-mark="false"
+        :disabled="disabled"
         style="max-width: 420px; margin: 0 auto"
         @keyup.enter="handleSave"
       >
       <!-- 空格代码是&nbsp; -->
         <n-form-item label="名  &nbsp;称" path="name">
-          <n-input v-model:value="formData.name" placeholder="请输入账号名称" />
+          <n-input v-model:value="formData.name" placeholder="请输入账号名称" :disabled="disabled" />
         </n-form-item>
         <n-form-item label="平  &nbsp;台" path="platform">
-          <n-select v-model:value="formData.platform" :options="platformOptions" />
+          <n-select v-model:value="formData.platform" :options="platformOptions" :disabled="disabled" />
         </n-form-item>
         <n-form-item label="账  &nbsp;号" path="username">
-          <n-input v-model:value="formData.username" placeholder="请输入账号" />
+          <n-input v-model:value="formData.username" placeholder="请输入账号" :disabled="disabled" />
         </n-form-item>
         <n-form-item label="密  &nbsp;码" path="password">
-          <n-input v-model:value="formData.password" type="password" show-password-on="click" placeholder="请输入密码" />
+          <n-input v-model:value="formData.password" type="password" show-password-on="click" placeholder="请输入密码" :disabled="disabled" />
         </n-form-item>
       </n-form>
       <template #footer>
         <div style="max-width: 420px; margin: 0 auto; display: flex; justify-content: flex-end; gap: 8px">
           <n-button @click="showAddModal = false">取消</n-button>
-          <n-button type="primary" @click="handleSave">保存</n-button>
+          <n-button type="primary" :disabled="disabled" @click="handleSave">保存</n-button>
         </div>
       </template>
     </n-modal>
@@ -109,6 +116,12 @@ import api from '@/shared/api.js'
 import { useTaskStore } from '../stores/task.js'
 
 const store = useTaskStore()
+
+// 父组件注入：步骤流进行中 → 账号增删选改全部禁用（双保险：UI disabled + 函数内提前 return）
+const props = defineProps({
+  disabled: { type: Boolean, default: false }
+})
+const emit = defineEmits([])
 
 // 阶段3：门禁失败闪烁引导
 //   jxgj_credential → 抖动 jxgj 卡片
@@ -175,6 +188,10 @@ const rules = {
 // 对外暴露：让父组件能打开添加弹窗
 // ============================================================
 function openAddModal() {
+  if (props.disabled) {
+    message.warning('步骤流进行中，账号管理已锁定；请完成或终止后再添加账号')
+    return
+  }
   resetForm()
   showAddModal.value = true
 }
@@ -213,15 +230,13 @@ const columns = [
     title: '状态', key: 'selected', width: 120,
     render: (row) => {
       const isSelected = selectedMap.value[row.platform] === row.id
-      // 点击状态按钮即对选中状态取反：
-      //   未选中 → 调用 handleSelect(row, false) 去选中这条
-      //   使用中 → 调用 handleSelect(row, true)  取消选中
       return h(
         NButton,
         {
           size: 'small',
           type: isSelected ? 'success' : 'default',
           dashed: !isSelected,
+          disabled: props.disabled,
           onClick: () => handleSelect(row, isSelected)
         },
         { default: () => (isSelected ? '使用中' : '未选中') }
@@ -236,6 +251,7 @@ const columns = [
         {
           size: 'small',
           type: 'error',
+          disabled: props.disabled,
           onClick: () => handleDelete(row.id, row.platform)
         },
         { default: () => '删除' }
@@ -270,6 +286,10 @@ function resetForm() {
 }
 
 async function handleSave() {
+  if (props.disabled) {
+    message.warning('步骤流进行中，账号管理已锁定；请完成或终止后再添加账号')
+    return
+  }
   if (!formData.value.name || !formData.value.username || !formData.value.password) {
     message.warning('请填写必填项')
     return
@@ -293,6 +313,10 @@ async function handleSave() {
  *   - isSelected=false → 选中这条（传 row.id）
  */
 async function handleSelect(row, isSelected) {
+  if (props.disabled) {
+    message.warning('步骤流进行中，账号管理已锁定；请完成或终止后再切换账号')
+    return
+  }
   const payload = isSelected ? { id: null, platform: row.platform } : { id: row.id, platform: row.platform }
   const res = await api.pcp.credentialSelect(payload)
   if (!res || res.success === false) {
@@ -308,6 +332,10 @@ async function handleSelect(row, isSelected) {
 }
 
 async function handleClearSelect(platform) {
+  if (props.disabled) {
+    message.warning('步骤流进行中，账号管理已锁定；请完成或终止后再操作')
+    return
+  }
   const res = await api.pcp.credentialSelect({ id: null, platform })
   if (!res || res.success === false) {
     message.error(res?.message || '清空失败')
@@ -318,6 +346,10 @@ async function handleClearSelect(platform) {
 }
 
 async function handleDelete(id, platform) {
+  if (props.disabled) {
+    message.warning('步骤流进行中，账号管理已锁定；请完成或终止后再删除账号')
+    return
+  }
   await api.pcp.credentialDelete(id)
   message.success(`【${platformLabel(platform)}】删除成功`)
   await loadCredentials()
