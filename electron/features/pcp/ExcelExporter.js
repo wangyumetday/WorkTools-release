@@ -178,6 +178,7 @@ export class ExcelExporter {
   /**
    * 导出 a3 最终数据（阶段4：每 O 平台一个系统导入 xlsx + 一个「底价检查」人看合并 xlsx）
    *   - a3 每行带 _platform 标签 → 按 _platform 分组
+   *   - 系统导入文件只导出比价胜出的行（_outcome !== 'lost'）；底价检查文件全量导出
    *   - 每组用该平台 adapter.exportTemplate.columns 决定列顺序
    *     （_platform 与 HR_FIELDS 附加列不写入系统导入文件）
    *   - 嵌套对象扁平化为 JSON 字符串，避免 Excel 显示成 [object Object]
@@ -231,7 +232,9 @@ export class ExcelExporter {
       const files = []
       for (let i = 0; i < platformKeys.length; i++) {
         const p = platformKeys[i]
-        const rows = groups[p]
+        // 导入政策文件只导出「可以胜出」的行（比输行仅进底价检查文件）
+        //   老 a3 无 _outcome 标记的数据视为胜出，兼容已持久化数据
+        const rows = groups[p].filter(r => r[A3_FIELDS._outcome] !== 'lost')
 
         // 取该平台 exportTemplate.columns 决定列顺序；无模板则用行自身键序
         let template = null
@@ -248,7 +251,7 @@ export class ExcelExporter {
             }
           } else {
             for (const key of Object.keys(item)) {
-              if (key === A3_FIELDS._platform || HR_FIELDS.includes(key)) continue
+              if (key === A3_FIELDS._platform || key === A3_FIELDS._outcome || HR_FIELDS.includes(key)) continue
               const v = item[key]
               flat[key] = (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
             }

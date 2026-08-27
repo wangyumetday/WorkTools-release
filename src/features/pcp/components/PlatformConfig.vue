@@ -121,17 +121,17 @@ async function handleSave({ platform, data }) {
   }
   const nameMap = { jxgj: '锦绣国际', trip: '携程OTA', o2: 'O2', o3: 'O3' }
   const patch = { [platform]: data }
-  console.log(`[PlatformConfig] handleSave: sending patch =`, patch)
+  // console.log(`[PlatformConfig] handleSave: sending patch =`, patch)
   const result = await api.pcp.configSet(patch)
   const merged = (result && result.merged) ? result.merged : result
   const runtimeInfo = (result && result.runtimeInfo) ? result.runtimeInfo : null
-  console.log(
-    `[PlatformConfig] handleSave DONE:` +
-    (runtimeInfo ? ` runtimeRevision=${runtimeInfo.revision}` : ''),
-    '\n  merged =', merged,
-    runtimeInfo ? '\n  runtimeSummary =' : null,
-    runtimeInfo ? runtimeInfo.summary : null
-  )
+  // console.log(
+  //   `[PlatformConfig] handleSave DONE:` +
+  //   (runtimeInfo ? ` runtimeRevision=${runtimeInfo.revision}` : ''),
+  //   '\n  merged =', merged,
+  //   runtimeInfo ? '\n  runtimeSummary =' : null,
+  //   runtimeInfo ? runtimeInfo.summary : null
+  // )
   message.success(`${nameMap[platform] || platform} 平台配置已保存` +
     (runtimeInfo ? `（运行时栈 rev${runtimeInfo.revision}）` : ''))
   // 保存后再 loadConfig 刷新父组件 config.value（子组件 props 同步用）

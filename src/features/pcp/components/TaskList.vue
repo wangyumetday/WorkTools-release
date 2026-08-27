@@ -37,13 +37,12 @@
         <div class="tld-section tld-meta">
           <span class="tld-chip">
             <span class="tld-chip__label">状态</span>
-            <span class="tld-chip__value"
-              :class="{
-                'tld-chip__value--fail': item.status === 'failed',
-                'tld-chip__value--ok': item.status === 'completed',
-                'tld-chip__value--warn': item.status === 'skipped' || item.status === 'paused',
-                'tld-chip__value--run': item.status === 'running'
-              }">{{ statusMap[item.status]?.text || item.status }}</span>
+            <span class="tld-chip__value" :class="{
+              'tld-chip__value--fail': item.status === 'failed',
+              'tld-chip__value--ok': item.status === 'completed',
+              'tld-chip__value--warn': item.status === 'skipped' || item.status === 'paused',
+              'tld-chip__value--run': item.status === 'running'
+            }">{{ statusMap[item.status]?.text || item.status }}</span>
           </span>
           <span class="tld-chip__sep"></span>
           <span class="tld-chip">
@@ -58,7 +57,8 @@
 
           <template v-if="item.result?._usedCredential">
             <span class="tld-chip__sep"></span>
-            <span class="tld-chip" :title="`账号：${item.result._usedCredential.name || '-'} / 用户：${item.result._usedCredential.username || '-'}`">
+            <span class="tld-chip"
+              :title="`账号：${item.result._usedCredential.name || '-'} / 用户：${item.result._usedCredential.username || '-'}`">
               <span class="tld-chip__label">账号</span>
               <span class="tld-chip__value">{{ item.result._usedCredential.name || '-' }}</span>
             </span>
@@ -70,14 +70,15 @@
         </div>
 
         <!-- ===== 核心结果：失败原因 / 跳过原因 / 处理结果 ===== -->
-        <div v-if="item.status === 'failed' && item.result?.error"
-             class="tld-section tld-result tld-result--fail">{{ item.result.error }}</div>
+        <div v-if="item.status === 'failed' && item.result?.error" class="tld-section tld-result tld-result--fail">{{
+          item.result.error }}</div>
 
         <div v-else-if="item.status === 'skipped' && item.result?.error"
-             class="tld-section tld-result tld-result--skip">{{ item.result.error }}</div>
+          class="tld-section tld-result tld-result--skip">{{
+            item.result.error }}</div>
 
-        <div v-else-if="item.status === 'completed' && item.result"
-             class="tld-section tld-result tld-result--ok">{{ summarizeResult(item.result) }}</div>
+        <div v-else-if="item.status === 'completed' && item.result" class="tld-section tld-result tld-result--ok">{{
+          summarizeResult(item.result) }}</div>
 
         <!-- ===== 航班信息区块（仅完成态展示；jxgj 与 OTA 字段不同）===== -->
         <div v-if="item.status === 'completed' && item.result" class="tld-section tld-flights">
@@ -145,19 +146,15 @@
 
               <!-- 多条航班：日期组折叠 → 点击展开看日期列表 → 点击日期看航班行 -->
               <template v-else>
-                <span class="tld-collapse-toggle"
-                      :class="{ open: flightPanelExpandedId === item.id }"
-                      @click.stop="toggleFlightPanel(item.id)">
+                <span class="tld-collapse-toggle" :class="{ open: flightPanelExpandedId === item.id }"
+                  @click.stop="toggleFlightPanel(item.id)">
                   <span class="caret">▶</span>
                   <span>航班信息 · {{ getJxgjTotalFlights(item) }} 条 / {{ getJxgjDateEntries(item).length }} 日</span>
                 </span>
                 <div v-if="flightPanelExpandedId === item.id" class="tld-flights-list">
-                  <div v-for="d in getJxgjDateEntries(item)"
-                       :key="d.date"
-                       class="tld-date-group">
-                    <span class="tld-collapse-toggle"
-                          :class="{ open: expandedDates.has(d.date) }"
-                          @click.stop="toggleDate(d.date)">
+                  <div v-for="d in getJxgjDateEntries(item)" :key="d.date" class="tld-date-group">
+                    <span class="tld-collapse-toggle" :class="{ open: expandedDates.has(d.date) }"
+                      @click.stop="toggleDate(d.date)">
                       <span class="caret">▶</span>
                       <span>{{ d.date }} · {{ d.items.length }} 条</span>
                     </span>
@@ -165,12 +162,14 @@
                       <table class="tld-flight-table">
                         <thead>
                           <tr>
-                            <th>航班</th><th>舱位</th><th>票价</th><th>底价</th>
+                            <th>航班</th>
+                            <th>舱位</th>
+                            <th>票价</th>
+                            <th>底价</th>
                           </tr>
                         </thead>
                         <tbody>
-                          <tr v-for="(f, idx) in d.items"
-                              :key="(f.H航班号 || '') + '_' + (f.C舱位 || '') + '_' + idx">
+                          <tr v-for="(f, idx) in d.items" :key="(f.H航班号 || '') + '_' + (f.C舱位 || '') + '_' + idx">
                             <td>{{ f.H航班号 }}</td>
                             <td>{{ f.C舱位 }}</td>
                             <td>{{ f.C成人总票价_CNY_INT }}</td>
@@ -204,8 +203,11 @@
                 <table class="tld-flight-table tld-cmp-table">
                   <thead>
                     <tr>
-                      <th>航班号/舱位</th><th>出发--到达</th>
-                      <th>官网</th><th>携程</th><th>差额</th>
+                      <th>航班号/舱位</th>
+                      <th>出发--到达</th>
+                      <th>官网</th>
+                      <th>携程</th>
+                      <th>差额</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -214,7 +216,8 @@
                       <td>{{ f.C出发机场 }}--{{ f.D到达机场 }}</td>
                       <td>{{ f.C成人总票价_CNY_INT }}</td>
                       <td>{{ f.XC_dijia }}</td>
-                      <td>{{ getOtaDiff(f) }}</td>
+                      <!-- 下面这个td,如果值是负数就把color设为红色，否则就设为绿色 -->
+                      <td :style="{ color: getOtaDiff(f) < 0 ? '#cf1322' : '#389e0d' }">{{ getOtaDiff(f) }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -225,9 +228,8 @@
 
         <!-- ===== 输入数据：默认折叠，需要才展开 ===== -->
         <div v-if="item.data || item.result?._usedCredential" class="tld-section">
-          <span class="tld-collapse-toggle"
-                :class="{ open: inputDataExpandedId === item.id }"
-                @click.stop="toggleInputData(item.id)">
+          <span class="tld-collapse-toggle" :class="{ open: inputDataExpandedId === item.id }"
+            @click.stop="toggleInputData(item.id)">
             <span class="caret">▶</span>
             <span>{{ inputDataExpandedId === item.id ? '收起详情' : '展开输入数据' }}</span>
           </span>
@@ -243,9 +245,8 @@
 
         <!-- ===== 返回数据：与输入数据相同的折叠方式 ===== -->
         <div v-if="item.result && typeof item.result === 'object'" class="tld-section">
-          <span class="tld-collapse-toggle"
-                :class="{ open: resultDataExpandedId === item.id }"
-                @click.stop="toggleResultData(item.id)">
+          <span class="tld-collapse-toggle" :class="{ open: resultDataExpandedId === item.id }"
+            @click.stop="toggleResultData(item.id)">
             <span class="caret">▶</span>
             <span>{{ resultDataExpandedId === item.id ? '收起详情' : '展开返回数据' }}</span>
           </span>

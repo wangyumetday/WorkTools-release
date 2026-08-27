@@ -163,7 +163,7 @@ export function compileFloorPrice(rawConfig = {}) {
             `[floorPrice v${FLOOR_PRICE_VERSION}] cost=${validCost}` +
             ` → 命中区间 [${L}, ${U}] 公式=${compiled.formulaStr}` +
             ` → raw=${rawResult} → floorPrice=${rawResult}`
-          console.log(logLine)
+          // console.log(logLine)
           return {
             version: FLOOR_PRICE_VERSION,
             cost: validCost,
@@ -187,7 +187,7 @@ export function compileFloorPrice(rawConfig = {}) {
       `[floorPrice v${FLOOR_PRICE_VERSION}] cost=${validCost}` +
       ` → ${hasRange ? '区间未命中，回落' : '直接使用'} ${isFallback ? '降级' : '全局'}公式=${globalCompiled.formulaStr}` +
       ` → raw=${rawResult} → floorPrice=${rawResult}`
-    console.log(logLine)
+    // console.log(logLine)
     return {
       version: FLOOR_PRICE_VERSION,
       cost: validCost,

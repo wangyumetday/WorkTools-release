@@ -101,11 +101,11 @@ export class TaskManager {
         }
       }
     }
-    console.log(
-      `[TaskManager:reloadRuntimeConfigs] revision ${before} → ${this._runtimeRevision} (reason=${reason})`,
-      `\n  enabled:`, JSON.stringify(Object.keys(summary).filter(k => summary[k].enabled)),
-      `\n  summary =`, summary
-    )
+    // console.log(
+    //   `[TaskManager:reloadRuntimeConfigs] revision ${before} → ${this._runtimeRevision} (reason=${reason})`,
+    //   `\n  enabled:`, JSON.stringify(Object.keys(summary).filter(k => summary[k].enabled)),
+    //   `\n  summary =`, summary
+    // )
     return { revision: this._runtimeRevision, summary }
   }
 

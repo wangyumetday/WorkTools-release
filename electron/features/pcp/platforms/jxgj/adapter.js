@@ -7,6 +7,8 @@
 import { compileFloorPrice } from './floorPrice.js'
 import { configSchema, defaults } from './config.js'
 import { A1_FIELDS, A2_FIELDS, A3_FIELDS, JXGJ_RESPONSE_FIELDS } from '../../fieldNames.js'
+import { AnyToCny } from './HuiLvZhuanHuan.js'
+// import { F } from 'vue-router/dist/index-BN0B0y8a.js'
 
 // ===== 内部常量 =====
 const REQUEST_TIMEOUT_MS = 10000
@@ -154,6 +156,27 @@ export async function request(prepared) {
 export function mergeResult(rawResponse, a1Item, compiledConfig = {}) {
   // floorPriceFormula 是 compileConfig 返回的兼容入口：(cost) => ComputeResult
   const { floorPriceFormula } = compiledConfig
+
+  function geshihua(findItem) {
+    // C成人总票价_CNY_INT：显示用整数（ceil 到元）
+    findItem[A2_FIELDS.C成人总票价_CNY_INT] = Math.ceil(findItem[JXGJ_RESPONSE_FIELDS.C成人总票价_CNY])
+    // ★ 底价 dijia：走独立模块 floorPrice.js（区间优先→全局→降级原价）
+    //   ComputeResult.floorPrice = 公式原值(2 位小数)，不再外层 Math.ceil
+    //   同时把命中来源/公式/区间写到舱位项 _floorMeta，供前端详情调试标签展示
+    const fp = floorPriceFormula(findItem[JXGJ_RESPONSE_FIELDS.C成人总票价_CNY])
+    findItem[A2_FIELDS.dijia] = fp.floorPrice
+    findItem._floorMeta = {
+      version: fp.version,
+      formulaType: fp.formulaType,
+      formulaStr: fp.formulaStr,
+      rangeHit: fp.rangeHit,
+      cost: fp.cost,
+      rawResult: fp.rawResult
+    }
+    findItem[JXGJ_RESPONSE_FIELDS.C出发日期] = findItem[JXGJ_RESPONSE_FIELDS.C出发时间_Date].split(' ')[0]
+    return findItem
+  }
+
   if (rawResponse.Msg != 'OK') {
     throw new Error(`G1 平台返回业务异常：${rawResponse.Msg || '未知错误'}`)
   }
@@ -163,36 +186,81 @@ export function mergeResult(rawResponse, a1Item, compiledConfig = {}) {
   // cangwei_str 仅按英文逗号分隔拆舱位（拆不出就 0 个）
   const cwstr = a2Item[A1_FIELDS.cangwei_str].split(',').map(s => s.trim()).filter(Boolean)
   const GW_data = rawResponse.Content.List
+
   a2Item[A2_FIELDS.cangwei_arr] = []
   for (const cw_item of cwstr) {
     const findItem = GW_data.find(item => findItemByCwItem(item, cw_item))
+
     if (findItem) {
-      // C成人总票价_CNY_INT：显示用整数（ceil 到元）
-      findItem[A2_FIELDS.C成人总票价_CNY_INT] = Math.ceil(findItem[JXGJ_RESPONSE_FIELDS.C成人总票价_CNY])
-      // ★ 底价 dijia：走独立模块 floorPrice.js（区间优先→全局→降级原价）
-      //   ComputeResult.floorPrice = 公式原值(2 位小数)，不再外层 Math.ceil
-      //   同时把命中来源/公式/区间写到舱位项 _floorMeta，供前端详情调试标签展示
-      const fp = floorPriceFormula(findItem[JXGJ_RESPONSE_FIELDS.C成人总票价_CNY])
-      findItem[A2_FIELDS.dijia] = fp.floorPrice
-      findItem._floorMeta = {
-        version: fp.version,
-        formulaType: fp.formulaType,
-        formulaStr: fp.formulaStr,
-        rangeHit: fp.rangeHit,
-        cost: fp.cost,
-        rawResult: fp.rawResult
+      if (findItem.套餐信息.length > 0) {
+        // 拆套餐：
+        const TaoCanArr = []
+        let obj = structuredClone(findItem)
+        obj.套餐信息.forEach(acai => {
+          let xingli_num = 0, xingli_kg = 0
+          acai.行李信息.forEach(acai_x => {
+            if (acai_x.类型 == "托运") {
+              xingli_kg = acai_x.重量
+              xingli_num++
+            }
+          })
+
+          let temp = structuredClone(findItem)
+          temp.套餐信息 = []
+          temp.行李信息 = []
+          // HuiLvZhuanHuan.js 中的汇率转换方法AnyToCny()
+          // temp.C成人总票价_CNY = AnyToCny(temp.H货币种类,acai.套餐价格)
+          temp.C成人总票价_CNY = AnyToCny(temp.H货币种类, acai.套餐价格)
+          temp.C舱位 = acai.舱位
+          temp.舱等 = acai.舱等
+          temp.S剩余座位数 = acai.座位数
+          if (xingli_num == 0) {
+            temp.TuoYunXingLi = '无免费托运行李'
+          } else if (xingli_num == 1) {
+            temp.TuoYunXingLi = `成人:${xingli_kg}`
+          } else {
+            temp.TuoYunXingLi = `${xingli_num}件，每件${xingli_kg}`
+          }
+          TaoCanArr.push(temp)
+        })
+
+        if (TaoCanArr.length > 0) {
+          TaoCanArr.forEach(tca => {
+            a2Item[A2_FIELDS.cangwei_arr].push(geshihua(tca))
+          })
+        } else {
+          a2Item[A2_FIELDS.cangwei_arr].push(geshihua(findItem))
+        }
+      } else {
+        let xingli_num = 0, xingli_kg = 0
+        findItem.行李信息.forEach(acai_x => {
+          if (acai_x.类型 == "托运") {
+            xingli_kg = acai_x.重量
+            xingli_num++
+          }
+        })
+        if (xingli_num == 0) {
+          findItem.TuoYunXingLi = '无免费托运行李'
+        } else if (xingli_num == 1) {
+          findItem.TuoYunXingLi = `成人:${xingli_kg}`
+        } else {
+          findItem.TuoYunXingLi = `${xingli_num}件，每件${xingli_kg}`
+        }
+        a2Item[A2_FIELDS.cangwei_arr].push(geshihua(findItem))
       }
-      findItem[JXGJ_RESPONSE_FIELDS.C出发日期] = findItem[JXGJ_RESPONSE_FIELDS.C出发时间_Date].split(' ')[0]
-      a2Item[A2_FIELDS.cangwei_arr].push(findItem)
     }
+
+    a2Item[A2_FIELDS.date_obj] = {}
+    a2Item[A2_FIELDS.cangwei_arr].forEach(item => {
+      if (!a2Item[A2_FIELDS.date_obj][item[JXGJ_RESPONSE_FIELDS.C出发日期]]) a2Item[A2_FIELDS.date_obj][item[JXGJ_RESPONSE_FIELDS.C出发日期]] = []
+      a2Item[A2_FIELDS.date_obj][item[JXGJ_RESPONSE_FIELDS.C出发日期]].push(item)
+    })
+    // 返回兼容老 g1Request 的包装结构（阶段1过渡：保持下游 fileManager/controller/store 不破）
+    // inputData 即增强后的 a2 项（含 cangwei_arr + date_obj）
+
   }
-  a2Item[A2_FIELDS.date_obj] = {}
-  a2Item[A2_FIELDS.cangwei_arr].forEach(item => {
-    if (!a2Item[A2_FIELDS.date_obj][item[JXGJ_RESPONSE_FIELDS.C出发日期]]) a2Item[A2_FIELDS.date_obj][item[JXGJ_RESPONSE_FIELDS.C出发日期]] = []
-    a2Item[A2_FIELDS.date_obj][item[JXGJ_RESPONSE_FIELDS.C出发日期]].push(item)
-  })
-  // 返回兼容老 g1Request 的包装结构（阶段1过渡：保持下游 fileManager/controller/store 不破）
-  // inputData 即增强后的 a2 项（含 cangwei_arr + date_obj）
+
+  // console.log(a2Item)
   return {
     platform: 'jxgj',
     status: 'success',
@@ -215,3 +283,10 @@ export default {
   key, configSchema, defaults,
   compileConfig, login, prepareRequest, request, mergeResult, exportTemplate
 }
+
+
+
+
+
+
+

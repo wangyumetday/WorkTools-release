@@ -175,7 +175,7 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
     failIfInProgress('保存平台配置/启用平台')
     const merged = configManager.set(config)
     const runtimeInfo = taskManager.reloadRuntimeConfigs('save')
-    console.log(`[pcp:config:set] saved + runtime refreshed: revision=${runtimeInfo.revision}`)
+    // console.log(`[pcp:config:set] saved + runtime refreshed: revision=${runtimeInfo.revision}`)
     return { merged, runtimeInfo }
   })
 

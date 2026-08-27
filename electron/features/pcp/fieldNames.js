@@ -26,13 +26,17 @@ export const A2_FIELDS = {
   date_obj: 'date_obj',
   cangwei_arr: 'cangwei_arr',
   C成人总票价_CNY_INT: 'C成人总票价_CNY_INT',
-  dijia: 'dijia'
+  dijia: 'dijia',
+  TuoYunXingLi:'TuoYunXingLi'
 }
 
 // a3 阶段字段 / HR（「底价检查」人看）字段：O 平台比价结果行
 export const A3_FIELDS = {
   _platform: '_platform',
   _floorMeta: '_floorMeta',
+  // 比价结果标记：'won'（可以胜出）/ 'lost'（无法胜出）
+  //   仅供导入政策文件过滤用，不写入任何 xlsx 列
+  _outcome: '_outcome',
   H航班号: 'H航班号',
   H航司名: 'H航司名',
   C出发机场: 'C出发机场',
@@ -45,7 +49,8 @@ export const A3_FIELDS = {
   仓等: '仓等',
   C成人总票价_CNY: 'C成人总票价_CNY',
   XC_dijia: 'XC_dijia',
-  CUT_VALUE: 'CUT_VALUE'
+  CUT_VALUE: 'CUT_VALUE',
+  TuoYunXingLi:'TuoYunXingLi'
 }
 
 // trip（携程低价看板）响应字段：flights[] / lowPrices[].prices[] 里的字段
@@ -58,6 +63,7 @@ export const TRIP_RESPONSE_FIELDS = {
   flightRefs: 'flightRefs',
   prices: 'prices',
   baggage: 'baggage',
+  seatClass:'seatClass',
   showState: 'showState',
   isOwn: 'isOwn',
   sortIndicator: 'sortIndicator'

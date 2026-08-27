@@ -1,0 +1,250 @@
+{
+    "复制过来的请求体": {
+        "header": {
+            "requestID": "1787799735080"
+        },
+        "tripType": "OW",
+        "channel": "EnglishSite",
+        "subChannel": 0,
+        "validatingCarrier": "FA",
+        "seatGrade": "Y",
+        "travelerCount": 1,
+        "childTravelerCount": 0,
+        "debug": false,
+        "agentId": 4984,
+        "segments": [
+            {
+                "segmentNo": 1,
+                "departCity": "BFN",
+                "arriveCity": "JNB",
+                "departDate": "2026-08-30"
+            }
+        ],
+        "specialSupply": false,
+        "routeSearchToken": "8000000000H3q2eU03JmHX6AE625W03zK8007wez4hmH0000000000G0QjOe820000580005dO000400000000X6004Ty0HZ0qG80000000000|||||||CgozSjJpRE9mVlly|GAIgBCjq2vnVBkgB",
+        "useNewPriceCompare": true,
+        "sessionId": "cb7ad7a4-7693-4a94-b16e-8725cbb19f15",
+        "pageNo": 1,
+        "sizePerPage": 40
+    },
+    "复制过来的返回": {
+        "status": 1,
+        "msg": "SUCCESS",
+        "data": {
+            "lowPrices": [
+                {
+                    "id": 1,
+                    "routes": [
+                        "BFN-JNB"
+                    ],
+                    "flightNos": [
+                        "FA847"
+                    ],
+                    "agencyCode": "BQCL",
+                    "gds": "CSD-WS",
+                    "seatClasses": [
+                        "X"
+                    ],
+                    "travelerEligibility": "ADT",
+                    "baggages": [
+                        "BFN-JNB:成人:无免费托运行李额"
+                    ],
+                    "passengerRestriction": "",
+                    "invoiceType": "境外电子凭证",
+                    "quantifyFlagRemark": "NEW_QUANTIFY_COMPARE:initSelected",
+                    "sortIndicator": 732,
+                    "salePrice": null,
+                    "scPrice": null,
+                    "showState": 1,
+                    "isOwner": false,
+                    "canCopy": true,
+                    "productType": "CsdPrivate",
+                    "tripType": "OW",
+                    "policyList": [],
+                    "children": [
+                        {
+                            "id": 2,
+                            "routes": [
+                                "BFN-JNB"
+                            ],
+                            "flightNos": [
+                                "FA847"
+                            ],
+                            "agencyCode": "JTDL",
+                            "gds": "CSD-WS",
+                            "seatClasses": [
+                                "V"
+                            ],
+                            "travelerEligibility": "ADT",
+                            "baggages": [
+                                "BFN-JNB:成人:无免费托运行李额"
+                            ],
+                            "passengerRestriction": "",
+                            "invoiceType": "境外电子凭证",
+                            "quantifyFlagRemark": "NEW_QUANTIFY_COMPARE:beatAllSelected",
+                            "sortIndicator": 750,
+                            "salePrice": null,
+                            "scPrice": null,
+                            "showState": 1,
+                            "isOwner": false,
+                            "canCopy": true,
+                            "productType": "CsdPrivate",
+                            "tripType": "OW",
+                            "policyList": [],
+                            "routeSearchToken": "8000000000H3q2eU03JmHX6AE625O03zK8007wez4hmH0000000000G0RVOe820000580005i4000400000000X6004a-0HZ15280000000000|||||||CgozSjJpRE9mVlly|GAIgBCiXjovXBkgB",
+                            "brandNames": [],
+                            "publishPrices": [
+                                "成人:517"
+                            ],
+                            "taxes": [
+                                "成人:233"
+                            ],
+                            "fareBasisList": [],
+                            "isUseNewPriceCompare": null,
+                            "minReduceAmount": null
+                        },
+                        {
+                            "id": 3,
+                            "routes": [
+                                "BFN-JNB"
+                            ],
+                            "flightNos": [
+                                "FA847"
+                            ],
+                            "agencyCode": "BQCL",
+                            "gds": "CSD-WS",
+                            "seatClasses": [
+                                "X"
+                            ],
+                            "travelerEligibility": "ADT",
+                            "baggages": [
+                                "BFN-JNB:成人:1件，每件20.0KG"
+                            ],
+                            "passengerRestriction": "",
+                            "invoiceType": "境外电子凭证",
+                            "quantifyFlagRemark": "NEW_QUANTIFY_COMPARE:skipAllBeat",
+                            "sortIndicator": 798,
+                            "salePrice": null,
+                            "scPrice": null,
+                            "showState": 1,
+                            "isOwner": false,
+                            "canCopy": true,
+                            "productType": "CsdPrivate",
+                            "tripType": "OW",
+                            "policyList": [],
+                            "routeSearchToken": "8000000000H3q2eU03JmHX6AE625W03zK8007wez4hmH0000000000G0U88e820000580005dO0004A0000000X6004tk0HZ0qG80000000000|||||||CgozSjJpRE9mVlly|GAIgBCiEjovXBkgB",
+                            "brandNames": [],
+                            "publishPrices": [
+                                "成人:568"
+                            ],
+                            "taxes": [
+                                "成人:230"
+                            ],
+                            "fareBasisList": [],
+                            "isUseNewPriceCompare": null,
+                            "minReduceAmount": null
+                        },
+                        {
+                            "id": 4,
+                            "routes": [
+                                "BFN-JNB"
+                            ],
+                            "flightNos": [
+                                "FA847"
+                            ],
+                            "agencyCode": "YDLH",
+                            "gds": "CSD-WS",
+                            "seatClasses": [
+                                "X"
+                            ],
+                            "travelerEligibility": "ADT",
+                            "baggages": [
+                                "BFN-JNB:成人:2件，每件20.0KG"
+                            ],
+                            "passengerRestriction": "",
+                            "invoiceType": "境外电子凭证",
+                            "quantifyFlagRemark": "NEW_QUANTIFY_COMPARE:beatAllSelected",
+                            "sortIndicator": 946,
+                            "salePrice": null,
+                            "scPrice": null,
+                            "showState": 1,
+                            "isOwner": false,
+                            "canCopy": true,
+                            "productType": "CsdPrivate",
+                            "tripType": "OW",
+                            "policyList": [],
+                            "routeSearchToken": "8000000000H3q2eU03JmHX6AE625W03zK8007wez4hmH0000000000G0bfOe820000580005i40002K0000000X6005nY0HY31680000000000|||||||CgozSjJpRE9mVlly|GAIgBCiCjovXBkgB",
+                            "brandNames": [],
+                            "publishPrices": [
+                                "成人:713"
+                            ],
+                            "taxes": [
+                                "成人:233"
+                            ],
+                            "fareBasisList": [],
+                            "isUseNewPriceCompare": null,
+                            "minReduceAmount": null
+                        },
+                        {
+                            "id": 5,
+                            "routes": [
+                                "BFN-JNB"
+                            ],
+                            "flightNos": [
+                                "FA847"
+                            ],
+                            "agencyCode": "YDMY",
+                            "gds": "CSD-WS",
+                            "seatClasses": [
+                                "X"
+                            ],
+                            "travelerEligibility": "ADT",
+                            "baggages": [
+                                "BFN-JNB:成人:2件，每件20.0KG"
+                            ],
+                            "passengerRestriction": "",
+                            "invoiceType": "境外电子凭证",
+                            "quantifyFlagRemark": "NEW_QUANTIFY_COMPARE:beatAllSelected",
+                            "sortIndicator": 972,
+                            "salePrice": null,
+                            "scPrice": null,
+                            "showState": 1,
+                            "isOwner": false,
+                            "canCopy": true,
+                            "productType": "CsdPrivate",
+                            "tripType": "OW",
+                            "policyList": [],
+                            "routeSearchToken": "8000000000H3q2eU03JmHX6AE625W03zK8007wez4hmH0000000000G0d0ue820000580005i40002K0000000X6005xi0HcJH680000000000|||||||CgozSjJpRE9mVlly|GAIgBCiWjovXBkgB",
+                            "brandNames": [],
+                            "publishPrices": [
+                                "成人:739"
+                            ],
+                            "taxes": [
+                                "成人:233"
+                            ],
+                            "fareBasisList": [],
+                            "isUseNewPriceCompare": null,
+                            "minReduceAmount": null
+                        }
+                    ],
+                    "routeSearchToken": "8000000000H3q2eU03JmHX6AE625W03zK8007wez4hmH0000000000G0QjOe820000580005dO000400000000X6004Ty0HZ0qG80000000000|||||||CgozSjJpRE9mVlly|GAIgBCj9jYvXBkgB",
+                    "brandNames": [],
+                    "publishPrices": [
+                        "成人:502"
+                    ],
+                    "taxes": [
+                        "成人:230"
+                    ],
+                    "fareBasisList": [],
+                    "useNewPriceCompare": true,
+                    "minReduceAmount": null
+                }
+            ],
+            "traceId": "8000000000H3q2eU03JmHX6AE625W03zK8007wez4hmH0000000000G0QjOe820000580005dO000400000000X6004Ty0HZ0qG80000000000|||||||CgozSjJpRE9mVlly|GAIgBCjq2vnVBkgB",
+            "detailTraceId": "10.99.173.149_100015306_17877997351303866801",
+            "retainMorePriceTraceId": null,
+            "sessionId": null
+        },
+        "success": true
+    }
+}

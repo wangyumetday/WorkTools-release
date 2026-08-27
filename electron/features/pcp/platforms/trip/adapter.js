@@ -80,7 +80,7 @@ function createRateLimiter() {
     }
 
     // 2. 主动滑动窗口检查：循环等到窗口内请求数 < limit
-    for (;;) {
+    for (; ;) {
       const now = Date.now()
       pruneExpired(now)
       if (state.timestamps.length < limit) break
@@ -99,7 +99,7 @@ function createRateLimiter() {
     //   但返回的 next 保留错误，调用者能收到 acquireThunk 抛的异常
     acquire(rateLimitPerMin) {
       const next = state.acquireChain.then(() => acquireThunk(rateLimitPerMin))
-      state.acquireChain = next.catch(() => {})
+      state.acquireChain = next.catch(() => { })
       return next
     },
     // 429 被动冷却：Retry-After 优先（携程返秒数），无则默认 30s
@@ -180,10 +180,11 @@ function postGzip(baseURL, gzippedBody, timeout) {
     req.end()
   })
 }
-
+// 价格比较策略price——Comparison——Policy
 function priceComparisonPolicy(originalData, resData) {
   const resArr = []
   const forData = Array.isArray(originalData?.dateValue) ? originalData.dateValue : []
+  //flights用于查询检验，看是否查询错航数据，lowPrices是比价数据
   const flights = Array.isArray(resData?.responseBody?.flights) ? resData.responseBody.flights : []
   const lowPrices = Array.isArray(resData?.responseBody?.lowPrices) ? resData.responseBody.lowPrices : []
   const dateKey = originalData?.dateKey || 'unknown-date'
@@ -193,10 +194,11 @@ function priceComparisonPolicy(originalData, resData) {
   //   定位后可整段删除
   if (!priceComparisonPolicy._sampled) {
     priceComparisonPolicy._sampled = true
-    const sampleItem = forData[0] || {}
-    const sampleFlight = flights[0] || {}
-    const sampleLp = lowPrices[0] || {}
+    const sampleItem = forData[0] || {}//元数据
+    const sampleFlight = flights[0] || {}//trip flights航班
+    const sampleLp = lowPrices[0] || {}//trip lowPrices套餐
     const samplePrice = (sampleLp[TRIP_RESPONSE_FIELDS.prices] && sampleLp[TRIP_RESPONSE_FIELDS.prices][0]) || {}
+    //
     // console.log('[trip/debug] ===== 字段名采样（仅一次） =====')
     // console.log('[trip/debug] jxgj item 字段:', Object.keys(sampleItem))
     // console.log('[trip/debug]   item.H航班号 =', sampleItem.H航班号, '| item.C出发机场 =', sampleItem.C出发机场, '| item.D到达机场 =', sampleItem.D到达机场, '| item.C出发日期 =', sampleItem.C出发日期, '| item.dijia =', sampleItem.dijia, '| item.C成人总票价_CNY_INT =', sampleItem.C成人总票价_CNY_INT)
@@ -209,21 +211,27 @@ function priceComparisonPolicy(originalData, resData) {
     // console.log('[trip/debug] ====================================')
   }
 
-  let matchedFlights = 0
-  let matchedLowPrice = 0
+  let matchedFlights = 0//
+  let matchedLowPrice = 0//
   let wonByPrice = 0
   let lostByPrice = 0  // 接口有低价但 dijia > sortIndicator（业务上比输了）
 
   forData.forEach(item => {
     // BUG-5 修复：增加 null/undefined 检查，避免 String(undefined)==='undefined' 误匹配
     //   任一字段为 null/undefined 时跳过该 item（不匹配）
-    const itemFlightNo = item[A3_FIELDS.H航班号]
-    const itemDepAirport = item[A3_FIELDS.C出发机场]
-    const itemArrAirport = item[A3_FIELDS.D到达机场]
-    const itemDate = item[JXGJ_RESPONSE_FIELDS.C出发日期]
+    const itemFlightNo = item[A3_FIELDS.H航班号]//元数据航班号
+    const itemDepAirport = item[A3_FIELDS.C出发机场]//元数据出发机场
+    const itemArrAirport = item[A3_FIELDS.D到达机场]//元数据到达机场
+    const itemDate = item[JXGJ_RESPONSE_FIELDS.C出发日期]//元数据出发日期
+    const itemCangWei = item[A3_FIELDS.C舱位]
+    const itemTuoYunXingLi = item[A3_FIELDS.TuoYunXingLi]
+    // 先用日期、航班号、出发、到达与
+
+    // 判空弹出
     if (itemFlightNo == null || itemDepAirport == null || itemArrAirport == null || itemDate == null) {
       return
     }
+
     const flights_related = flights.find(f =>
       f &&
       f[TRIP_RESPONSE_FIELDS.flightNo] != null && f[TRIP_RESPONSE_FIELDS.departAirport] != null && f[TRIP_RESPONSE_FIELDS.arriveAirport] != null && f[TRIP_RESPONSE_FIELDS.takeOffDateTime] != null &&
@@ -236,16 +244,26 @@ function priceComparisonPolicy(originalData, resData) {
 
     let lowPrice_related = null
     if (flights_related?.[TRIP_RESPONSE_FIELDS.flightId] != null) {
-      const relatedLp = lowPrices.find(lp => Array.isArray(lp?.[TRIP_RESPONSE_FIELDS.flightRefs]) && lp[TRIP_RESPONSE_FIELDS.flightRefs].some(ref => ref?.[TRIP_RESPONSE_FIELDS.flightId] === flights_related[TRIP_RESPONSE_FIELDS.flightId]))
+      const relatedLp = lowPrices.find(
+        lp =>
+          Array.isArray(lp?.[TRIP_RESPONSE_FIELDS.flightRefs])
+          && lp[TRIP_RESPONSE_FIELDS.flightRefs].some(ref => ref?.[TRIP_RESPONSE_FIELDS.flightId] === flights_related[TRIP_RESPONSE_FIELDS.flightId]))
       if (relatedLp) {
         const prices = Array.isArray(relatedLp[TRIP_RESPONSE_FIELDS.prices]) ? relatedLp[TRIP_RESPONSE_FIELDS.prices] : []
+        // console.log('进入一个价格组--------')
         lowPrice_related = prices.find(lpr => {
           const baggage = String(lpr?.[TRIP_RESPONSE_FIELDS.baggage] || '')
-          return baggage.includes('无免费托运行李额') && Number(lpr?.[TRIP_RESPONSE_FIELDS.showState]) === 1 && !lpr?.[TRIP_RESPONSE_FIELDS.isOwn]
+          // 此处可以把每一个套餐都对比，用官网forData的行李信息与此处的baggage对比,可以做到套餐比价。
+          return baggage.includes(itemTuoYunXingLi)
+            // && Number(lpr?.[TRIP_RESPONSE_FIELDS.showState]) === 1//当前显示的。
+            && lpr?.[TRIP_RESPONSE_FIELDS.seatClass] == itemCangWei
+            && !lpr?.[TRIP_RESPONSE_FIELDS.isOwn]
         })
-        if (!lowPrice_related) {
-          lowPrice_related = prices.find(lpr => Number(lpr?.[TRIP_RESPONSE_FIELDS.showState]) === 1 && !lpr?.[TRIP_RESPONSE_FIELDS.isOwn])
-        }
+        // console.log('借宿--------')
+
+        // if (!lowPrice_related) {
+        //   lowPrice_related = prices.find(lpr => Number(lpr?.[TRIP_RESPONSE_FIELDS.showState]) === 1 && !lpr?.[TRIP_RESPONSE_FIELDS.isOwn])
+        // }
       }
     }
     if (lowPrice_related) matchedLowPrice++
@@ -258,9 +276,17 @@ function priceComparisonPolicy(originalData, resData) {
       wonByPrice++
       item[A3_FIELDS.XC_dijia] = sortIndicator
       item[A3_FIELDS.CUT_VALUE] = new Decimal(sortIndicator).minus(totalCNY || 0).minus(1).toNumber()
+      // 比赢：打「可以胜出」标记
+      item[A3_FIELDS._outcome] = 'won'
       resArr.push(item)
     } else if (hasXcPrice && dijia > sortIndicator) {
       lostByPrice++
+      // 比输不再丢弃：打「无法胜出」标记并入队，供底价检查文件全量展示
+      //   XC_dijia 存携程价（与比赢分支一致），底价检查文件才能展示对方价格
+      //   CUT_VALUE 不计算：导入政策文件会过滤掉比输行，用不到
+      item[A3_FIELDS.XC_dijia] = sortIndicator
+      item[A3_FIELDS._outcome] = 'lost'
+      resArr.push(item)
     }
   })
 
@@ -378,67 +404,67 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
 export const exportTemplate = {
   platform: 'trip',
   columns: [
-    { key: 'Name',             from: (item) => `王宇_${item[A3_FIELDS.H航司名]}_携程/${item[A3_FIELDS.C出发机场]}-${item[A3_FIELDS.D到达机场]}` },
-    { key: 'Remark',           value: '王宇_出官网' },
-    { key: '优先级',            value: '90' },
-    { key: '是否启用',          value: 'TRUE' },
-    { key: '航程类型',          value: null },
-    { key: '航司匹配',          from: (item) => item[A3_FIELDS.H航司名] },
-    { key: '出发机场',          from: (item) => item[A3_FIELDS.C出发机场] },
-    { key: '到达机场',          from: (item) => item[A3_FIELDS.D到达机场] },
-    { key: '航班号',            value: null },
-    { key: '舱位',              from: (item) => item[A3_FIELDS.C舱位] },
-    { key: '起飞时间Start',     value: null },
-    { key: '起飞时间End',       value: null },
-    { key: '去程时间匹配排除',   value: null },
-    { key: '返程时间匹配排除',   value: null },
-    { key: '班期',              value: null },
-    { key: '销售时间Start',     value: null },
-    { key: '销售时间End',       value: null },
-    { key: '时间段匹配',        value: null },
-    { key: '提前销售天数',       value: null },
-    { key: '出票时长匹配',       value: null },
-    { key: '儿童人数最小',       value: 0 },
-    { key: '儿童人数最大',       value: 0 },
-    { key: '成人人数最小',       value: 0 },
-    { key: '成人人数最大',       value: 0 },
-    { key: '乘客人数最小',       value: null },
-    { key: '乘客人数最大',       value: null },
-    { key: '数据有效期Start',   value: null },
-    { key: '数据有效期End',     value: null },
-    { key: '出发城市',          value: null },
-    { key: '到达城市',          value: null },
-    { key: '出发国家',          value: null },
-    { key: '到达国家',          value: null },
-    { key: '最低票面价',        value: null },
-    { key: '最高票面价',        value: null },
-    { key: '销售天数',          value: null },
-    { key: '套餐索引v2',        value: null },
-    { key: '座位数',            value: null },
-    { key: '是否中转',          value: null },
-    { key: '是否国内',          value: null },
-    { key: 'OTAType',          value: '携程' },
-    { key: 'OTAConfigID',      value: 11 },
-    { key: '行程索引',          value: null },
-    { key: '数据来源',          value: '爬虫' },
-    { key: '政策代码',          value: null },
-    { key: '爬虫名',            value: null },
-    { key: '去程时间匹配',       value: null },
-    { key: '返程时间匹配',       value: null },
-    { key: '搜索出发城市',       value: null },
-    { key: '搜索到达城市',       value: null },
-    { key: '最长停留时间',       value: null },
-    { key: '最短停留时间',       value: null },
-    { key: '去程班期',          value: null },
-    { key: '返程班期',          value: null },
-    { key: '调价阶段',          value: '搜索' },
-    { key: '调价增加百分比',     value: 0 },
-    { key: '调价固定加减钱',     from: (item) => item[A3_FIELDS.CUT_VALUE] },
+    { key: 'Name', from: (item) => `王宇_${item[A3_FIELDS.H航司名]}_携程/${item[A3_FIELDS.C出发机场]}-${item[A3_FIELDS.D到达机场]}` },
+    { key: 'Remark', value: '王宇_出官网' },
+    { key: '优先级', value: '90' },
+    { key: '是否启用', value: 'TRUE' },
+    { key: '航程类型', value: null },
+    { key: '航司匹配', from: (item) => item[A3_FIELDS.H航司名] },
+    { key: '出发机场', from: (item) => item[A3_FIELDS.C出发机场] },
+    { key: '到达机场', from: (item) => item[A3_FIELDS.D到达机场] },
+    { key: '航班号', value: null },
+    { key: '舱位', from: (item) => item[A3_FIELDS.C舱位] },
+    { key: '起飞时间Start', value: null },
+    { key: '起飞时间End', value: null },
+    { key: '去程时间匹配排除', value: null },
+    { key: '返程时间匹配排除', value: null },
+    { key: '班期', value: null },
+    { key: '销售时间Start', value: null },
+    { key: '销售时间End', value: null },
+    { key: '时间段匹配', value: null },
+    { key: '提前销售天数', value: null },
+    { key: '出票时长匹配', value: null },
+    { key: '儿童人数最小', value: 0 },
+    { key: '儿童人数最大', value: 0 },
+    { key: '成人人数最小', value: 0 },
+    { key: '成人人数最大', value: 0 },
+    { key: '乘客人数最小', value: null },
+    { key: '乘客人数最大', value: null },
+    { key: '数据有效期Start', value: null },
+    { key: '数据有效期End', value: null },
+    { key: '出发城市', value: null },
+    { key: '到达城市', value: null },
+    { key: '出发国家', value: null },
+    { key: '到达国家', value: null },
+    { key: '最低票面价', value: null },
+    { key: '最高票面价', value: null },
+    { key: '销售天数', value: null },
+    { key: '套餐索引v2', value: null },
+    { key: '座位数', value: null },
+    { key: '是否中转', value: null },
+    { key: '是否国内', value: null },
+    { key: 'OTAType', value: '携程' },
+    { key: 'OTAConfigID', value: 11 },
+    { key: '行程索引', value: null },
+    { key: '数据来源', value: '爬虫' },
+    { key: '政策代码', value: null },
+    { key: '爬虫名', value: null },
+    { key: '去程时间匹配', value: null },
+    { key: '返程时间匹配', value: null },
+    { key: '搜索出发城市', value: null },
+    { key: '搜索到达城市', value: null },
+    { key: '最长停留时间', value: null },
+    { key: '最短停留时间', value: null },
+    { key: '去程班期', value: null },
+    { key: '返程班期', value: null },
+    { key: '调价阶段', value: '搜索' },
+    { key: '调价增加百分比', value: 0 },
+    { key: '调价固定加减钱', from: (item) => item[A3_FIELDS.CUT_VALUE] },
     { key: '儿童调价增加百分比', value: 0 },
     { key: '儿童调价固定加减钱', value: 0 },
-    { key: '价格基础类型',       value: '总价' },
-    { key: '市场',              value: null },
-    { key: 'ID',                value: 0 }
+    { key: '价格基础类型', value: '总价' },
+    { key: '市场', value: null },
+    { key: 'ID', value: 0 }
   ]
 }
 

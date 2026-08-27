@@ -174,7 +174,7 @@ const readyStatus = computed(() => {
     // 从 a1Data 第一行取文件名（如果有的话），否则只显示数据条数
     const firstRow = store.a1Data[0]
     const fileName = store.selectedFile || firstRow?.文件名 || ''
-    console.log(store)
+    // console.log(store)
     if (fileName) {
       return { type: 'success', text: `已选·${fileName}` }
     }

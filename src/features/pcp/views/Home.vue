@@ -17,14 +17,11 @@
           <TaskMonitor />
         </div>
         <!-- 阶段3：Dev 模式切换按钮（左下角，仅元素+定位，视觉样式由用户自定义） -->
-        <button
-          class="pcp-dev-toggle"
-          :class="{ 'pcp-dev-toggle--on': isDevMode }"
-          :title="isDevMode ? '当前 Dev 模式：点击切换为自动模式' : '当前自动模式：点击切换为 Dev 模式（步骤需手动点击触发）'"
-          @click="toggleDevMode"
-        >
+        <button class="pcp-dev-toggle" :class="{ 'pcp-dev-toggle--on': isDevMode }"
+          :title="isDevMode ? '当前 Dev 模式：点击切换为自动模式' : '当前自动模式：点击切换为 Dev 模式（步骤需手动点击触发）'">
           {{ isDevMode ? 'Dev:On' : 'Dev:Off' }}
         </button>
+        <!-- @click="toggleDevMode" -->
       </div>
     </n-message-provider>
   </n-config-provider>
@@ -63,7 +60,8 @@ onMounted(() => {
   height: 100vh;
   padding: 16px;
   overflow: hidden;
-  position: relative; /* 给 dev 按钮绝对定位提供锚点 */
+  position: relative;
+  /* 给 dev 按钮绝对定位提供锚点 */
 }
 
 /* 左栏：自适应宽度，纵向排列子组件 */

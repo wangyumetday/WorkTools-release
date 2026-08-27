@@ -444,6 +444,9 @@ export class FileManager {
         //   系统导入文件里该字段因 exportTemplate.columns 未声明不会被写；
         //   仅底价检查(人看)文件会用到这列
         row[A3_FIELDS._floorMeta] = item[A3_FIELDS._floorMeta] || null
+        // 比价结果标记：'won'（可以胜出）/ 'lost'（无法胜出）
+        //   仅供 ExcelExporter 过滤导入政策文件用（底价检查文件全量导出）
+        row[A3_FIELDS._outcome] = item[A3_FIELDS._outcome] || null
         a3arr.push(row)
       }
     })
