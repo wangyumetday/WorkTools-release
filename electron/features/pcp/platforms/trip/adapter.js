@@ -444,7 +444,7 @@ export const exportTemplate = {
     { key: '是否中转', value: null },
     { key: '是否国内', value: null },
     { key: 'OTAType', value: '携程' },
-    { key: 'OTAConfigID', value: 11 },
+    { key: 'OTAConfigID', value: '11' },
     { key: '行程索引', value: null },
     { key: '数据来源', value: '爬虫' },
     { key: '政策代码', value: null },
