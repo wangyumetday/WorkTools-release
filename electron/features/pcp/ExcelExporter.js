@@ -351,7 +351,7 @@ export class ExcelExporter {
       for (const g of platformColGroups) interleavedPlatformCols.push(g.priceHeader, g.metaHeader)
       const header = ['航班号', '舱位', '出发机场', '到达机场', '成人总票价_CNY'].concat(
         interleavedPlatformCols,
-        ['出发城市', '到达城市', '航司名', '出发时间', '到达时间', '仓等']
+        ['行李额','出发城市', '到达城市', '航司名', '出发时间', '到达时间', '仓等']
       )
       // 表头 → 属于哪类：fieldMap / 某平台 底价列 / 某平台 命中公式列
       const priceHeaderInfo = {}
