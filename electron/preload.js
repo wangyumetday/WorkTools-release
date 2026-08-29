@@ -75,6 +75,7 @@ const api = {
     pipelineStart:        ()                 => ipcRenderer.invoke('pcp:pipeline:start'),
     pipelineTriggerStep:  (step)             => ipcRenderer.invoke('pcp:pipeline:triggerStep', step),
     pipelineSetMode:      (mode)             => ipcRenderer.invoke('pcp:pipeline:setMode', mode),
+    pipelineSetBusinessMode: (mode)          => ipcRenderer.invoke('pcp:pipeline:setBusinessMode', mode),
     pipelinePause:        ()                 => ipcRenderer.invoke('pcp:pipeline:pause'),
     pipelineAbort:        ()                 => ipcRenderer.invoke('pcp:pipeline:abort'),
     pipelineGetState:     ()                 => ipcRenderer.invoke('pcp:pipeline:getState'),

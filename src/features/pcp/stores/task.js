@@ -41,7 +41,14 @@ export const useTaskStore = defineStore('pcp-task', () => {
   // mode:   'auto' | 'dev'
   // status: 'idle' | 'running' | 'paused' | 'waiting_next' | 'done'
   // step:   'upload' | 'jxgj' | 'o_combo' | 'export'
-  const pipelineState = ref({ mode: 'auto', status: 'idle', step: 'upload', lastGateFail: null })
+  // businessMode: 'policy' | 'floorCheck'（业务模式：产什么，与 auto/dev 运行模式正交）
+  const pipelineState = ref({
+    mode: 'auto', businessMode: 'policy', status: 'idle', step: 'upload', lastGateFail: null
+  })
+
+  // 业务模式顺序表（与后端 businessModes.js 保持一致；后端校验 key，前端只负责轮换和显示）
+  const BUSINESS_MODE_ORDER = ['policy', 'floorCheck']
+  const BUSINESS_MODE_LABELS = { policy: '政策导入', floorCheck: '底价检查' }
 
   // ==================== 闪烁引导（阶段3）====================
   // blinkTarget: 'file'|'jxgj_config'|'jxgj_credential'|'o_config'|'o_credential' | null
@@ -215,6 +222,37 @@ export const useTaskStore = defineStore('pcp-task', () => {
       pipelineState.value = { ...pipelineState.value, mode: result.mode }
       message.success(`已切换为${mode === 'dev' ? 'Dev' : '自动'}模式`)
     }
+  }
+
+  /**
+   * 切换业务模式（政策导入/底价检查，TopToolbar 按钮调用）
+   *   后端校验 + 切换即全清（a1/a2/a3/任务/阶段），随后推送 pipeline:state 刷新本地状态
+   */
+  async function setBusinessMode(mode) {
+    const result = await api.pcp.pipelineSetBusinessMode(mode)
+    if (result?.success) {
+      const label = BUSINESS_MODE_LABELS[result.businessMode] || result.businessMode
+      message.info(`已切换业务模式：${label}`)
+      // 切换会清空全部数据，同步刷新 a1 预览与计数
+      await refreshDataCounts()
+      await refreshTasks()
+    } else if (result?.message) {
+      message.warning(result.message)
+    }
+  }
+
+  /** 当前业务模式显示名（TopToolbar 按钮文字用） */
+  function currentBusinessModeLabel() {
+    const key = pipelineState.value?.businessMode || 'policy'
+    return BUSINESS_MODE_LABELS[key] || key
+  }
+
+  /** 下一个业务模式 key（按钮点击时轮换） */
+  function nextBusinessModeKey() {
+    const cur = pipelineState.value?.businessMode || 'policy'
+    const idx = BUSINESS_MODE_ORDER.indexOf(cur)
+    const nextIdx = idx < 0 ? 0 : (idx + 1) % BUSINESS_MODE_ORDER.length
+    return BUSINESS_MODE_ORDER[nextIdx]
   }
 
   /** 暂停流程（调 Pipeline.pause → taskManager.pause） */
@@ -542,7 +580,8 @@ export const useTaskStore = defineStore('pcp-task', () => {
     handleUploadXlsx, handleDownloadResult,
     handleSelectDownloadDir, handleOpenDownloadDir, refreshDownloadDir,
     handleDeleteTask, handleClearTasks, handlePause, handleAbort, handleSetConcurrency,
-    handleStartExecution, pipelineTriggerStep, setMode,
+    handleStartExecution, pipelineTriggerStep, setMode, setBusinessMode,
+    currentBusinessModeLabel, nextBusinessModeKey,
     init
   }
 })

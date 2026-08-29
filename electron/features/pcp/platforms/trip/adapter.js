@@ -180,11 +180,60 @@ function postGzip(baseURL, gzippedBody, timeout) {
     req.end()
   })
 }
-// 价格比较策略price——Comparison——Policy
+// ===== 行李归一化匹配（业务模式重构新增）=====
+/**
+ * 携程 prices[].baggage 存在两种格式，无法预知本次返回哪种：
+ *   格式1：'BFN-JNB:成人:1件，每件20.0KG'   （带件数 + 单件重量）
+ *   格式2：'成人:20KG'                      （只有重量，无件数 → 按单件 1 件处理）
+ *   无托运：'BFN-JNB:成人:无免费托运行李额'
+ * 解析成统一结构 { free, pieces, weight }；解析不出来返回 null（匹配不到就留空，不兜底）。
+ */
+function parseTripBaggage(str) {
+  if (typeof str !== 'string' || !str.trim()) return null
+  const s = str.trim()
+  if (/无免费托运/.test(s)) return { free: true, pieces: 0, weight: null }
+  const m1 = s.match(/(\d+)\s*件[，,]\s*每件\s*([\d.]+)\s*KG/i)
+  if (m1) return { free: false, pieces: Number(m1[1]), weight: Number(m1[2]) }
+  const m2 = s.match(/成人[:：]\s*([\d.]+)\s*KG/i)
+  if (m2) return { free: false, pieces: 1, weight: Number(m2[1]) }
+  return null
+}
+
+/**
+ * 我方（jxgj 数据体/套餐项）行李签名：数 行李信息 里「托运」条目 → { free, pieces, weight }
+ *   pieces = 托运条目数；weight = 单件重量（沿用老逻辑取最后一个托运条目的重量）
+ */
+function parseOurBaggage(list) {
+  if (!Array.isArray(list)) return null
+  let pieces = 0, weight = null
+  for (const x of list) {
+    if (x && x.类型 == '托运') {
+      pieces++
+      if (x.重量 != null) weight = Number(x.重量)
+    }
+  }
+  return { free: pieces === 0, pieces, weight }
+}
+
+/** 数字相等（20 与 20.0 视为相等），null/NaN 一律不匹配 */
+function numEq(a, b) {
+  if (a == null || b == null) return false
+  const na = Number(a), nb = Number(b)
+  return !Number.isNaN(na) && !Number.isNaN(nb) && na === nb
+}
+
+/** 行李匹配：都无托运 → 匹配；否则件数相等且单件重量相等 */
+function baggageMatchs(our, xc) {
+  if (!our || !xc) return false
+  if (our.free || xc.free) return our.free && xc.free
+  return our.pieces === xc.pieces && numEq(our.weight, xc.weight)
+}
+
+// 价格比较策略 price——Comparison——Policy
 function priceComparisonPolicy(originalData, resData) {
   const resArr = []
   const forData = Array.isArray(originalData?.dateValue) ? originalData.dateValue : []
-  //flights用于查询检验，看是否查询错航数据，lowPrices是比价数据
+  // flights用于查询检验，看是否查询错航数据，lowPrices是比价数据
   const flights = Array.isArray(resData?.responseBody?.flights) ? resData.responseBody.flights : []
   const lowPrices = Array.isArray(resData?.responseBody?.lowPrices) ? resData.responseBody.lowPrices : []
   const dateKey = originalData?.dateKey || 'unknown-date'
@@ -224,8 +273,6 @@ function priceComparisonPolicy(originalData, resData) {
     const itemArrAirport = item[A3_FIELDS.D到达机场]//元数据到达机场
     const itemDate = item[JXGJ_RESPONSE_FIELDS.C出发日期]//元数据出发日期
     const itemCangWei = item[A3_FIELDS.C舱位]
-    const itemTuoYunXingLi = item[A3_FIELDS.TuoYunXingLi]
-    // 先用日期、航班号、出发、到达与
 
     // 判空弹出
     if (itemFlightNo == null || itemDepAirport == null || itemArrAirport == null || itemDate == null) {
@@ -242,51 +289,77 @@ function priceComparisonPolicy(originalData, resData) {
     )
     if (flights_related) matchedFlights++
 
-    let lowPrice_related = null
+    // ★ 收集与该 flightId 相关的全部携程套餐报价（prices 是平级套餐列表，可能分散在多个 lowPrices 组里）
+    const relatedPrices = []
     if (flights_related?.[TRIP_RESPONSE_FIELDS.flightId] != null) {
-      const relatedLp = lowPrices.find(
-        lp =>
-          Array.isArray(lp?.[TRIP_RESPONSE_FIELDS.flightRefs])
-          && lp[TRIP_RESPONSE_FIELDS.flightRefs].some(ref => ref?.[TRIP_RESPONSE_FIELDS.flightId] === flights_related[TRIP_RESPONSE_FIELDS.flightId]))
-      if (relatedLp) {
-        const prices = Array.isArray(relatedLp[TRIP_RESPONSE_FIELDS.prices]) ? relatedLp[TRIP_RESPONSE_FIELDS.prices] : []
-        // console.log('进入一个价格组--------')
-        lowPrice_related = prices.find(lpr => {
-          const baggage = String(lpr?.[TRIP_RESPONSE_FIELDS.baggage] || '')
-          // 此处可以把每一个套餐都对比，用官网forData的行李信息与此处的baggage对比,可以做到套餐比价。
-          return baggage.includes(itemTuoYunXingLi)
-            // && Number(lpr?.[TRIP_RESPONSE_FIELDS.showState]) === 1//当前显示的。
-            && lpr?.[TRIP_RESPONSE_FIELDS.seatClass] == itemCangWei
-            && !lpr?.[TRIP_RESPONSE_FIELDS.isOwn]
-        })
-        // console.log('借宿--------')
-
-        // if (!lowPrice_related) {
-        //   lowPrice_related = prices.find(lpr => Number(lpr?.[TRIP_RESPONSE_FIELDS.showState]) === 1 && !lpr?.[TRIP_RESPONSE_FIELDS.isOwn])
-        // }
+      const fid = flights_related[TRIP_RESPONSE_FIELDS.flightId]
+      for (const lp of lowPrices) {
+        const refs = Array.isArray(lp?.[TRIP_RESPONSE_FIELDS.flightRefs]) ? lp[TRIP_RESPONSE_FIELDS.flightRefs] : []
+        const hit = refs.some(ref => ref?.[TRIP_RESPONSE_FIELDS.flightId] === fid)
+        if (!hit) continue
+        const prices = Array.isArray(lp?.[TRIP_RESPONSE_FIELDS.prices]) ? lp[TRIP_RESPONSE_FIELDS.prices] : []
+        for (const pr of prices) {
+          if (pr) relatedPrices.push(pr)
+        }
       }
     }
-    if (lowPrice_related) matchedLowPrice++
 
-    const sortIndicator = Number(lowPrice_related?.[TRIP_RESPONSE_FIELDS.sortIndicator])
+    // ===== 行级比价：舱位级主数据体本身也是一种"套餐" =====
+    //   用主数据体的 (C舱位, 行级行李) 在携程 prices 里找对应套餐报价 → 胜败判定
+    const rowSig = parseOurBaggage(item.行李信息)
+    const rowPrice = relatedPrices.find(p =>
+      p && p[TRIP_RESPONSE_FIELDS.seatClass] == itemCangWei
+      && !p[TRIP_RESPONSE_FIELDS.isOwn]
+      && baggageMatchs(rowSig, parseTripBaggage(p[TRIP_RESPONSE_FIELDS.baggage]))
+    )
+    if (rowPrice) matchedLowPrice++
+
+    // ===== 套餐富化：给舱位级数据携带的每个套餐挂「携程底价 / 差值」 =====
+    //   seatClass 规则：套餐自带 舱位 属性 → 用它比；没有 → 用携程套餐 seatClass 去比主数据体的 C舱位
+    //   差值 = 携程底价 - 我方底价 - 1（我方底价 = 该套餐价格按底价公式算出的底价，jxgj 阶段已挂上）
+    const taocan = Array.isArray(item.套餐信息) ? item.套餐信息 : []
+    for (const acai of taocan) {
+      if (!acai) continue
+      const acaiSig = parseOurBaggage(acai.行李信息)
+      if (!acaiSig) continue // 套餐没有行李信息 → 无法匹配（不兜底）
+      const seat = (acai.舱位 != null && String(acai.舱位).trim() !== '')
+        ? acai.舱位
+        : itemCangWei
+      const pkgPrice = relatedPrices.find(p =>
+        p && p[TRIP_RESPONSE_FIELDS.seatClass] == seat
+        && !p[TRIP_RESPONSE_FIELDS.isOwn]
+        && baggageMatchs(acaiSig, parseTripBaggage(p[TRIP_RESPONSE_FIELDS.baggage]))
+      )
+      if (pkgPrice) {
+        acai['携程底价'] = Number(pkgPrice[TRIP_RESPONSE_FIELDS.sortIndicator])
+        const ourFloor = Number(acai['我方底价'])
+        if (!Number.isNaN(ourFloor)) {
+          acai['差值'] = new Decimal(acai['携程底价']).minus(ourFloor).minus(1).toNumber()
+        }
+      }
+    }
+
+    const sortIndicator = Number(rowPrice?.[TRIP_RESPONSE_FIELDS.sortIndicator])
     const hasXcPrice = !isNaN(sortIndicator) && sortIndicator > 0
     const dijia = Number(item[A2_FIELDS.dijia]) || 0
     const totalCNY = Number(item[A2_FIELDS.C成人总票价_CNY_INT]) || 0
     if (hasXcPrice && dijia > 0 && dijia <= sortIndicator) {
       wonByPrice++
       item[A3_FIELDS.XC_dijia] = sortIndicator
-      item[A3_FIELDS.CUT_VALUE] = new Decimal(sortIndicator).minus(totalCNY || 0).minus(1).toNumber()
       // 比赢：打「可以胜出」标记
       item[A3_FIELDS._outcome] = 'won'
       resArr.push(item)
     } else if (hasXcPrice && dijia > sortIndicator) {
       lostByPrice++
       // 比输不再丢弃：打「无法胜出」标记并入队，供底价检查文件全量展示
-      //   XC_dijia 存携程价（与比赢分支一致），底价检查文件才能展示对方价格
-      //   CUT_VALUE 不计算：导入政策文件会过滤掉比输行，用不到
       item[A3_FIELDS.XC_dijia] = sortIndicator
       item[A3_FIELDS._outcome] = 'lost'
       resArr.push(item)
+    }
+    // ★ 底价检查文件「预计减价」列：won/lost 都算（携程底价 - 官网价取整 - 1）
+    //   导入政策文件「调价固定加减钱」列也引用它（保持原公式不变，只从仅 won 扩展到 won+lost）
+    if (hasXcPrice) {
+      item[A3_FIELDS.CUT_VALUE] = new Decimal(sortIndicator).minus(totalCNY || 0).minus(1).toNumber()
     }
   })
 

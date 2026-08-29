@@ -447,6 +447,11 @@ export class FileManager {
         // 比价结果标记：'won'（可以胜出）/ 'lost'（无法胜出）
         //   仅供 ExcelExporter 过滤导入政策文件用（底价检查文件全量导出）
         row[A3_FIELDS._outcome] = item[A3_FIELDS._outcome] || null
+        // ★ 业务模式重构：底价检查文件为主行 + 套餐子行布局
+        //   a3 行保留原始 行李信息（行李额列）与富化后的 套餐信息（套餐子行：
+        //   套餐价_CNY / 我方底价 / 携程底价 / 差值 / _floorMeta）
+        row['行李信息'] = item['行李信息']
+        row['套餐信息'] = item['套餐信息']
         a3arr.push(row)
       }
     })

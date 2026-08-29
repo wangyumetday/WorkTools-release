@@ -107,6 +107,25 @@
   animation: pcp-blink-shake-anim 0.8s ease-in-out infinite;
   outline: 2px solid rgba(255, 80, 80, 0.85);
 }
+
+/* 业务模式切换按钮（PCP 统一配色 #18a058，与 n-button 高度一致，本轮只保证可用不美工） */
+.bm-btn {
+  width: 88px;
+  height: 34px;
+  border: 1px solid #18a058;
+  border-radius: 3px;
+  background: #fff;
+  color: #18a058;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.bm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 </style>
 <template>
   <div class="top-toolbar">
@@ -114,8 +133,7 @@
     <div class="tt-left tt-box">
       <div class="ttb-item ttb-top">
         <n-button type="default" class="ttb-btn" :class="{ 'pcp-blink-shake': store.blinkTarget === 'file' }"
-          :disabled="store.pipelineInProgress"
-          @click="store.handleUploadXlsx">
+          :disabled="store.pipelineInProgress" @click="store.handleUploadXlsx">
           选择Excel文件
         </n-button>
         <n-text v-if="readyStatus" :type="readyStatus.type" depth="3" class="ttb-msm">
@@ -123,9 +141,15 @@
         </n-text>
       </div>
       <div class="ttb-item ttb-bottom">
-        <n-button type="success" class="ttb-btn" @click="handleStartExecution" :disabled="!canStart">
-          开始
-        </n-button>
+        <div class="ttb-btn" style="display: flex;flex-flow: row nowrap;gap: 4px;">
+          <n-button type="success" style="flex: 1" @click="handleStartExecution" :disabled="!canStart">
+            开始
+          </n-button>
+          <!-- 业务模式切换：本轮只绑定方法并显示当前模式名（翻转动画等 UI 后续再打磨） -->
+          <button class="bm-btn" :disabled="store.pipelineInProgress" @click="handleToggleBusinessMode">
+            {{ store.currentBusinessModeLabel() }}
+          </button>
+        </div>
         <n-button type="error" class="ttb-btn" style="width: 90px" @click="store.handleAbort" :disabled="!canAbort">
           终止
         </n-button>
@@ -203,6 +227,14 @@ const canAbort = computed(() => !!store.pipelineInProgress)
  */
 async function handleStartExecution() {
   await store.handleStartExecution()
+}
+
+/**
+ * 切换业务模式（政策导入 ⇄ 底价检查）
+ *   流程进行中按钮被禁用（pipelineInProgress 同一把锁，后端也会二次校验）
+ */
+async function handleToggleBusinessMode() {
+  await store.setBusinessMode(store.nextBusinessModeKey())
 }
 
 // ==================== 下载按钮状态（与 Stepper 步骤4 一致） ====================

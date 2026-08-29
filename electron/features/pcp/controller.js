@@ -185,6 +185,8 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
   ipcMain.handle('pcp:pipeline:start', async () => pipeline.start())
   ipcMain.handle('pcp:pipeline:triggerStep', async (_event, step) => pipeline.triggerStep(step))
   ipcMain.handle('pcp:pipeline:setMode', (_event, mode) => pipeline.setMode(mode))
+  // 业务模式切换（政策导入/底价检查）：后端校验合法性 + 流程进行中拒绝 + 切换即全清（含 a1）
+  ipcMain.handle('pcp:pipeline:setBusinessMode', (_event, mode) => pipeline.setBusinessMode(mode))
   ipcMain.handle('pcp:pipeline:pause', async () => pipeline.pause())
   // 终止（硬中断）：立即打断当前流程，进度条冻在当前值，下次 start 从头跑
   ipcMain.handle('pcp:pipeline:abort', () => pipeline.abort())

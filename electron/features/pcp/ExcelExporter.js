@@ -46,17 +46,29 @@ function dateStamp() {
 }
 
 /**
- * 「底价检查」底价列的展示值：底价（预计减价），如 2050（-30）
- *   预计减价 = 底价 - ceil(成人总票价_CNY) - 1
- *   底价或票价缺失时只显示底价（票价为非数字时省略括号）
+ * 「底价检查」预计减价列的展示值：四舍五入成整数（-24.14 → -24），非数字/缺失 → 空字符串
  */
-function formatDijiaWithCut(dijia, adultTotal) {
-  if (dijia == null || dijia === '') return ''
-  if (Number.isNaN(Number(dijia))) return String(dijia)
-  const price = Number(adultTotal)
-  if (Number.isNaN(price)) return String(dijia)
-  const cut = Math.round(Number(dijia) - Math.ceil(price) - 1)
-  return `${dijia}（${cut}）`
+function roundForDisplay(v) {
+  if (v == null || v === '') return ''
+  const n = Number(v)
+  return Number.isNaN(n) ? '' : Math.round(n)
+}
+
+/**
+ * 「底价检查」行李额列（只展示托运部分，手提不展示）：
+ *   汇总 行李信息 里「托运」条目的重量总和 → 托运：20kg / 托运：0
+ *   非数组或没有托运条目 → 托运：0
+ */
+function formatBaggageText(list) {
+  if (!Array.isArray(list) || list.length === 0) return '托运：0'
+  let kg = 0
+  for (const x of list) {
+    if (x && x['类型'] == '托运' && x['重量'] != null) {
+      const w = Number(x['重量'])
+      if (!Number.isNaN(w)) kg += w
+    }
+  }
+  return kg > 0 ? `托运：${kg}kg` : '托运：0'
 }
 
 /**
@@ -176,14 +188,14 @@ export class ExcelExporter {
   }
 
   /**
-   * 导出 a3 最终数据（阶段4：每 O 平台一个系统导入 xlsx + 一个「底价检查」人看合并 xlsx）
+   * 导出 a3 最终数据（阶段4：每 O 平台一个系统导入 xlsx + 每个有数据的平台一份「底价检查」人看 xlsx）
    *   - a3 每行带 _platform 标签 → 按 _platform 分组
-   *   - 系统导入文件只导出比价胜出的行（_outcome !== 'lost'）；底价检查文件全量导出
+   *   - 系统导入文件只导出比价胜出的行（_outcome !== 'lost'）；底价检查文件全量导出（主行 + 套餐子行）
    *   - 每组用该平台 adapter.exportTemplate.columns 决定列顺序
    *     （_platform 与 HR_FIELDS 附加列不写入系统导入文件）
    *   - 嵌套对象扁平化为 JSON 字符串，避免 Excel 显示成 [object Object]
    *   - 系统导入文件命名：{平台中文名}导入政策{日期}.xlsx（如 携程导入政策2026-08-21.xlsx）
-   *   - 人看文件命名：底价检查({平台中文名}){日期}.xlsx（如 底价检查(携程)2026-08-21.xlsx）
+   *   - 人看文件命名：{平台中文名}底价检查{日期}.xlsx（如 携程底价检查2026-08-21.xlsx）
    *   - 同名序号递增：携程导入政策2026-08-21.xlsx 存在 → 携程导入政策2026-08-21 (1).xlsx
    *   - 进度推送：0 → 每平台写完按比例推进 → 100
    *   - 返回 { success, files: [{path, filename, platform, count}], dir }
@@ -219,13 +231,12 @@ export class ExcelExporter {
         return { success: false, error: '没有可导出的平台数据' }
       }
 
-      // ★ 统一序号：政策导入文件 + 底价检查文件用相同序号（取使所有文件都不冲突的最小序号）
+      // ★ 统一序号：政策导入文件 + 每个有数据平台的底价检查文件用相同序号（取使所有文件都不冲突的最小序号）
       const bases = platformKeys.map(p => `${platformDisplayName(p)}导入政策${dateStr}`)
-      // 预测底价检查文件 basename（mainKey 逻辑同 buildHumanReadableFile：trip 优先，否则第一个有数据的平台）
-      const hrPresent = O_PLATFORMS.filter(p => (groups[p] || []).length > 0)
-      if (hrPresent.length > 0) {
-        const hrMainKey = (groups['trip'] || []).length > 0 ? 'trip' : hrPresent[0]
-        bases.push(`${platformDisplayName(hrMainKey)}底价检查${dateStr}`)
+      for (const p of platformKeys) {
+        if ((groups[p] || []).length > 0) {
+          bases.push(`${platformDisplayName(p)}底价检查${dateStr}`)
+        }
       }
       const unifiedSeq = this._uniqueSeqForAll(dir, bases, '.xlsx')
 
@@ -281,9 +292,9 @@ export class ExcelExporter {
         onProgress(Math.round(((i + 1) / platformKeys.length) * 90))
       }
 
-      // ===== 生成「底价检查」人看合并文件（失败不影响系统导入文件） =====
-      const humanFile = this.buildHumanReadableFile(dir, dateStr, unifiedSeq)
-      if (humanFile) files.push(humanFile)
+      // ===== 生成「底价检查」人看文件：每个有数据的平台独立一份（失败不影响系统导入文件） =====
+      const humanFiles = this.buildHumanReadableFiles(dir, dateStr, unifiedSeq)
+      for (const hf of humanFiles) files.push(hf)
 
       onProgress(100)
       return { success: true, files, dir }
@@ -294,144 +305,103 @@ export class ExcelExporter {
   }
 
   /**
-   * 生成「底价检查」人看合并文件（给业务人员看价用）
-   *   - 以 trip（携程）行为主体；其他平台（O2/O3）的底价按
-   *     航班号|出发机场|到达机场|出发时间 匹配进主体行
-   *   - 列结构：航班号, 舱位, 出发机场, 到达机场, 成人总票价_CNY,
-   *     [各平台底价列(预计减价)...], 出发城市, 到达城市, 航司名, 出发时间, 到达时间, 仓等
-   *   - 底价列紧跟在「成人总票价_CNY」后，有数据的平台才插列（几个插几个，没有不插）
-   *   - 底价列的值形如「2050（-30）」：括号内预计减价 = 底价 - ceil(成人总票价_CNY) - 1
-   *   - 其他平台有而主体平台没有的航班 → 追加为独立行（主体平台底价留空）
-   * @returns {{path, filename, platform, count}|null} 没数据或生成失败返回 null
+   * 生成「底价检查」人看文件（业务模式重构：每平台独立一份，主行 + 套餐子行）
+   *   - 每个有 a3 数据的平台各出一份文件：{平台中文名}底价检查{日期}.xlsx
+   *   - 行布局（对齐模板 docs/pcp/携程底价检查*.xlsx）：
+   *       主行 = 舱位级数据（航班号/舱位/机场/城市/时间/仓等 + 票价/底价/公式/行李额全填）
+   *       主行下方紧跟该舱位行的套餐子行（只填 成人总票价_CNY / {平台}底价 / 预计减价 / 底价公式命中 / 行李额）
+   *   - 套餐没有匹配到携程价的也列出（携程底价/预计减价留空），其余照写
+   *   - 预计减价：主行 = CUT_VALUE（携程底价 - 官网价取整 - 1）；套餐行 = 差值（携程底价 - 套餐我方底价 - 1）
    */
-  buildHumanReadableFile(dir, dateStr, seq = null) {
+  buildHumanReadableFiles(dir, dateStr, seq = null) {
+    const out = []
     try {
-      // 1. 按平台分组（按标准 O 平台顺序取，保证底价列顺序稳定）
+      // 1. 按平台分组（按标准 O 平台顺序出文件，顺序稳定）
       const groups = {}
       for (const row of this.fileManager.a3) {
         const p = row?.[A3_FIELDS._platform] || 'trip'
         if (!groups[p]) groups[p] = []
         groups[p].push(row)
       }
-      const presentKeys = O_PLATFORMS.filter(p => (groups[p] || []).length > 0)
-      if (presentKeys.length === 0) return null
 
-      // 2. 主体平台：有携程（trip）以携程为主，否则取第一个有数据的平台
-      const mainKey = groups['trip'] ? 'trip' : presentKeys[0]
-
-      // 匹配键：航班号|出发机场|到达机场|出发时间（航班级唯一标识）
-      const matchKey = (r) =>
-        [r[A3_FIELDS.H航班号], r[A3_FIELDS.C出发机场], r[A3_FIELDS.D到达机场], r[A3_FIELDS.C出发时间_Date]]
-          .map(v => (v == null ? '' : String(v))).join('|')
-
-      // 3. 其他平台底价 & 命中公式索引：platform → { 匹配键: value }
-      const otherPriceMap = {}
-      const otherMetaMap = {}
-      for (const p of presentKeys) {
-        if (p === mainKey) continue
-        const pm = {}, mm = {}
-        for (const r of groups[p]) {
-          const k = matchKey(r)
-          pm[k] = r[A3_FIELDS.XC_dijia]
-          mm[k] = r[A3_FIELDS._floorMeta]
-        }
-        otherPriceMap[p] = pm
-        otherMetaMap[p] = mm
+      // 2. 每个有数据的平台独立生成一份
+      for (const p of O_PLATFORMS) {
+        const rows = groups[p] || []
+        if (rows.length === 0) continue
+        const file = this._buildHumanFileForPlatform(p, rows, dir, dateStr, seq)
+        if (file) out.push(file)
       }
-
-      // 4. 列顺序：航班号, 舱位, 出发机场, 到达机场, 成人总票价_CNY,
-      //            [ 各平台底价列 | 该平台命中公式列 成对插入 ... ],
-      //            出发城市, 到达城市, 航司名, 出发时间, 到达时间, 仓等
-      const platformColGroups = presentKeys.map(p => ({
-        priceHeader: `${platformDisplayName(p)}底价(预计减价)`,
-        metaHeader: '底价公式命中',
-        platform: p
-      }))
-      const interleavedPlatformCols = []
-      for (const g of platformColGroups) interleavedPlatformCols.push(g.priceHeader, g.metaHeader)
-      const header = ['航班号', '舱位', '出发机场', '到达机场', '成人总票价_CNY'].concat(
-        interleavedPlatformCols,
-        ['行李额','出发城市', '到达城市', '航司名', '出发时间', '到达时间', '仓等']
-      )
-      // 表头 → 属于哪类：fieldMap / 某平台 底价列 / 某平台 命中公式列
-      const priceHeaderInfo = {}
-      const metaHeaderInfo = {}
-      for (const g of platformColGroups) {
-        priceHeaderInfo[g.priceHeader] = g.platform
-        metaHeaderInfo[g.metaHeader] = g.platform
-      }
-      // 中文表头 → 原始字段
-      const fieldMap = {
-        '航班号': A3_FIELDS.H航班号, '舱位': A3_FIELDS.C舱位, '成人总票价_CNY': A3_FIELDS.C成人总票价_CNY,
-        '出发机场': A3_FIELDS.C出发机场, '到达机场': A3_FIELDS.D到达机场,
-        '出发城市': A3_FIELDS.C出发城市, '到达城市': A3_FIELDS.D到达城市, '航司名': A3_FIELDS.H航司名,
-        '出发时间': A3_FIELDS.C出发时间_Date, '到达时间': A3_FIELDS.D到达时间_Date, '仓等': A3_FIELDS.仓等
-      }
-
-      // 5. 逐行组装（对象 key 插入顺序 = 表头列顺序）
-      const rows = []
-      const usedKeys = new Set()
-      const pushRow = (r, priceByPlat, metaByPlat) => {
-        const out = {}
-        for (const h of header) {
-          if (fieldMap[h] != null) {
-            out[h] = r[fieldMap[h]]
-          } else if (priceHeaderInfo[h] != null) {
-            // 底价列：底价（预计减价），如 2050（-30）
-            out[h] = formatDijiaWithCut(priceByPlat[priceHeaderInfo[h]], r[A3_FIELDS.C成人总票价_CNY])
-          } else if (metaHeaderInfo[h] != null) {
-            // 命中公式列：区间[500,700] cost*0.48 / 全局 cost*0.2 / 降级 原价
-            out[h] = formatFloorMeta(metaByPlat[metaHeaderInfo[h]])
-          } else {
-            out[h] = ''
-          }
-        }
-        rows.push(out)
-      }
-
-      // 主体平台行（携程为主），其他平台底价/公式按匹配键补列
-      for (const r of groups[mainKey]) {
-        const key = matchKey(r)
-        usedKeys.add(key)
-        const priceByPlat = { [mainKey]: r[A3_FIELDS.XC_dijia] }
-        const metaByPlat = { [mainKey]: r[A3_FIELDS._floorMeta] }
-        for (const p of presentKeys) {
-          if (p === mainKey) continue
-          priceByPlat[p] = otherPriceMap[p][key] ?? ''
-          metaByPlat[p] = otherMetaMap[p][key] ?? null
-        }
-        pushRow(r, priceByPlat, metaByPlat)
-      }
-      // 其他平台独有的航班（主体平台没有的行）追加，主体平台底价/公式留空
-      for (const p of presentKeys) {
-        if (p === mainKey) continue
-        for (const r of groups[p]) {
-          const key = matchKey(r)
-          if (usedKeys.has(key)) continue
-          usedKeys.add(key)
-          pushRow(
-            r,
-            { [p]: r[A3_FIELDS.XC_dijia] },
-            { [p]: r[A3_FIELDS._floorMeta] }
-          )
-        }
-      }
-
-      // 6. 写 xlsx：{主体平台中文名}底价检查{日期}.xlsx（如 携程底价检查2026-08-21.xlsx）
-      //   表头/内容全部单元格水平垂直居中显示
-      const worksheet = XLSX.utils.json_to_sheet(rows)
-      centerSheetCells(worksheet)
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, '底价检查')
-      const finalPath = seq != null
-        ? this._pathWithSeq(dir, `${platformDisplayName(mainKey)}底价检查${dateStr}`, '.xlsx', seq)
-        : this.getUniqueFilePath(dir, `${platformDisplayName(mainKey)}底价检查${dateStr}.xlsx`)
-      XLSX.writeFile(workbook, finalPath)
-      return { path: finalPath, filename: path.basename(finalPath), platform: 'human', count: rows.length }
     } catch (error) {
       // 人看文件是附加产物，失败不影响系统导入文件
-      console.warn(`[buildHumanReadableFile] 底价检查文件生成失败：${error.message}`)
-      return null
+      console.warn(`[buildHumanReadableFiles] 底价检查文件生成失败：${error.message}`)
     }
+    return out
+  }
+
+  /** 单个平台的底价检查文件：按模板列组装主行 + 套餐子行 */
+  _buildHumanFileForPlatform(p, rows, dir, dateStr, seq) {
+    const pName = platformDisplayName(p)
+    // 表头（对齐模板：主键列 + 本平台底价三列 + 行李额 + 航班详情列尾）
+    const header = ['航班号', '舱位', '出发机场', '到达机场', '成人总票价_CNY',
+      `${pName}底价`, '预计减价', '底价公式命中', '行李额',
+      '出发城市', '到达城市', '航司名', '出发时间', '到达时间', '仓等']
+    // 中文表头 → 行级原始字段（仅主行填充）
+    const fieldMap = {
+      '航班号': A3_FIELDS.H航班号, '舱位': A3_FIELDS.C舱位,
+      '出发机场': A3_FIELDS.C出发机场, '到达机场': A3_FIELDS.D到达机场,
+      '出发城市': A3_FIELDS.C出发城市, '到达城市': A3_FIELDS.D到达城市,
+      '航司名': A3_FIELDS.H航司名,
+      '出发时间': A3_FIELDS.C出发时间_Date, '到达时间': A3_FIELDS.D到达时间_Date,
+      '仓等': A3_FIELDS.仓等
+    }
+    const outRows = []
+    for (const r of rows) {
+      // ===== 主行：舱位级数据（本身就是一种"套餐"） =====
+      const parent = {}
+      for (const h of header) {
+        if (fieldMap[h] != null) {
+          parent[h] = r[fieldMap[h]]
+        } else if (h === '成人总票价_CNY') {
+          parent[h] = r[A3_FIELDS.C成人总票价_CNY]
+        } else if (h === `${pName}底价`) {
+          parent[h] = r[A3_FIELDS.XC_dijia]
+        } else if (h === '预计减价') {
+          parent[h] = roundForDisplay(r[A3_FIELDS.CUT_VALUE])
+        } else if (h === '底价公式命中') {
+          parent[h] = formatFloorMeta(r[A3_FIELDS._floorMeta])
+        } else if (h === '行李额') {
+          parent[h] = formatBaggageText(r['行李信息'])
+        } else {
+          parent[h] = ''
+        }
+      }
+      outRows.push(parent)
+
+      // ===== 套餐子行：主行下方展开，只填 5 列，其余留空 =====
+      const taocan = Array.isArray(r['套餐信息']) ? r['套餐信息'] : []
+      for (const acai of taocan) {
+        if (!acai) continue
+        const child = {}
+        for (const h of header) child[h] = ''
+        child['成人总票价_CNY'] = acai['套餐价_CNY'] ?? ''
+        child[`${pName}底价`] = acai['携程底价'] ?? ''
+        child['预计减价'] = roundForDisplay(acai['差值'])
+        child['底价公式命中'] = formatFloorMeta(acai._floorMeta)
+        child['行李额'] = formatBaggageText(acai['行李信息'])
+        outRows.push(child)
+      }
+    }
+
+    // 写 xlsx：{平台中文名}底价检查{日期}.xlsx（如 携程底价检查2026-08-28.xlsx）
+    //   表头/内容全部单元格水平垂直居中显示
+    const worksheet = XLSX.utils.json_to_sheet(outRows)
+    centerSheetCells(worksheet)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, '底价检查')
+    const finalPath = seq != null
+      ? this._pathWithSeq(dir, `${pName}底价检查${dateStr}`, '.xlsx', seq)
+      : this.getUniqueFilePath(dir, `${pName}底价检查${dateStr}.xlsx`)
+    XLSX.writeFile(workbook, finalPath)
+    return { path: finalPath, filename: path.basename(finalPath), platform: `${pName}底价检查`, count: outRows.length }
   }
 }

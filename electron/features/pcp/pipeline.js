@@ -29,6 +29,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { O_PLATFORM_KEYS } from './platforms/registry.js'
+import { DEFAULT_BUSINESS_MODE, isValidBusinessMode } from './businessModes.js'
 
 const PIPELINE_STATE_FILE = 'pipelineState.json'
 
@@ -63,6 +64,9 @@ export class Pipeline {
     this.ensureStateFileDir()
 
     this.mode = this.loadMode() // 'auto' | 'dev'
+
+    // 业务模式（产什么）：不持久化，每次启动回到默认 policy
+    this.businessMode = DEFAULT_BUSINESS_MODE
 
     // ★ 细粒度阶段状态（核心状态，替换原本粗粒度 status/step）
     this.stages = this._initStages()
@@ -310,6 +314,24 @@ export class Pipeline {
   }
 
   /**
+   * 切换业务模式（政策导入 / 底价检查）
+   *   - 仅 idle/done（流程不在进行中）可切换（与配置/账号同一把硬锁）
+   *   - 切换即全清：a1/a2/a3 + 任务队列 + 阶段状态全部回到初始态（用户需重新选文件）
+   *   - 不持久化：重启回到默认 policy（见 constructor）
+   */
+  setBusinessMode(mode) {
+    const valid = isValidBusinessMode(mode)
+    if (!valid) return { success: false, message: '未知业务模式' }
+    if (this.isInProgress()) {
+      return { success: false, message: '流程执行中，请先完成或终止后再切换业务模式' }
+    }
+    this.businessMode = valid
+    this.reset()
+    this.emitState()
+    return { success: true, businessMode: this.businessMode }
+  }
+
+  /**
    * 导出门控：**唯一权威位置**，替代原先 a3.count === 0 的判断
    * 语义：a3_merge 阶段 status === 'completed'（即使 outputCount=0）→ 可以下载
    * @returns {{ can: boolean, reason?: string, platformsToExport?: string[] }}
@@ -341,6 +363,7 @@ export class Pipeline {
     this._syncLegacyFields()
     return {
       mode: this.mode,
+      businessMode: this.businessMode,       // 业务模式（政策导入/底价检查）
       status: this.status,
       step: this.step,
       lastGateFail: this.lastGateFail,

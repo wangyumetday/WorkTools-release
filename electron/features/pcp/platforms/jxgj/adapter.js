@@ -100,44 +100,16 @@ export function mergeResult(rawResponse, a1Item, compiledConfig = {}) {
     const findItem = GW_data.find(item => findItemByCwItem(item, cw_item))
 
     if (findItem) {
-      if (findItem.套餐信息?.length > 0) {
-        // 拆套餐
-        const TaoCanArr = []
-        findItem.套餐信息.forEach(acai => {
-          let xingli_num = 0, xingli_kg = 0
-          acai.行李信息?.forEach(acai_x => {
-            if (acai_x.类型 == "托运") { xingli_kg = acai_x.重量; xingli_num++ }
-          })
+      // ★ 业务模式重构：舱位级数据不拆套餐。
+      //   舱位级主数据体本身也是一种"套餐"（JGJ 返回里 A 舱一行 = A 舱的整舱报价），
+      //   它外层携带有 套餐信息[套餐1,套餐2...]（舱位/舱等/座位数/套餐价格/行李信息）。
+      //   我们把每个内部套餐的"我方底价"算出来挂回套餐项，整行一起流向下游：
+      //   trip 比价时给每个套餐富化「携程底价 / 差值」，导入政策文件只用舱位级主数据（不使用套餐信息）。
+      enrichTaocanFloorPrice(findItem, floorPriceFormula)
 
-          let temp = structuredClone(findItem)
-          temp.套餐信息 = []
-          temp.行李信息 = []
-          temp.C成人总票价_CNY = AnyToCny(temp.H货币种类, acai.套餐价格)
-          temp.C舱位 = acai.舱位
-          temp.舱等 = acai.舱等
-          temp.S剩余座位数 = acai.座位数
-          if (xingli_num == 0) temp.TuoYunXingLi = '无免费托运行李'
-          else if (xingli_num == 1) temp.TuoYunXingLi = `成人:${xingli_kg}`
-          else temp.TuoYunXingLi = `${xingli_num}件，每件${xingli_kg}`
-          TaoCanArr.push(temp)
-        })
-
-        if (TaoCanArr.length > 0) {
-          TaoCanArr.forEach(tca => a2Item[A2_FIELDS.cangwei_arr].push(geshihua(tca)))
-        } else {
-          a2Item[A2_FIELDS.cangwei_arr].push(geshihua(findItem))
-        }
-      } else {
-        // 无套餐
-        let xingli_num = 0, xingli_kg = 0
-        findItem.行李信息?.forEach(acai_x => {
-          if (acai_x.类型 == "托运") { xingli_kg = acai_x.重量; xingli_num++ }
-        })
-        if (xingli_num == 0) findItem.TuoYunXingLi = '无免费托运行李'
-        else if (xingli_num == 1) findItem.TuoYunXingLi = `成人:${xingli_kg}`
-        else findItem.TuoYunXingLi = `${xingli_num}件，每件${xingli_kg}`
-        a2Item[A2_FIELDS.cangwei_arr].push(geshihua(findItem))
-      }
+      // 行级行李拼接（主数据体自己的托运行李汇总）
+      setTuoYunXingLi(findItem)
+      a2Item[A2_FIELDS.cangwei_arr].push(geshihua(findItem))
     }
 
     // 按日期分组
@@ -175,6 +147,50 @@ export async function login(credential) {
 export const exportTemplate = null
 
 // ===== 内部 helper =====
+
+/**
+ * 给舱位级数据自带的套餐信息富化三样数据（供底价检查文件逐套餐展示用）：
+ *   1. 套餐价_CNY：该套餐价格换算成 CNY（底价检查文件「成人总票价_CNY」列）
+ *   2. 我方底价：该套餐价按用户配置底价公式算出的底价（trip 比价用它算「差值」）
+ *   3. _floorMeta：命中公式元数据（底价检查文件「底价公式命中」列，与行级格式一致）
+ * 注意：套餐价格缺失的套餐跳过（不兜底赋值），下游匹配不到自然会留空。
+ */
+function enrichTaocanFloorPrice(findItem, floorPriceFormula) {
+  const taocan = findItem.套餐信息
+  if (!Array.isArray(taocan) || !floorPriceFormula) return
+  for (const acai of taocan) {
+    if (!acai || acai.套餐价格 == null) continue
+    const cnyPrice = AnyToCny(findItem.H货币种类, acai.套餐价格)
+    acai['套餐价_CNY'] = cnyPrice
+    const fp = floorPriceFormula(cnyPrice)
+    acai['我方底价'] = fp?.floorPrice
+    acai._floorMeta = {
+      version: fp?.version,
+      formulaType: fp?.formulaType,
+      formulaStr: fp?.formulaStr,
+      rangeHit: fp?.rangeHit,
+      cost: fp?.cost
+    }
+  }
+}
+
+/**
+ * 拼接舱位级主数据体的托运行李说明字符串（与老"无套餐行"逻辑一致）：
+ *   数 行李信息 里「托运」条目的数量与单件重量：
+ *     0 件 → 无免费托运行李
+ *     1 件 → 成人:20
+ *     N 件 → N件，每件20
+ * 该字符串供 trip 比价做行级行李匹配用。
+ */
+function setTuoYunXingLi(findItem) {
+  let xingli_num = 0, xingli_kg = 0
+  findItem.行李信息?.forEach(acai_x => {
+    if (acai_x.类型 == "托运") { xingli_kg = acai_x.重量; xingli_num++ }
+  })
+  if (xingli_num == 0) findItem[A2_FIELDS.TuoYunXingLi] = '无免费托运行李'
+  else if (xingli_num == 1) findItem[A2_FIELDS.TuoYunXingLi] = `成人:${xingli_kg}`
+  else findItem[A2_FIELDS.TuoYunXingLi] = `${xingli_num}件，每件${xingli_kg}`
+}
 
 /**
  * 在 List 中按舱位查询项（含座位数≥3、日期≥3天后两道过滤）

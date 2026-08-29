@@ -21,7 +21,7 @@ export class TaskScheduler {
     this.tasks = []
     this.isRunning = false
     this.isPaused = false
-    this.concurrency = 4
+    this.concurrency = 6
     this.activeCount = 0
     this.currentTaskIndex = -1
     this.onProgress = onProgress || (() => { })
@@ -35,7 +35,8 @@ export class TaskScheduler {
   }
 
   setConcurrency(n) {
-    const next = Math.max(1, Math.min(10, Math.floor(Number(n) || 1)))
+    // 并发上限 16（前端加减按钮同步此值）
+    const next = Math.max(1, Math.min(16, Math.floor(Number(n) || 1)))
     const prev = this.concurrency
     this.concurrency = next
     if (this.isRunning && !this.isPaused && next > prev) {

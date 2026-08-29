@@ -199,7 +199,7 @@
     <div class="tm-bottom">
       <div class="tmb-h">
         <span>任务列表</span>
-        <!-- 并发控制：当前并发 / 设定并发 + 加减按钮（限制60%最大并发=6） -->
+        <!-- 并发控制：当前并发 / 设定并发 + 加减按钮（上限 16，默认 6） -->
         <div class="tmb-concurrency">
           <span class="tmbc-label">并发：</span>
           <span class="tmbc-active">{{ store.activeCount }}</span>
@@ -207,7 +207,7 @@
           <span class="tmbc-active">{{ store.concurrency }}</span>
           <n-button size="small" text @click="decConcurrency" style="margin-left: 4px;"
             :disabled="store.concurrency <= 1">－</n-button>
-          <n-button size="small" text @click="incConcurrency" :disabled="store.concurrency >= 8">＋</n-button>
+          <n-button size="small" text @click="incConcurrency" :disabled="store.concurrency >= 16">＋</n-button>
         </div>
       </div>
       <div class="tab-header">
@@ -247,8 +247,8 @@ function decConcurrency() {
   if (store.concurrency > 1) store.handleSetConcurrency(store.concurrency - 1)
 }
 function incConcurrency() {
-  // 输入框上限 6（用户要求 60% 最大并发数；最大支持并发 10 → 6）
-  if (store.concurrency < 6) store.handleSetConcurrency(store.concurrency + 1)
+  // 上限 16（与后端 taskScheduler.setConcurrency 的限制同步）
+  if (store.concurrency < 16) store.handleSetConcurrency(store.concurrency + 1)
 }
 
 onMounted(async () => {

@@ -82,6 +82,7 @@ const mockApi = {
     pipelineStart:        () => { mockNotReady('pcp.pipelineStart');        return mockDelay({ success: false, message: '未连接主进程' }) },
     pipelineTriggerStep:  () => { mockNotReady('pcp.pipelineTriggerStep');  return mockDelay({ success: false, message: '未连接主进程' }) },
     pipelineSetMode:      () => { mockNotReady('pcp.pipelineSetMode');      return mockDelay({ success: false }) },
+    pipelineSetBusinessMode: () => { mockNotReady('pcp.pipelineSetBusinessMode'); return mockDelay({ success: false }) },
     pipelinePause:        () => { mockNotReady('pcp.pipelinePause');        return mockDelay({ success: false }) },
     pipelineAbort:        () => { mockNotReady('pcp.pipelineAbort');        return mockDelay({ success: true }) },
     pipelineGetState:     () => { mockNotReady('pcp.pipelineGetState');    return mockDelay({ mode: 'auto', status: 'idle', step: 'upload', lastGateFail: null }) },
