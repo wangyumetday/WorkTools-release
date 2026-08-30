@@ -67,6 +67,12 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
+    // 启动体验：窗口先隐藏，渲染层合成第一帧（ready-to-show）后再 show，消灭白屏
+    show: false,
+    // 显式锁定窗口标题为 "Work Tools"，不依赖 package.json 的 name（小写 work-tools）衍生标题
+    title: 'Work Tools',
+    // 首帧绘制前的兜底背景色，与 index.html 启动遮罩背景一致，避免任何白闪
+    backgroundColor: '#f5f7fa',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       // ---- 简化架构开关（内部工具场景，保留基本安全底线） ----
@@ -80,6 +86,16 @@ function createWindow() {
       sandbox: false,
       nodeIntegration: false
     }
+  })
+
+  // 锁定标题：阻止页面 <title> 覆盖窗口标题，彻底消除"小写 work tools → 大写 Work Tools"切换
+  mainWindow.on('page-title-updated', (e) => {
+    e.preventDefault()
+  })
+
+  // 渲染层首帧合成完成后再显示窗口：用户从看到窗口的第一眼起就有内容（启动遮罩），无白屏
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show()
   })
 
   // 移除默认菜单栏（File / Edit / View / Window），整个应用不再显示系统菜单

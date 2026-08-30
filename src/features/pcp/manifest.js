@@ -8,7 +8,7 @@ import { CubeOutline as CubeIcon } from '@vicons/ionicons5'
 
 export const manifest = {
   key: 'pcp',
-  label: '数据处理',
+  label: '比价工具',
   icon: CubeIcon,
   path: '/pcp',
   supportsFloating: false

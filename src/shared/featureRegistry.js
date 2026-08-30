@@ -24,7 +24,7 @@ import { CubeOutline as CubeIcon, SwapHorizontalOutline as SwapIcon } from '@vic
 export const features = [
   {
     key: 'pcp',
-    label: '数据处理',
+    label: '比价工具',
     icon: CubeIcon,
     path: '/pcp',
     supportsFloating: false

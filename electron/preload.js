@@ -19,7 +19,7 @@
 // 只能调用本文件暴露的白名单方法（本质上还是 IPC，只是暴露方式更简单）。
 //
 // 命名空间划分（每个 feature 一个对象，互不踩踏）：
-//   - api.pcp.*       PriceComparisonPolicy（数据处理）feature 的 IPC
+//   - api.pcp.*       PriceComparisonPolicy（比价工具）feature 的 IPC
 //   - api.erc.*       ExchangeRateConversion（汇率转换）feature 的 IPC
 //   - api.floating.*  悬浮窗的 IPC
 // ============================================================
@@ -27,7 +27,7 @@
 import { ipcRenderer } from 'electron'
 
 const api = {
-  // ---------- PCP feature：数据处理 ----------
+  // ---------- PCP feature：比价工具 ----------
   pcp: {
     // Task：任务队列（添加/删除/清空/启动/暂停/查状态/设并发数）
     taskAdd:             (task)              => ipcRenderer.invoke('pcp:task:add', task),

@@ -32,7 +32,7 @@ const routes = [
     path: '/',
     component: AppShell,
     children: [
-      // 空子路径 redirect 到 PCP（访问 / 时默认进数据处理）
+      // 空子路径 redirect 到 PCP（访问 / 时默认进比价工具）
       //   注意：必须放在 children 里，不能写在父路由 redirect 上
       //   （vue-router 4 父路由 redirect + children 共存时 children 会失效）
       { path: '', redirect: '/pcp' },

@@ -4,9 +4,120 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Work Tools</title>
+  <style>
+    /* ============================================================
+       启动遮罩（splash）：Vue 挂载前显示，mount('#app') 时被整体替换自动消失
+       - 纯原生 HTML/CSS，0 依赖，HTML 解析完即刻渲染，白屏期间可见
+       - 阶段文字用 CSS animation-delay 顺序点亮，体感展示"软件正在干什么"
+       ============================================================ */
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #f5f7fa;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      color: #303133;
+    }
+    #splash {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 26px;
+    }
+    #splash .logo {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: #1d4ed8;
+    }
+    /* 进度条：轨道 + 蓝色填充，宽度与 stages 列表对齐（280px）
+       填充节奏与四阶段点亮对齐：每点亮一个阶段，条向前推进 25% */
+    #splash .progress {
+      width: 280px;
+      height: 6px;
+      border-radius: 999px;
+      background: #e4e7ed;
+      overflow: hidden;
+    }
+    #splash .progress-bar {
+      height: 100%;
+      width: 0;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      animation: splash-progress 1.2s ease-out forwards;
+    }
+    /* 关键帧时间点对齐阶段点亮：~0.15s/0.3s/0.45s/1.0s 各推 25% */
+    @keyframes splash-progress {
+      0%       { width: 0%; }
+      12%      { width: 25%; }
+      25%      { width: 50%; }
+      38%      { width: 75%; }
+      83%,100% { width: 100%; }
+    }
+    #splash .stages {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 14px;
+      color: #606266;
+      min-width: 280px;
+    }
+    #splash .stages li {
+      list-style: none;
+      padding-left: 24px;
+      position: relative;
+      opacity: 0.35;
+    }
+    #splash .stages li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #c0c4cc;
+    }
+    /* 四阶段依次点亮（每 0.4s 推进一阶段），停在最后一阶段等 Vue 接管 */
+    #splash .stages li:nth-child(1) { animation: splash-text 1s 0s   forwards; }
+    #splash .stages li:nth-child(2) { animation: splash-text 1s 0.15s forwards; }
+    #splash .stages li:nth-child(3) { animation: splash-text 1s 0.3s forwards; }
+    #splash .stages li:nth-child(4) { animation: splash-text 1s 0.85s forwards; }
+    @keyframes splash-text {
+      0%   { opacity: 0.35; }
+      15%  { opacity: 1; }
+      100% { opacity: 1; }
+    }
+    #splash .stages li:nth-child(1)::before { animation: splash-dot 1s 0s   forwards; }
+    #splash .stages li:nth-child(2)::before { animation: splash-dot 1s 0.15s forwards; }
+    #splash .stages li:nth-child(3)::before { animation: splash-dot 1s 0.3s forwards; }
+    #splash .stages li:nth-child(4)::before { animation: splash-dot 1s 0.85s forwards; }
+    @keyframes splash-dot {
+      0%   { background: #c0c4cc; box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+      15%  { background: #10b981; box-shadow: 0 0 0 4px rgba(16,185,129,0.15); }
+      100% { background: #10b981; box-shadow: 0 0 0 4px rgba(16,185,129,0.15); }
+    }
+  </style>
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <!-- 启动画面：Vue mount('#app') 时此内容被整体替换，无需手动移除 -->
+    <div id="splash">
+      <!-- <div class="logo">Work Tools</div> -->
+      <div class="progress"><div class="progress-bar"></div></div>
+      <ul class="stages">
+        <li>初始化运行环境</li>
+        <li>加载平台配置与凭据</li>
+        <li>注册功能模块（PCP 比价 / ERC 汇率）</li>
+        <li>准备用户界面</li>
+      </ul>
+    </div>
+  </div>
+
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

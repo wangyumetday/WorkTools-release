@@ -21,7 +21,10 @@ import router from './router'
 const pinia = createPinia()
 pinia.use(createPersistedState())
 
-createApp(App)
-  .use(router)
-  .use(pinia)
-  .mount('#app')
+// ⚠️ 临时预览：延迟 1 秒再挂载，方便查看 index.html 启动遮罩样式；预览完删除此 setTimeout 包裹
+// setTimeout(() => {
+  createApp(App)
+    .use(router)
+    .use(pinia)
+    .mount('#app')
+// }, 1000)

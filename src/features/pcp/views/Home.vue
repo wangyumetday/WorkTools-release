@@ -1,4 +1,4 @@
-<!-- PCP Home.vue - 数据处理主页
+<!-- PCP Home.vue - 比价工具主页
      左栏：自适应宽度，纵向排列 TopToolbar / ConfigPanel / StepFlow
      右栏：固定宽度，占满高度的 TaskMonitor -->
 

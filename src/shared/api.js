@@ -17,7 +17,7 @@
 //          `[IPC xxx()]` 方法名前缀和调用参数，一眼看出哪个通道出问题。
 //
 // 命名空间结构：与 electron/preload.js 完全对应
-//   - api.pcp.*       PCP feature（数据处理）
+//   - api.pcp.*       PCP feature（比价工具）
 //   - api.erc.*       ERC feature（汇率转换）
 //   - api.floating.*  悬浮窗
 // ============================================================
@@ -33,7 +33,7 @@ function mockNotReady(name) {
 }
 
 const mockApi = {
-  // ---------- PCP feature：数据处理 ----------
+  // ---------- PCP feature：比价工具 ----------
   pcp: {
     taskAdd:             () => { mockNotReady('pcp.taskAdd');             return mockDelay({ success: false, message: '未连接主进程' }) },
     taskDelete:          () => { mockNotReady('pcp.taskDelete');          return mockDelay(false) },
