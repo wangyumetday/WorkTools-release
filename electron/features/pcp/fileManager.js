@@ -478,8 +478,8 @@ export class FileManager {
    *   platformsToInclude：即使 a3 中该平台 0 条数据，也生成"仅表头"的系统导入文件。
    *     用于 O 平台真的跑成功了但恰好没匹配到底价政策、0 结果也应该允许下载的场景。
    */
-  exportResult(dir, _filename = 'result.xlsx', onProgress = () => { }, opts = {}) {
-    return this._excelExporter.exportResult(dir, _filename, onProgress, opts)
+  async exportResult(dir, _filename = 'result.xlsx', onProgress = () => { }, opts = {}) {
+    return await this._excelExporter.exportResult(dir, _filename, onProgress, opts)
   }
 
   // 写入 JSON 数据到 data 目录

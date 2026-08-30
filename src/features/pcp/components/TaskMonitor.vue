@@ -81,6 +81,16 @@
         color: #333333;
         font-weight: 500;
       }
+
+      /* 携程限流额度徽章：平时蓝（与"运行中"呼应），冷却期红高亮倒计时 */
+      .tmtc-i.rate-limit {
+        color: #1890ff;
+      }
+
+      .tmtc-i.rate-limit.rate-cooldown {
+        color: #ff4d4f;
+        font-weight: 600;
+      }
     }
 
     .tmt-btn {
@@ -188,8 +198,23 @@
         <div class="tmtc-i">
           等待：{{ store.pendingCount }}
         </div>
+       
+      </div>
+<!--  -->
+
+
+
+  <div class="tmt-count" style="padding: 0 16px;">
+        <!-- 携程限流额度徽章：仅在 trip 阶段运行期显示（主进程 1s 变化推送） -->
+        <div v-if="rateLimit.active" class="tmtc-i rate-limit"
+          :class="{ 'rate-cooldown': rateLimit.cooldownRemainingMs > 0 }">
+          针对trip限流：{{ rateLimit.limit > 0 ? `${rateLimit.used}/${rateLimit.limit}` : '不限流' }}<span v-if="rateLimit.cooldownRemainingMs > 0"> · 冷却 {{ cooldownSec }}s</span>
+        </div>
       </div>
 
+
+
+<!--  -->
       <div class="tmt-btn">
         <n-button type="primary" @click="store.handleStartExecution"
           :disabled="store.isRunning || store.tasks.length === 0">开始</n-button>
@@ -225,12 +250,18 @@
 </template>
 
 <script setup>
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, ref } from 'vue'
 import { NButton } from 'naive-ui'
 import { useTaskStore } from '../stores/task.js'
 import TaskList from './TaskList.vue'
 
 const store = useTaskStore()
+
+// ===== 携程限流额度徽章 =====
+//   active 由主进程推送控制：仅在 trip 阶段 running 期间为 true（徽章随阶段结束自动隐藏）
+//   数据 1s 变化推送（滑动窗口自然回落/冷却倒计时都会实时刷新）
+const rateLimit = ref({ active: false, limit: 0, used: 0, cooldownRemainingMs: 0 })
+const cooldownSec = computed(() => Math.ceil((rateLimit.value.cooldownRemainingMs || 0) / 1000))
 
 // ===== 顶部状态指示灯 + 文字（真实状态，非硬编码"运行中"）=====
 //   灯色：未运行灰(稳) / 运行中蓝(闪) / 已暂停黄(闪) / 有失败红(闪) / 已完成绿(稳)
@@ -253,5 +284,14 @@ function incConcurrency() {
 
 onMounted(async () => {
   await store.init()
+  // 限流额度：先拉一次初值（运行中重挂载也能同步），再订阅 1s 变化推送
+  const api = window.api?.pcp
+  if (api?.ratelimitGetState) {
+    const init = await api.ratelimitGetState()
+    if (init) rateLimit.value = { ...rateLimit.value, ...init }
+  }
+  api?.onRateLimitState?.((d) => {
+    rateLimit.value = { ...rateLimit.value, ...d }
+  })
 })
 </script>

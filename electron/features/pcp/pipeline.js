@@ -28,7 +28,7 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { O_PLATFORM_KEYS } from './platforms/registry.js'
+import registry, { O_PLATFORM_KEYS } from './platforms/registry.js'
 import { DEFAULT_BUSINESS_MODE, isValidBusinessMode } from './businessModes.js'
 
 const PIPELINE_STATE_FILE = 'pipelineState.json'
@@ -75,6 +75,13 @@ export class Pipeline {
     this.status = 'idle'
     this.step = 'upload'
     this.lastGateFail = null
+
+    // 携程限流额度推送定时器（只在 trip 阶段 running 时活跃）
+    this._rateLimitTimer = null
+    this._lastRateLimitPayload = null
+
+    // 事件驱动实时推送：请求放行/429 冷却瞬间即推一帧（数值与请求发出时刻对齐，不等 1s 轮询）
+    registry.get('trip').onRateLimitChange(() => this._pushRateLimitOnChange())
 
     // 接管 taskManager 的 onAllComplete：stage 完成后 saveStageResults + 推 IPC + 决定下一步
     if (this.taskManager?.scheduler) {
@@ -522,6 +529,8 @@ export class Pipeline {
         } else {
           // running：totalTasks 稍后在 handleStageComplete 统计（因为此时还在拆分前不知道总数）
           this._setStage(p, { status: 'running', startedAt: Date.now() })
+          // 携程进入执行 → 启动限流额度推送定时器（徽章实时显示已用/总额 + 冷却倒计时）
+          if (p === 'trip') this._startRateLimitTimer()
         }
       }
     }
@@ -713,6 +722,62 @@ export class Pipeline {
       count: g.count
     }))
     this.emit('pcp:task:error', { stage, errors })
+  }
+
+  // ========== 携程限流额度实时推送（前端徽章：已用 x/limit · 冷却 s） ==========
+  /**
+   * 构建限流额度载荷（invoke 与定时推送共用的单一实现）
+   *   limit 阈值取自 taskManager.compiledConfigs.trip（与限流器实际执行同一条路径）
+   *   快照取自 trip adapter 的进程级限流器单例（windowCount = 60s 窗口内已发出请求数）
+   */
+  buildRateLimitPayload() {
+    const snapshot = registry.get('trip').getRateLimitState()
+    const limit = Number(this.taskManager?.compiledConfigs?.trip?.rateLimitPerMin) || 0
+    return {
+      limit,
+      used: snapshot.windowCount,
+      remaining: limit > 0 ? Math.max(0, limit - snapshot.windowCount) : null,
+      cooldownRemainingMs: snapshot.cooldownRemainingMs
+    }
+  }
+
+  // 启动 1s 定时器：立即推一帧，之后每秒读数，值变化才推
+  //   （滑动窗口自然回落 + 冷却倒计时都会让值持续变化，因此推送是实时的）
+  _startRateLimitTimer() {
+    if (this._rateLimitTimer) return
+    this._lastRateLimitPayload = null
+    this._rateLimitTimer = setInterval(() => this._tickRateLimitTimer(), 1000)
+    this._tickRateLimitTimer()
+  }
+
+  _tickRateLimitTimer() {
+    // trip 不在 running → 停表 + 推最后一帧 active:false（覆盖完成/失败/用户终止/重置等所有出口）
+    if (this.stages.get('trip')?.status !== 'running') {
+      const finalPayload = { ...this.buildRateLimitPayload(), active: false }
+      this._stopRateLimitTimer()
+      this._lastRateLimitPayload = JSON.stringify(finalPayload)
+      this.emit('pcp:ratelimit:state', finalPayload)
+      return
+    }
+    const payload = { ...this.buildRateLimitPayload(), active: true }
+    const key = JSON.stringify(payload)
+    if (key === this._lastRateLimitPayload) return
+    this._lastRateLimitPayload = key
+    this.emit('pcp:ratelimit:state', payload)
+  }
+
+  // 事件驱动推送：限流器状态变化（请求放行 → used+1 / 429 → 进入冷却）瞬间触发
+  //   只在 trip 阶段 running 时推；1s 定时器仍保留兜底（窗口自然回落 + 冷却倒计时跳动）
+  _pushRateLimitOnChange() {
+    if (this.stages.get('trip')?.status !== 'running') return
+    const payload = { ...this.buildRateLimitPayload(), active: true }
+    this._lastRateLimitPayload = JSON.stringify(payload)
+    this.emit('pcp:ratelimit:state', payload)
+  }
+
+  _stopRateLimitTimer() {
+    if (this._rateLimitTimer) clearInterval(this._rateLimitTimer)
+    this._rateLimitTimer = null
   }
 }
 

@@ -17,7 +17,7 @@
           <TaskMonitor />
         </div>
         <!-- 阶段3：Dev 模式切换按钮（左下角，仅元素+定位，视觉样式由用户自定义） -->
-        <button class="pcp-dev-toggle" :class="{ 'pcp-dev-toggle--on': isDevMode }"
+        <button @click="toggleDevMode" class="pcp-dev-toggle" :class="{ 'pcp-dev-toggle--on': isDevMode }"
           :title="isDevMode ? '当前 Dev 模式：点击切换为自动模式' : '当前自动模式：点击切换为 Dev 模式（步骤需手动点击触发）'">
           {{ isDevMode ? 'Dev:On' : 'Dev:Off' }}
         </button>

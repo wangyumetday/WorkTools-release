@@ -161,7 +161,8 @@ function enrichTaocanFloorPrice(findItem, floorPriceFormula) {
   for (const acai of taocan) {
     if (!acai || acai.套餐价格 == null) continue
     const cnyPrice = AnyToCny(findItem.H货币种类, acai.套餐价格)
-    acai['套餐价_CNY'] = cnyPrice
+    acai['套餐价格_CNY'] = cnyPrice
+    // acai['差值_CNY'] = ''
     const fp = floorPriceFormula(cnyPrice)
     acai['我方底价'] = fp?.floorPrice
     acai._floorMeta = {

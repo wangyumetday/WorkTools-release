@@ -146,9 +146,9 @@
             开始
           </n-button>
           <!-- 业务模式切换：本轮只绑定方法并显示当前模式名（翻转动画等 UI 后续再打磨） -->
-          <button class="bm-btn" :disabled="store.pipelineInProgress" @click="handleToggleBusinessMode">
+          <!-- <button class="bm-btn" :disabled="store.pipelineInProgress" @click="handleToggleBusinessMode">
             {{ store.currentBusinessModeLabel() }}
-          </button>
+          </button> -->
         </div>
         <n-button type="error" class="ttb-btn" style="width: 90px" @click="store.handleAbort" :disabled="!canAbort">
           终止

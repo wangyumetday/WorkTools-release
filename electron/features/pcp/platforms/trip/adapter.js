@@ -56,10 +56,16 @@ function createRateLimiter() {
   const state = {
     timestamps: [],                   // 滑动窗口内已发出的请求时间戳
     cooldownUntil: 0,                 // 被动冷却到期时间戳（0 = 无冷却）
-    acquireChain: Promise.resolve()   // 串行化 acquire 调用的 Promise chain
+    acquireChain: Promise.resolve(),  // 串行化 acquire 调用的 Promise chain
+    listeners: new Set()              // 状态变化订阅者（请求放行 / 429 冷却触发时通知）
   }
 
   const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+
+  // 通知订阅者状态已变（通常是 pipeline 的实时推送回调；同步执行、订阅者极少，开销可忽略）
+  function notify() {
+    for (const fn of state.listeners) fn()
+  }
 
   // 清理超过滑动窗口的过期时间戳
   function pruneExpired(now) {
@@ -89,8 +95,9 @@ function createRateLimiter() {
       if (waitMs > 0) await sleep(waitMs)
     }
 
-    // 3. 占一个位置（记录本次请求的时间戳）
+    // 3. 占一个位置（记录本次请求的时间戳）→ 立即通知（前端额度 +1 与请求发出时刻对齐）
     state.timestamps.push(Date.now())
+    notify()
   }
 
   return {
@@ -103,12 +110,17 @@ function createRateLimiter() {
       return next
     },
     // 429 被动冷却：Retry-After 优先（携程返秒数），无则默认 30s
-    //   Math.max 防止短 cooldown 覆盖长 cooldown（连续 429 时取最远到期时间）
+    //   Math.max 防止短 cooldown 覆盖长 cooldown（连续 429 时取最远到期时间）→ 立即通知
     cooldown(retryAfterSec) {
       const ms = Number(retryAfterSec) > 0 ? Number(retryAfterSec) * 1000 : DEFAULT_COOLDOWN_MS
       state.cooldownUntil = Math.max(state.cooldownUntil, Date.now() + ms)
+      notify()
     },
-    // 调试用：返回当前状态快照（只读，不发请求）
+    // 订阅状态变化（请求放行 / 429 冷却触发时回调）
+    onChange(listener) {
+      state.listeners.add(listener)
+    },
+    // 返回当前状态快照（只读，不发请求；供前端实时额度监控读取）
     snapshot() {
       const now = Date.now()
       pruneExpired(now)
@@ -122,6 +134,18 @@ function createRateLimiter() {
 
 // 模块级单例：进程级共享，跨 worker 准确计数（不持久化，进程重启即清零）
 const _rateLimiter = createRateLimiter()
+
+// 实时额度监控：供主进程读取当前限流状态（只读，不发请求）
+//   返回 { windowCount, cooldownRemainingMs }，limit 阈值由调用方从 compiledConfigs 合并（保持"一条路径"）
+export function getRateLimitState() {
+  return _rateLimiter.snapshot()
+}
+
+// 订阅限流器状态变化：请求放行（额度 +1）或 429 冷却触发时回调
+//   供 pipeline 事件驱动实时推送，数值与请求发出时刻对齐（无需等 1s 轮询）
+export function onRateLimitChange(listener) {
+  _rateLimiter.onChange(listener)
+}
 
 // ===== 内部 helper（从 o1.js 移植）=====
 function buildSegments(data) {
@@ -207,7 +231,7 @@ function parseOurBaggage(list) {
   if (!Array.isArray(list)) return null
   let pieces = 0, weight = null
   for (const x of list) {
-    if (x && x.类型 == '托运') {
+    if (x && x.类型 == '2') {//1手提、2托运
       pieces++
       if (x.重量 != null) weight = Number(x.重量)
     }
@@ -309,7 +333,7 @@ function priceComparisonPolicy(originalData, resData) {
     const rowSig = parseOurBaggage(item.行李信息)
     const rowPrice = relatedPrices.find(p =>
       p && p[TRIP_RESPONSE_FIELDS.seatClass] == itemCangWei
-      && !p[TRIP_RESPONSE_FIELDS.isOwn]
+      // && !p[TRIP_RESPONSE_FIELDS.isOwn]
       && baggageMatchs(rowSig, parseTripBaggage(p[TRIP_RESPONSE_FIELDS.baggage]))
     )
     if (rowPrice) matchedLowPrice++
@@ -327,14 +351,15 @@ function priceComparisonPolicy(originalData, resData) {
         : itemCangWei
       const pkgPrice = relatedPrices.find(p =>
         p && p[TRIP_RESPONSE_FIELDS.seatClass] == seat
-        && !p[TRIP_RESPONSE_FIELDS.isOwn]
         && baggageMatchs(acaiSig, parseTripBaggage(p[TRIP_RESPONSE_FIELDS.baggage]))
-      )
+      )//&& !p[TRIP_RESPONSE_FIELDS.isOwn]
       if (pkgPrice) {
+        acai['差值'] = ''
+        acai['isOwn'] = pkgPrice[TRIP_RESPONSE_FIELDS.isOwn]
         acai['携程底价'] = Number(pkgPrice[TRIP_RESPONSE_FIELDS.sortIndicator])
         const ourFloor = Number(acai['我方底价'])
         if (!Number.isNaN(ourFloor)) {
-          acai['差值'] = new Decimal(acai['携程底价']).minus(ourFloor).minus(1).toNumber()
+          acai['差值'] = new Decimal(acai['携程底价']).minus(acai['套餐价格_CNY']).minus(1).toNumber()
         }
       }
     }
@@ -343,6 +368,7 @@ function priceComparisonPolicy(originalData, resData) {
     const hasXcPrice = !isNaN(sortIndicator) && sortIndicator > 0
     const dijia = Number(item[A2_FIELDS.dijia]) || 0
     const totalCNY = Number(item[A2_FIELDS.C成人总票价_CNY_INT]) || 0
+    item[A3_FIELDS.isOwn] = rowPrice?.[TRIP_RESPONSE_FIELDS.isOwn]
     if (hasXcPrice && dijia > 0 && dijia <= sortIndicator) {
       wonByPrice++
       item[A3_FIELDS.XC_dijia] = sortIndicator
@@ -605,5 +631,6 @@ export async function verifyCredential(credential) {
 
 export default {
   key, displayName, configSchema, defaults,
-  compileConfig, login, prepareRequest, request, mergeResult, exportTemplate, verifyCredential
+  compileConfig, login, prepareRequest, request, mergeResult, exportTemplate, verifyCredential,
+  getRateLimitState, onRateLimitChange
 }

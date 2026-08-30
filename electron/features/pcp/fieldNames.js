@@ -50,7 +50,8 @@ export const A3_FIELDS = {
   C成人总票价_CNY: 'C成人总票价_CNY',
   XC_dijia: 'XC_dijia',
   CUT_VALUE: 'CUT_VALUE',
-  TuoYunXingLi:'TuoYunXingLi'
+  TuoYunXingLi:'TuoYunXingLi',
+  isOwn:'isOwn'
 }
 
 // trip（携程低价看板）响应字段：flights[] / lowPrices[].prices[] 里的字段

@@ -16,6 +16,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import * as registry from './platforms/registry.js'
 import { O_PLATFORM_KEYS as O_PLATFORMS } from './platforms/registry.js'
 import { A3_FIELDS } from './fieldNames.js'
@@ -25,7 +26,7 @@ import { A3_FIELDS } from './fieldNames.js'
 export const HR_FIELDS = [
   A3_FIELDS.H航班号, A3_FIELDS.C舱位, A3_FIELDS.C成人总票价_CNY, A3_FIELDS.XC_dijia, A3_FIELDS.CUT_VALUE,
   A3_FIELDS.C出发机场, A3_FIELDS.D到达机场, A3_FIELDS.C出发城市, A3_FIELDS.D到达城市, A3_FIELDS.H航司名,
-  A3_FIELDS.C出发时间_Date, A3_FIELDS.D到达时间_Date, A3_FIELDS.仓等
+  A3_FIELDS.C出发时间_Date, A3_FIELDS.D到达时间_Date, A3_FIELDS.仓等, A3_FIELDS.isOwn
 ]
 
 /** 平台中文名（用于导出文件名和底价列名），未注册/未定义时回退为大写 key */
@@ -63,7 +64,7 @@ function formatBaggageText(list) {
   if (!Array.isArray(list) || list.length === 0) return '托运：0'
   let kg = 0
   for (const x of list) {
-    if (x && x['类型'] == '托运' && x['重量'] != null) {
+    if (x && x['类型'] == '2' && x['重量'] != null) {
       const w = Number(x['重量'])
       if (!Number.isNaN(w)) kg += w
     }
@@ -95,20 +96,27 @@ function formatFloorMeta(meta) {
 }
 
 /**
- * xlsx sheet 所有单元格 水平垂直居中 + 默认 14px 字体与边框（轻量美化）
- *   - 遍历 !ref 范围内所有单元格，设置 s.alignment = { horizontal:'center', vertical:'center', wrapText:true }
+ * xlsx sheet 所有单元格 水平垂直居中 + 行背景色 + 列宽
+ *   - 遍历 !ref 范围内所有单元格，设置 alignment + fill（根据 rowBgColors）
  *   - 无 !ref（空 sheet）时跳过
- *   - 内容单元格已存在自定义 s 的，浅合并（只改 alignment，保留其他样式）
+ *   - rowBgColors：与数据行对齐的数组，row 0 是表头不算
+ *     true → 浅绿 C6EFCE / false → 浅红 FFC7CE / null → 不着色
  */
-function centerSheetCells(ws) {
+function centerSheetCells(ws, rowBgColors = []) {
   if (!ws || !ws['!ref']) return
   const range = XLSX.utils.decode_range(ws['!ref'])
   for (let R = range.s.r; R <= range.e.r; R++) {
+    // 行背景色：跳过表头行（R=0），数据行从 R=1 开始，对应 rowBgColors[R-1]
+    const bgVal = R > 0 ? rowBgColors[R - 1] : null
+    const fgColor = bgVal == null ? null : (bgVal ? 'C6EFCE' : 'FFC7CE')
     for (let C = range.s.c; C <= range.e.c; C++) {
       const addr = XLSX.utils.encode_cell({ r: R, c: C })
       const cell = ws[addr]
       if (!cell) continue
       const baseStyle = (cell.s && typeof cell.s === 'object') ? cell.s : {}
+      if (fgColor) {
+        baseStyle.fill = { patternType: 'solid', fgColor: { rgb: fgColor } }
+      }
       cell.s = {
         ...baseStyle,
         alignment: {
@@ -207,7 +215,7 @@ export class ExcelExporter {
    *   platformsToInclude：即使 a3 中该平台 0 条数据，也生成"仅表头"的系统导入文件。
    *     用于 O 平台真的跑成功了但恰好没匹配到底价政策、0 结果也应该允许下载的场景。
    */
-  exportResult(dir, _filename = 'result.xlsx', onProgress = () => { }, opts = {}) {
+  async exportResult(dir, _filename = 'result.xlsx', onProgress = () => { }, opts = {}) {
     try {
       onProgress(0)
       const dateStr = dateStamp()
@@ -293,7 +301,7 @@ export class ExcelExporter {
       }
 
       // ===== 生成「底价检查」人看文件：每个有数据的平台独立一份（失败不影响系统导入文件） =====
-      const humanFiles = this.buildHumanReadableFiles(dir, dateStr, unifiedSeq)
+      const humanFiles = await this.buildHumanReadableFiles(dir, dateStr, unifiedSeq)
       for (const hf of humanFiles) files.push(hf)
 
       onProgress(100)
@@ -311,9 +319,9 @@ export class ExcelExporter {
    *       主行 = 舱位级数据（航班号/舱位/机场/城市/时间/仓等 + 票价/底价/公式/行李额全填）
    *       主行下方紧跟该舱位行的套餐子行（只填 成人总票价_CNY / {平台}底价 / 预计减价 / 底价公式命中 / 行李额）
    *   - 套餐没有匹配到携程价的也列出（携程底价/预计减价留空），其余照写
-   *   - 预计减价：主行 = CUT_VALUE（携程底价 - 官网价取整 - 1）；套餐行 = 差值（携程底价 - 套餐我方底价 - 1）
+   *   - 预计减价：主行 = CUT_VALUE（携程底价 - 官网价取整 - 1）；套餐行 = 差值（携程底价 - 官网套餐我方底价 - 1）
    */
-  buildHumanReadableFiles(dir, dateStr, seq = null) {
+  async buildHumanReadableFiles(dir, dateStr, seq = null) {
     const out = []
     try {
       // 1. 按平台分组（按标准 O 平台顺序出文件，顺序稳定）
@@ -328,7 +336,7 @@ export class ExcelExporter {
       for (const p of O_PLATFORMS) {
         const rows = groups[p] || []
         if (rows.length === 0) continue
-        const file = this._buildHumanFileForPlatform(p, rows, dir, dateStr, seq)
+        const file = await this._buildHumanFileForPlatform(p, rows, dir, dateStr, seq)
         if (file) out.push(file)
       }
     } catch (error) {
@@ -339,22 +347,24 @@ export class ExcelExporter {
   }
 
   /** 单个平台的底价检查文件：按模板列组装主行 + 套餐子行 */
-  _buildHumanFileForPlatform(p, rows, dir, dateStr, seq) {
+  async _buildHumanFileForPlatform(p, rows, dir, dateStr, seq) {
     const pName = platformDisplayName(p)
     // 表头（对齐模板：主键列 + 本平台底价三列 + 行李额 + 航班详情列尾）
-    const header = ['航班号', '舱位', '出发机场', '到达机场', '成人总票价_CNY',
+    const header = ['航班号', '舱位', '出发机场', '到达机场', 'isOwn', '成人总票价_CNY',
       `${pName}底价`, '预计减价', '底价公式命中', '行李额',
       '出发城市', '到达城市', '航司名', '出发时间', '到达时间', '仓等']
     // 中文表头 → 行级原始字段（仅主行填充）
     const fieldMap = {
       '航班号': A3_FIELDS.H航班号, '舱位': A3_FIELDS.C舱位,
       '出发机场': A3_FIELDS.C出发机场, '到达机场': A3_FIELDS.D到达机场,
+      'isOwn': A3_FIELDS.isOwn,
       '出发城市': A3_FIELDS.C出发城市, '到达城市': A3_FIELDS.D到达城市,
       '航司名': A3_FIELDS.H航司名,
       '出发时间': A3_FIELDS.C出发时间_Date, '到达时间': A3_FIELDS.D到达时间_Date,
       '仓等': A3_FIELDS.仓等
     }
     const outRows = []
+    const rowBgColors = [] // 与 outRows 对齐，记录每行背景色（null = 不着色）
     for (const r of rows) {
       // ===== 主行：舱位级数据（本身就是一种"套餐"） =====
       const parent = {}
@@ -376,6 +386,7 @@ export class ExcelExporter {
         }
       }
       outRows.push(parent)
+      rowBgColors.push(r[A3_FIELDS.isOwn] ?? null)
 
       // ===== 套餐子行：主行下方展开，只填 5 列，其余留空 =====
       const taocan = Array.isArray(r['套餐信息']) ? r['套餐信息'] : []
@@ -383,25 +394,46 @@ export class ExcelExporter {
         if (!acai) continue
         const child = {}
         for (const h of header) child[h] = ''
-        child['成人总票价_CNY'] = acai['套餐价_CNY'] ?? ''
+        child['舱位'] = acai['舱位'] ?? ''
+        child['isOwn'] = acai['isOwn'] ?? ''
+        child['成人总票价_CNY'] = acai['套餐价格_CNY'] ?? ''
         child[`${pName}底价`] = acai['携程底价'] ?? ''
         child['预计减价'] = roundForDisplay(acai['差值'])
         child['底价公式命中'] = formatFloorMeta(acai._floorMeta)
         child['行李额'] = formatBaggageText(acai['行李信息'])
         outRows.push(child)
+        rowBgColors.push(acai['isOwn'] ?? null)
       }
     }
 
     // 写 xlsx：{平台中文名}底价检查{日期}.xlsx（如 携程底价检查2026-08-28.xlsx）
-    //   表头/内容全部单元格水平垂直居中显示
-    const worksheet = XLSX.utils.json_to_sheet(outRows)
-    centerSheetCells(worksheet)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, '底价检查')
+    //   用 exceljs 生成（支持单元格样式：居中 + 行背景色）
     const finalPath = seq != null
       ? this._pathWithSeq(dir, `${pName}底价检查${dateStr}`, '.xlsx', seq)
       : this.getUniqueFilePath(dir, `${pName}底价检查${dateStr}.xlsx`)
-    XLSX.writeFile(workbook, finalPath)
+
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('底价检查')
+    // 表头行
+    ws.columns = header.map(h => ({ header: h, key: h, width: 14 }))
+    // 数据行
+    for (let i = 0; i < outRows.length; i++) {
+      const row = ws.addRow(outRows[i])
+      const bgVal = rowBgColors[i]//
+      const fgColor = (bgVal === true || bgVal === 'true') ? 'E2ECFF' : null  // isOwn=true → 极浅蓝，其他不变色
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.alignment = { horizontal: 'center', vertical: 'center', wrapText: true }
+        if (fgColor) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + fgColor } }
+        }
+      })
+    }
+    // 表头行样式
+    ws.getRow(1).eachCell({ includeEmpty: true }, (cell) => {
+      cell.alignment = { horizontal: 'center', vertical: 'center', wrapText: true }
+    })
+
+    await wb.xlsx.writeFile(finalPath)
     return { path: finalPath, filename: path.basename(finalPath), platform: `${pName}底价检查`, count: outRows.length }
   }
 }

@@ -82,7 +82,11 @@ const api = {
     pipelineReset:        ()                 => ipcRenderer.invoke('pcp:pipeline:reset'),
     // 订阅型：流程状态变化（mode/status/step）+ 门禁失败（含 missing，渲染层据此闪烁引导）
     onPipelineState:      (callback)         => ipcRenderer.on('pcp:pipeline:state',    (_event, data) => callback(data)),
-    onPipelineGateFail:   (callback)         => ipcRenderer.on('pcp:pipeline:gateFail', (_event, data) => callback(data))
+    onPipelineGateFail:   (callback)         => ipcRenderer.on('pcp:pipeline:gateFail', (_event, data) => callback(data)),
+
+    // 限流额度监控：按需拉取初值 + 订阅运行期推送（payload: { limit, used, remaining, cooldownRemainingMs, active }）
+    ratelimitGetState:    ()                 => ipcRenderer.invoke('pcp:ratelimit:getState'),
+    onRateLimitState:     (callback)         => ipcRenderer.on('pcp:ratelimit:state',  (_event, data) => callback(data))
   },
 
   // ---------- ERC feature：汇率转换 ----------

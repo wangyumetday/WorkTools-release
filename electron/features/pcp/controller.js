@@ -2,7 +2,7 @@
 // PCP Controller - IPC handlers 注册器
 // 职责：把渲染层的 IPC 请求分发给对应的 manager 业务方法
 //
-// IPC 命名空间：pcp:task:* / pcp:file:* / pcp:credential:* / pcp:config:* / pcp:pipeline:*
+// IPC 命名空间：pcp:task:* / pcp:file:* / pcp:credential:* / pcp:config:* / pcp:pipeline:* / pcp:ratelimit:*
 //   - pcp:task:progress / pcp:task:allComplete 是主进程主动推送给渲染层
 //   - pcp:pipeline:state / pcp:pipeline:gateFail 也是主进程主动推送
 //     （在 main.js 实例化 TaskManager/Pipeline 时通过回调注入）
@@ -126,7 +126,7 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
     }
     // onProgress 回调：把 0/30/60/100 推送给渲染层，渲染层据此填充按钮颜色
     // platformsToInclude：0 条数据时也为每个 completed 的 O 平台生成表头文件
-    return fileManager.exportResult(dir, 'result.xlsx', (progress) => {
+    return await fileManager.exportResult(dir, 'result.xlsx', (progress) => {
       mainWindow?.webContents.send('pcp:file:downloadProgress', { progress })
     }, { platformsToInclude: gate.platformsToExport || [] })
   })
@@ -193,4 +193,10 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
   ipcMain.handle('pcp:pipeline:getState', () => pipeline.getState())
   // 重置流程到初始态：清空 a1/a2/a3 + 任务队列 + pipeline 状态（下载后调，便于下一轮）
   ipcMain.handle('pcp:pipeline:reset', () => pipeline.reset())
+
+  // ========== 限流额度 IPC ==========
+  // 实时监控徽章的数据源（按需拉取）：合并 trip 限流器单例快照 + compiledConfigs 阈值
+  //   payload: { limit, used, remaining, cooldownRemainingMs }（阈值与限流器执行同一条路径）
+  //   运行期间由 pipeline 的 1s 定时器主动推 pcp:ratelimit:state（值变化才推），此 handle 供前端挂载时同步初始值
+  ipcMain.handle('pcp:ratelimit:getState', () => (pipeline ? pipeline.buildRateLimitPayload() : null))
 }
