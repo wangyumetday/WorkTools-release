@@ -282,7 +282,7 @@ function priceComparisonPolicy(originalData, resData) {
     // console.log('[trip/debug] trip lowPrices[0].prices[0] 字段:', Object.keys(samplePrice))
     // console.log('[trip/debug]   p.baggage =', samplePrice.baggage, '| p.showState =', samplePrice.showState, '| p.isOwn =', samplePrice.isOwn, '| p.sortIndicator =', samplePrice.sortIndicator)
     // console.log('[trip/debug] ====================================')
-  
+  }
 
   let matchedFlights = 0//
   let matchedLowPrice = 0//
