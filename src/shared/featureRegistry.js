@@ -25,6 +25,7 @@ export const features = [
   {
     key: 'pcp',
     label: '比价工具',
+    name: 'PriceComparisonPolicy',
     icon: CubeIcon,
     path: '/pcp',
     supportsFloating: false
@@ -32,8 +33,17 @@ export const features = [
   {
     key: 'erc',
     label: '汇率转换',
+    name: 'ExchangeRateConversion',
     icon: SwapIcon,
     path: '/erc',
     supportsFloating: true
-  }
+  },
+  // {
+  //   key: 'ass',
+  //   name: 'AgentStatistics',
+  //   label: '统计代理',
+  //   icon: SwapIcon,
+  //   path: '/ass',
+  //   supportsFloating: false
+  // }
 ]

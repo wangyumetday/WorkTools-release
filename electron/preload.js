@@ -97,6 +97,22 @@ const api = {
     getCountriesList:    ()                  => ipcRenderer.invoke('erc:exchange:getCountries')
   },
 
+  // ---------- ASS feature：统计代理（携程低价政策推荐批量查询） ----------
+  ass: {
+    sessionGetStatus:    ()                  => ipcRenderer.invoke('ass:session:getStatus'),
+    loginOpen:           ()                  => ipcRenderer.invoke('ass:login:open'),
+    sessionLogout:       ()                  => ipcRenderer.invoke('ass:session:logout'),
+    batchPickFile:       ()                  => ipcRenderer.invoke('ass:batch:pickFile'),
+    batchStart:          (options)           => ipcRenderer.invoke('ass:batch:start', options),
+    batchPause:          ()                  => ipcRenderer.invoke('ass:batch:pause'),
+    batchStop:           ()                  => ipcRenderer.invoke('ass:batch:stop'),
+    batchGetState:       ()                  => ipcRenderer.invoke('ass:batch:getState'),
+    // 订阅型：会话状态变化（登录成功/窗口关闭/退出登录）
+    onSessionChanged:    (callback)          => ipcRenderer.on('ass:session:changed', (_event, data) => callback(data)),
+    // 订阅型：批处理进度推送（总/完成/成功/失败/状态）
+    onBatchProgress:     (callback)          => ipcRenderer.on('ass:batch:progress', (_event, data) => callback(data))
+  },
+
   // ---------- 悬浮窗 ----------
   floating: {
     // 主窗口触发：打开悬浮窗（如已存在则显示并置顶）

@@ -30,6 +30,8 @@ import { Pipeline } from './features/pcp/pipeline.js'
 import { registerPcpController } from './features/pcp/controller.js'
 // ERC feature：controller（无状态服务，无需 manager）
 import { registerErcController } from './features/erc/controller.js'
+// ASS feature：携程低价政策推荐（登录窗口 + 会话管理 + 自动查询）
+import { registerAssController } from './features/ass/controller.js'
 // Floating：悬浮窗管理 + IPC 注册（shared 基础设施，跨 feature 复用）
 import { registerFloatingController } from './shared/floatingWindow.js'
 
@@ -231,6 +233,7 @@ function registerIpcHandlers() {
   registerPcpController({ mainWindow, taskManager, fileManager, credentialManager, configManager, pipeline })
   registerErcController()
   registerFloatingController(mainWindow)
+  registerAssController({ mainWindow, userDataPath: app.getPath('userData') })
 
   // ============== 自动更新 IPC（渲染层扩展用，不写也能用原生对话框） ==============
   function sendUpdate(type, data) {

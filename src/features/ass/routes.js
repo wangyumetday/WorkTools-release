@@ -15,8 +15,8 @@ export const routes = [
     // 相对路径：作为父路由 children 时由父路由决定前缀
     //   - 挂到 AppShell（path '/'）下 → 最终路径 /erc
     //   - 挂到 FloatingShell（path '/floating'）下 → 最终路径 /floating/erc
-    path: 'erc',
-    name: 'ExchangeRateConversion',
+    path: 'ass',
+    name: 'AgentStatistics',
     component: Home
   }
 ]

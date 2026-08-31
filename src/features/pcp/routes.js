@@ -13,7 +13,7 @@ export const routes = [
     // 相对路径：作为父路由 children 时由父路由决定前缀
     //   - 挂到 AppShell（path '/'）下 → 最终路径 /pcp
     path: 'pcp',
-    name: 'pcp',
+    name: 'PriceComparisonPolicy',
     component: Home
   }
 ]

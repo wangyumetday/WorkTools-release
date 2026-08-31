@@ -22,6 +22,7 @@ import AppShell from '@/shell/AppShell.vue'
 import FloatingShell from '@/shell/FloatingShell.vue'
 import { routes as pcpRoutes } from '@/features/pcp/routes'
 import { routes as ercRoutes } from '@/features/erc/routes'
+import { routes as assRoutes } from '@/features/ass/routes'
 // 悬浮窗单独 import ERC Home：不复用 ercRoutes 引用，避免 vue-router
 // 内部基于 path 做匹配记录时与主壳 /erc 路由互相覆盖
 import ErcHome from '@/features/erc/views/Home.vue'
@@ -37,7 +38,8 @@ const routes = [
       //   （vue-router 4 父路由 redirect + children 共存时 children 会失效）
       { path: '', redirect: '/pcp' },
       ...pcpRoutes,
-      ...ercRoutes
+      ...ercRoutes,
+      ...assRoutes
     ]
   },
   {

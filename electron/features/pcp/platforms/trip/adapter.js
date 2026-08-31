@@ -282,7 +282,7 @@ function priceComparisonPolicy(originalData, resData) {
     // console.log('[trip/debug] trip lowPrices[0].prices[0] 字段:', Object.keys(samplePrice))
     // console.log('[trip/debug]   p.baggage =', samplePrice.baggage, '| p.showState =', samplePrice.showState, '| p.isOwn =', samplePrice.isOwn, '| p.sortIndicator =', samplePrice.sortIndicator)
     // console.log('[trip/debug] ====================================')
-  }
+  
 
   let matchedFlights = 0//
   let matchedLowPrice = 0//
@@ -333,7 +333,7 @@ function priceComparisonPolicy(originalData, resData) {
     const rowSig = parseOurBaggage(item.行李信息)
     const rowPrice = relatedPrices.find(p =>
       p && p[TRIP_RESPONSE_FIELDS.seatClass] == itemCangWei
-      // && !p[TRIP_RESPONSE_FIELDS.isOwn]
+      && !p[TRIP_RESPONSE_FIELDS.isOwn]
       && baggageMatchs(rowSig, parseTripBaggage(p[TRIP_RESPONSE_FIELDS.baggage]))
     )
     if (rowPrice) matchedLowPrice++
