@@ -40,6 +40,6 @@ jobs:
             # 第一个正式发布 → 从仓库起点取所有 commit
             git log --pretty=format:'- %s' --no-merges | Out-File -FilePath CHANGELOG_TMP.txt -Encoding utf8
           }
-          gh release edit ${{ github.ref_name }} --notes-file CHANGELOG_TMP.txt
+          gh release edit ${{ github.ref_name }} --notes-file CHANGELOG_TMP.txt --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

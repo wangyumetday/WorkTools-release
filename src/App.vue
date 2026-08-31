@@ -15,7 +15,7 @@
 //   - 事件由主进程 push（update:state { type, data }），此处消费
 //   - 用的是 Naive UI 内部弹窗（离散 API），不弹原生对话框
 // ============================================================
-import { onBeforeUnmount, onMounted } from 'vue'
+import { h, onBeforeUnmount, onMounted } from 'vue'
 import message from '@/shared/message.js'
 import dialog from '@/shared/dialog.js'
 
@@ -38,13 +38,19 @@ function handleUpdateState({ type, data }) {
 
     case 'downloaded': {
       const v2 = data && data.version ? `v${data.version}` : ''
-      // releaseNotes 来自 GitHub Release body（Markdown 原样透传，dialog 用换行渲染）
-      // 如果 Release body 为空就只显示提示文案，不强行塞空字符串
-      const notes = data?.releaseNotes ? `\n\n更新内容：\n${data.releaseNotes}` : ''
+      const hasNotes = !!data?.releaseNotes
       dialog.confirm({
         type: 'warning',
         title: `新版本 ${v2} 已下载完成`,
-        content: `是否立即重启安装？\n（软件会自动重启）${notes}`,
+        content: () => h('div', { style: { lineHeight: '1.6' } }, [
+          h('p', { style: { margin: '0 0 8px 0' } }, '是否立即重启安装？（软件会自动重启）'),
+          hasNotes
+            ? h('div', {
+                style: { fontSize: '13px', color: '#666', maxHeight: '200px', overflowY: 'auto' },
+                innerHTML: `<strong>更新内容：</strong><br>${data.releaseNotes}`
+              })
+            : null
+        ]),
         positiveText: '立即重启安装',
         negativeText: '稍后再说'
       }).then((ok) => {
