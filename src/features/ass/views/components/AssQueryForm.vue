@@ -21,6 +21,27 @@
       </n-space>
     </n-form-item>
 
+    <n-form-item label="手动航线">
+      <n-space align="center">
+        <n-input
+          :value="dep"
+          placeholder="出发机场（如 CJU）"
+          style="width: 160px;"
+          :disabled="running"
+          @update:value="$emit('update:dep', $event)"
+        />
+        <span style="color:#999;">→</span>
+        <n-input
+          :value="arr"
+          placeholder="到达机场（如 HKG）"
+          style="width: 160px;"
+          :disabled="running"
+          @update:value="$emit('update:arr', $event)"
+        />
+        <span style="color:#999;font-size:12px;">（不选文件时生效）</span>
+      </n-space>
+    </n-form-item>
+
     <n-form-item label="航司">
       <n-input
         :value="airline"
@@ -78,6 +99,10 @@ defineProps({
   filePath: { type: String, default: '' },
   airline: { type: String, default: '' },
   dateRange: { type: [Array, Object], default: null },
+  /** 手动航线：出发机场三字码 */
+  dep: { type: String, default: '' },
+  /** 手动航线：到达机场三字码 */
+  arr: { type: String, default: '' },
   running: { type: Boolean, default: false },
   canStart: { type: Boolean, default: false },
   outputDir: { type: String, default: '' },
@@ -87,6 +112,8 @@ defineEmits([
   'update:filePath',
   'update:airline',
   'update:dateRange',
+  'update:dep',
+  'update:arr',
   'pickFile',
   'start',
   'openOutputDir',

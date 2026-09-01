@@ -57,7 +57,7 @@ export function writeTjarrReport({ outputDir, ts, filePath, airline, startDate, 
   lines.push('')
   lines.push('## 查询范围')
   lines.push('')
-  lines.push(`- 航线文件：${filePath}`)
+  lines.push(`- 航线文件：${filePath || '（手动输入航线）'}`)
   lines.push(`- 航线数：${pairs.length} 条`)
   lines.push(`- 航司：${airline || '（未指定）'}`)
   lines.push(`- 日期区间：${startDate} ~ ${endDate}`)

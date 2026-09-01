@@ -6,7 +6,6 @@
 
 <template>
   <!-- ============ 顶栏统计：agency 航班数排行榜（终端同画风，纯文本长度条） ============ -->
-
   <div class="rizhi-wrap">
     <div class="stats-bar">
       <div class="st-title dim">
@@ -243,6 +242,35 @@ function termKindColor(kind) {
   border-radius: 4px;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* ---- 滚动条美化：简约细条，与终端风一致（只黑白灰） ---- */
+.log-area::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.log-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.log-area::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 4px;
+}
+
+.log-area::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+.log-area::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox 滚动条 */
+.log-area {
+  scrollbar-width: thin;
+  scrollbar-color: #30363d transparent;
 }
 
 .empty-hint {

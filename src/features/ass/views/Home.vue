@@ -49,8 +49,9 @@
 
         <!-- ============ 查询参数输入区（组件） ============ -->
         <AssQueryForm v-model:file-path="filePath" v-model:airline="airline" v-model:date-range="dateRange"
-          :running="running" :can-start="canStart" :output-dir="outputDir" @pick-file="onPickFile" @start="onStart"
-          @open-output-dir="openOutputDir" @clear-stats="onClearStats" />
+          v-model:dep="depInput" v-model:arr="arrInput" :running="running" :can-start="canStart"
+          :output-dir="outputDir" @pick-file="onPickFile" @start="onStart" @open-output-dir="openOutputDir"
+          @clear-stats="onClearStats" />
 
         <n-divider />
 
@@ -115,9 +116,13 @@ import AssQueryForm from './components/AssQueryForm.vue'
 import AssLogPanel from './components/AssLogPanel.vue'
 
 // ============== 表单数据 ==============
-const filePath = ref('')
-const airline = ref('')
+const filePath  = ref('')
+const airline   = ref('')
 const dateRange = ref(null) // [startStr, endStr]
+/** 手动航线：出发机场三字码（不选文件时直接用） */
+const depInput  = ref('')
+/** 手动航线：到达机场三字码 */
+const arrInput  = ref('')
 
 // ============== 运行状态 ==============
 const running = ref(false)
@@ -181,7 +186,8 @@ async function onLogoutClick() {
 }
 
 const canStart = computed(() => {
-  if (!filePath.value) return false
+  const hasRoute = !!filePath.value || (!!depInput.value.trim() && !!arrInput.value.trim())
+  if (!hasRoute) return false
   if (!Array.isArray(dateRange.value) || dateRange.value.length !== 2) return false
   if (!dateRange.value[0] || !dateRange.value[1]) return false
   return true
@@ -312,10 +318,13 @@ async function onStart() {
       throw new Error(`日期格式不正确，请重新选择（起始=${sd || '空'}, 结束=${ed || '空'}）`)
     }
     const res = await window.api.ass.batchStart({
-      filePath: filePath.value,
-      airline: airline.value,
+      filePath:  filePath.value,
+      airline:   airline.value,
       startDate: sd,
-      endDate: ed,
+      endDate:   ed,
+      // 手动航线：出发/到达机场（未填文件时生效）
+      dep: depInput.value.trim(),
+      arr: arrInput.value.trim(),
     })
     if (res && res.ok) {
       lastResult.value = res.result

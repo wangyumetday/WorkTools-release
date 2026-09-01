@@ -147,6 +147,7 @@ async function judgeHasFlight(qp) {
  *              qp: QueryParam, result: string, message?: string }
  * @param {Function} [opts.requestLogin]     预留：携程登录回调 () => Promise<boolean>
  * @param {object}   [opts.session]          预留：携程会话 / cookies
+ * @param {object}   [opts.manualRoute]       手动航线 { dep, arr }：不选文件时直接跑这一条航线
  * @returns {Promise<RunResult>}
  *
  * @typedef {object} RunResult
@@ -171,9 +172,9 @@ export async function runAssTask(opts) {
     requestLogin = null,
     session = null,
     shouldStop = null,
+    manualRoute = null,
   } = opts
 
-  if (!filePath)  throw new Error('filePath 必填')
   if (!startDate) throw new Error('startDate 必填')
   if (!endDate)   throw new Error('endDate 必填')
   if (!outputDir) throw new Error('outputDir 必填')
@@ -186,9 +187,27 @@ export async function runAssTask(opts) {
     if (isStopped()) throw new Error('任务已被终止（应用退出）')
   }
 
-  // --- 步骤 1：解析 Excel ---
-  const parseResult = await parseAirportPairsFromXlsx(filePath)
-  const { pairs, skippedRows, duplicateCount, hasHeader } = parseResult
+  // --- 步骤 1：数据来源（手动航线优先；否则解析 Excel）---
+  let pairs = []
+  let skippedRows = 0
+  let duplicateCount = 0
+  let hasHeader = false
+  if (manualRoute && manualRoute.dep && manualRoute.arr) {
+    // 手动输入的出发/到达机场（大写 + 2~4 位字母数字校验）
+    const dep = String(manualRoute.dep).trim().toUpperCase()
+    const arr = String(manualRoute.arr).trim().toUpperCase()
+    if (!/^[A-Z0-9]{2,4}$/.test(dep) || !/^[A-Z0-9]{2,4}$/.test(arr)) {
+      throw new Error(`手动航线机场代码无效：出发=${manualRoute.dep || '(空)'} 到达=${manualRoute.arr || '(空)'}（需要 2~4 位字母/数字）`)
+    }
+    pairs = [{ dep, arr }]
+  } else {
+    if (!filePath) throw new Error('未选择航线文件，也未手动填写出发/到达机场')
+    const parseResult = await parseAirportPairsFromXlsx(filePath)
+    pairs = parseResult.pairs
+    skippedRows = parseResult.skippedRows
+    duplicateCount = parseResult.duplicateCount
+    hasHeader = parseResult.hasHeader
+  }
   if (!pairs || pairs.length === 0) {
     throw new Error('Excel 解析后没有有效航线对，请检查文件内容')
   }

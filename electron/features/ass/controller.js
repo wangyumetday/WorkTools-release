@@ -92,8 +92,12 @@ export function registerAssController({ mainWindow, userDataPath }) {
     if (state.running) {
       return { ok: false, error: '已有任务正在运行，请等待完成' }
     }
-    const { filePath, airline, startDate, endDate } = options
-    if (!filePath)  return { ok: false, error: '未选择 Excel 文件' }
+    const { filePath, airline, startDate, endDate, dep, arr } = options
+    // 手动航线：填了出发/到达机场就按这一条航线跑（不要求选文件）
+    const manualRoute = dep && arr ? { dep, arr } : null
+    if (!filePath && !manualRoute) {
+      return { ok: false, error: '未选择航线文件，也未手动填写出发/到达机场' }
+    }
     if (!startDate) return { ok: false, error: '未选择开始日期' }
     if (!endDate)   return { ok: false, error: '未选择结束日期' }
 
@@ -180,6 +184,7 @@ export function registerAssController({ mainWindow, userDataPath }) {
         requestLogin,
         session: sessMgr.getStatus(), // 透传给 tripClient → 供登录快照检查
         shouldStop: () => state.stopping, // 应用退出时任务循环在下一检查点终止
+        manualRoute, // 手动输入的出发/到达航线（无文件模式）
       })
       state.lastResult = result
       emitProgress({ type: 'DONE', result })
