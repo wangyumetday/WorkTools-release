@@ -3,15 +3,24 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'        # 只有 v 开头的 tag 才触发，例如 v1.0.26
+      - 'v*'
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: true
 
 permissions:
-  contents: write    # 让 GITHUB_TOKEN 有权创建/写 Release
+  contents: write
 
 jobs:
-  build:
+  release:
     runs-on: windows-latest
     steps:
+      # ================================================================
+      # Phase 1: 构建 —— electron-builder 只产生产物，完全不碰 GitHub
+      #   产出位置：release/${version}/ （如 release/1.3.2/）
+      #   包含：.exe + latest.yml + .blockmap
+      # ================================================================
       - name: Checkout
         uses: actions/checkout@v5
 
@@ -24,22 +33,45 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Build & Publish
-        run: npm run build && npx electron-builder --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Auto-generate release notes from git log
+      - name: Version check
+        shell: pwsh
         run: |
-          # 找最近的一个 tag（排除当前这个 v* tag 本身）
-          $prevTag = git tag --sort=-creatordate | Where-Object { $_ -ne "${{ github.ref_name }}" } | Select-Object -First 1
-          if ($prevTag) {
-            # 有上一个 tag → 生成其间所有 commit 作为 changelog
-            git log "$prevTag"..${{ github.ref_name }} --pretty=format:'- %s' --no-merges | Out-File -FilePath CHANGELOG_TMP.txt -Encoding utf8
-          } else {
-            # 第一个正式发布 → 从仓库起点取所有 commit
-            git log --pretty=format:'- %s' --no-merges | Out-File -FilePath CHANGELOG_TMP.txt -Encoding utf8
+          $tag = "${{ github.ref_name }}"
+          $ver = (Get-Content package.json | ConvertFrom-Json).version
+          $expectedTag = "v$ver"
+          if ($tag -ne $expectedTag) {
+            Write-Error "package.json version is $ver → expected tag $expectedTag, but you pushed $tag"
+            exit 1
           }
-          gh release edit ${{ github.ref_name }} --notes-file CHANGELOG_TMP.txt --draft=false --prerelease=false --latest
+          Write-Host "OK: version=$ver matches tag=$tag"
+
+      - name: Build（纯本地，不触 GitHub）
+        run: npm run build && npx electron-builder --publish never
+
+      # ================================================================
+      # Phase 2: 发布 —— 交给社区最成熟的 action
+      #   softprops/action-gh-release：7k+ star，被数千项目使用
+      #   关键能力：
+      #   - make_latest: true    → 自动标记为 latest
+      #   - overwrite_files: true → 幂等，重跑会覆盖同名 asset
+      #   - fail_on_unmatched_files: true → 构建失败没产物时直接报错
+      # ================================================================
+      - name: Release to GitHub
+        uses: softprops/action-gh-release@v2.6.2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          # 上传 electron-builder 全部产物
+          # latest.yml 是 electron-updater 查找更新的关键元数据
+          # glob 用 release/*/ 因为目录名是纯数字版本号（release/1.3.2/）
+          files: |
+            release/*/*.exe
+            release/*/*.yml
+            release/*/*.blockmap
+          prerelease: false
+          make_latest: true
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          generate_release_notes: true
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

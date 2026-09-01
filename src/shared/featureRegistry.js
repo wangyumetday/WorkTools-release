@@ -38,12 +38,14 @@ export const features = [
     path: '/erc',
     supportsFloating: true
   },
-  // {
-  //   key: 'ass',
-  //   name: 'AgentStatistics',
-  //   label: '统计代理',
-  //   icon: SwapIcon,
-  //   path: '/ass',
-  //   supportsFloating: false
-  // }
+  {
+    key: 'ass',
+    name: 'AgentStatistics',
+    label: '统计代理',
+    icon: SwapIcon,
+    path: '/ass',
+    supportsFloating: false,
+    // 入口默认隐藏：仅在用户输入组合键 tj3599 后才显示（见 src/shared/secretUnlock.js）
+    menuHidden: true
+  }
 ]

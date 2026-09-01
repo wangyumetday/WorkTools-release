@@ -107,6 +107,7 @@ const api = {
     batchPause:          ()                  => ipcRenderer.invoke('ass:batch:pause'),
     batchStop:           ()                  => ipcRenderer.invoke('ass:batch:stop'),
     batchGetState:       ()                  => ipcRenderer.invoke('ass:batch:getState'),
+    statsClear:          ()                  => ipcRenderer.invoke('ass:stats:clear'),
     // 订阅型：会话状态变化（登录成功/窗口关闭/退出登录）
     onSessionChanged:    (callback)          => ipcRenderer.on('ass:session:changed', (_event, data) => callback(data)),
     // 订阅型：批处理进度推送（总/完成/成功/失败/状态）

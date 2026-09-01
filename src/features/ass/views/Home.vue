@@ -1,331 +1,447 @@
-<!-- ============================================================
-ASS Home.vue - 统计代理（携程低价政策推荐批量查询）
-布局：顶部登录区 + 文件/控制卡片 + 进度卡片
-流程：选择文件 →（userHooks.extractQueries 拆成多条请求）→ 代码自动持续请求
-      →（userHooks.processQueryResult 处理返回数据）
-数据流：window.api.ass.* 走主进程 AssSessionManager / AssBatchRunner
-============================================================ -->
 <template>
-  <n-config-provider>
-    <n-message-provider>
-      <div class="ass-layout">
-        <!-- 顶部：登录状态区 -->
-        <n-card class="ass-card" :bordered="false" size="small">
-          <div class="ass-login-bar">
-            <div class="ass-login-info">
-              <span class="ass-title">低价政策推荐 · 批量查询</span>
-              <n-tag :type="sessionStatus.loggedIn ? 'success' : 'warning'" size="small" round>
-                {{ sessionStatus.loggedIn ? '已登录' : '未登录' }}
-              </n-tag>
-              <span v-if="sessionStatus.loggedIn && sessionStatus.loginAt" class="ass-login-at">
-                登录时间：{{ formatTime(sessionStatus.loginAt) }}
-              </span>
-            </div>
-            <div class="ass-login-actions">
-              <n-button v-if="!sessionStatus.loggedIn" type="primary" size="small" @click="openLogin">
-                打开登录页
+  <div class="ass-home">
+    <!-- ============ 左列：查询参数 + 汇总结果（除日志外的全部内容）============ -->
+    <div class="ass-left">
+      <n-card title="统计代理" :bordered="false" content-style="padding: 0;" size="large">
+        <template #header-extra>
+          <n-space align="center" size="medium">
+            <!-- ========== 右上角：携程账号区（登录/显示/注销）========== -->
+            <template v-if="!sessionStatus.loggedIn">
+              <n-button size="medium" type="default" dashed :disabled="running" @click="onLoginClick">
+                <n-icon style="vertical-align:-2px;margin-right:4px;">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+                    <path d="M12 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z"
+                      fill="currentColor" />
+                  </svg>
+                </n-icon>
+                登录携程
               </n-button>
-              <n-button v-else size="small" @click="logout">
-                退出登录
-              </n-button>
+              <n-tag type="error" round size="medium" :bordered="false">未登录</n-tag>
+            </template>
+            <template v-else>
+              <n-tooltip trigger="hover" placement="bottom-end">
+                <template #trigger>
+                  <n-tag type="success" round size="large" :bordered="false">
+                    <n-icon style="vertical-align:-2px;margin-right:4px;">
+                      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" width="14" height="14">
+                        <path d="M12 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4Z"
+                          fill="currentColor" />
+                      </svg>
+                    </n-icon>
+                    {{ sessionStatus.accountDisplay || '携程账号' }}
+                  </n-tag>
+                </template>
+                <div style="line-height:1.7;">
+                  <div><n-text strong>登录时间：</n-text>{{ sessionStatus.loginAtText || '未知' }}</div>
+                  <div><n-text strong>Cookies 数：</n-text>{{ sessionStatus.cookieCount ?? 0 }}</div>
+                  <div v-if="sessionStatus.accountName"><n-text strong>账号名：</n-text>{{ sessionStatus.accountName }}
+                  </div>
+                </div>
+              </n-tooltip>
+              <n-button size="small" type="default" quaternary :disabled="running" @click="onLogoutClick">注销</n-button>
+            </template>
+
+            <!-- 原有的运行状态标签 -->
+            <n-tag v-if="running" type="warning" round size="large">运行中</n-tag>
+            <n-tag v-else type="success" round size="large">空闲</n-tag>
+          </n-space>
+        </template>
+
+        <!-- ============ 查询参数输入区（组件） ============ -->
+        <AssQueryForm
+          v-model:file-path="filePath"
+          v-model:airline="airline"
+          v-model:date-range="dateRange"
+          :running="running"
+          :can-start="canStart"
+          :output-dir="outputDir"
+          @pick-file="onPickFile"
+          @start="onStart"
+          @open-output-dir="openOutputDir"
+          @clear-stats="onClearStats"
+        />
+
+        <n-divider />
+
+        <!-- ============ 汇总 / 结果 ============ -->
+        <n-space vertical style="width:100%;">
+          <n-alert v-if="!running && lastResult" type="success" title="任务完成" :show-icon="true">
+            <div style="line-height:1.8;">
+              <div><n-text strong>航线数：</n-text>{{ lastResult.parseInfo.pairsCount }}（跳过 {{
+                lastResult.parseInfo.skippedRows }} 行
+                / 去重 {{ lastResult.parseInfo.duplicateCount }} 条）</div>
+              <div><n-text strong>日期数：</n-text>{{ lastResult.dateCount }} 天，总查询参数 {{ lastResult.queryParamTotal }} 条
+              </div>
+              <div><n-text strong>P1 分布：</n-text>
+                有航班 {{ lastResult.counts.p1.true }} / 无航班 {{ lastResult.counts.p1.false }} / UNKNOWN {{
+                  lastResult.counts.p1.null }}
+              </div>
+              <div><n-text strong>P2 分布：</n-text>
+                OK {{ lastResult.counts.p2.OK }} / SKIP {{ lastResult.counts.p2.SKIP }} / ERROR {{
+                  lastResult.counts.p2.ERROR }}
+                <n-tag v-if="lastResult.counts.userHookErrors" type="error" size="small" style="margin-left:8px;">
+                  用户处理函数异常 {{ lastResult.counts.userHookErrors }} 次（已自动降级写入默认行）
+                </n-tag>
+              </div>
+              <div style="margin-top:8px;">
+                <n-text strong>P1 文件：</n-text>
+                <n-code>{{ lastResult.p1FilePath }}</n-code>
+              </div>
+              <div>
+                <n-text strong>P2 文件：</n-text>
+                <n-code>{{ lastResult.p2FilePath }}</n-code>
+              </div>
             </div>
-          </div>
-        </n-card>
-
-        <!-- 文件与控制区 -->
-        <n-card class="ass-card" :bordered="false" size="small" title="数据文件">
-          <div class="ass-file-row">
-            <n-button size="small" type="primary" ghost @click="pickFile">选择文件</n-button>
-            <span class="ass-file-name">{{ batch.fileName || '未选择文件' }}</span>
-            <n-tag v-if="batch.total > 0" type="info" size="small" round>
-              提取到 {{ batch.total }} 条查询请求
-            </n-tag>
-          </div>
-          <n-divider style="margin: 12px 0" />
-          <div class="ass-ctl-row">
-            <n-form inline label-placement="left" label-width="auto" size="small">
-              <n-form-item label="并发数(1-3)">
-                <n-input-number v-model:value="ctl.concurrency" :min="1" :max="3" style="width: 72px" />
-              </n-form-item>
-              <n-form-item label="请求间隔(ms)">
-                <n-input-number v-model:value="ctl.intervalMs" :min="300" :step="100" style="width: 100px" />
-              </n-form-item>
-              <n-form-item>
-                <n-space>
-                  <n-button type="primary" size="small" :loading="isRunning" :disabled="!canStart" @click="start">
-                    {{ batch.status === 'paused' ? '继续' : '开始' }}
-                  </n-button>
-                  <n-button size="small" :disabled="batch.status !== 'running'" @click="pause">暂停</n-button>
-                  <n-button size="small" :disabled="batch.status !== 'running' && batch.status !== 'paused'" @click="stop">
-                    停止
-                  </n-button>
-                </n-space>
-              </n-form-item>
-            </n-form>
-          </div>
-          <div class="ass-hint">
-            文件解析与请求拆分：electron/features/ass/userHooks.js 的 extractQueries
-            ｜ 返回数据处理：同文件 processQueryResult（改后重启应用生效）
-          </div>
-        </n-card>
-
-        <!-- 进度区 -->
-        <n-card class="ass-card" :bordered="false" size="small" title="批处理进度">
-          <div class="ass-progress-row">
-            <n-progress type="line" :percentage="percent" :indicator-placement="'inside'" :height="18" />
-            <n-tag size="small" :type="statusTagType">{{ statusText }}</n-tag>
-          </div>
-          <div class="ass-stats">
-            <n-statistic label="总请求数" :value="batch.total" />
-            <n-statistic label="已完成" :value="batch.done" />
-            <n-statistic label="成功" :value="batch.success">
-              <template #suffix>
-                <span class="ass-stat-suffix ass-stat-ok"> </span>
-              </template>
-            </n-statistic>
-            <n-statistic label="请求失败" :value="batch.requestFailed">
-              <template #suffix>
-                <span class="ass-stat-suffix ass-stat-bad"> </span>
-              </template>
-            </n-statistic>
-            <n-statistic label="处理失败" :value="batch.processFailed" />
-            <n-statistic label="跳过" :value="batch.skipped" />
-          </div>
-          <n-alert v-if="batch.error" type="error" size="small" style="margin-top: 10px" :show-icon="false">
-            {{ batch.error }}
           </n-alert>
-        </n-card>
-      </div>
-    </n-message-provider>
-  </n-config-provider>
+
+          <n-alert v-if="lastError && !running" type="error" title="任务失败" :show-icon="true">
+            {{ lastError.message }}（{{ lastError.name }}）
+          </n-alert>
+
+          <n-alert v-if="outputDir" type="info" :show-icon="false">
+            输出目录：<n-text code>{{ outputDir }}</n-text>
+            （优先桌面，找不到则回落至 userData）
+          </n-alert>
+        </n-space>
+      </n-card>
+    </div>
+
+    <!-- ============ 右列：日志区（组件，独立滚动） ============ -->
+    <div class="ass-right">
+      <n-card :bordered="false" content-style="padding: 0;height: 100%;min-height: 0;" size="large">
+        <AssLogPanel :logs="logs" :stats="stats" />
+      </n-card>
+    </div>
+  </div>
 </template>
 
 <script setup>
-// ============================================================
-// 逻辑区：会话状态 + 批处理控制 + 进度订阅
-// ============================================================
-import { computed, onMounted, reactive } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import {
-  NAlert, NButton, NCard, NDivider, NForm, NFormItem, NInputNumber,
-  NProgress, NSpace, NStatistic, NTag
+  NCard, NButton, NSpace, NDivider, NAlert, NText, NTag, NCode, NTooltip, NIcon
 } from 'naive-ui'
-import message from '@/shared/message.js'
+import AssQueryForm from './components/AssQueryForm.vue'
+import AssLogPanel from './components/AssLogPanel.vue'
 
-// ---------- 会话状态 ----------
-const sessionStatus = reactive({ loggedIn: false, loginAt: null, cookieCount: 0 })
+// ============== 表单数据 ==============
+const filePath = ref('')
+const airline = ref('')
+const dateRange = ref(null) // [startStr, endStr]
 
-function applySessionStatus(status) {
-  sessionStatus.loggedIn = !!status?.loggedIn
-  sessionStatus.loginAt = status?.loginAt ?? null
-  sessionStatus.cookieCount = status?.cookieCount ?? 0
+// ============== 运行状态 ==============
+const running    = ref(false)
+const lastResult = ref(null)
+const lastError  = ref(null)
+const outputDir  = ref('')
+const logs       = ref([])
+/** 航班统计排行榜（主进程 tjarr 快照，随 STATS 进度事件实时刷新）*/
+const stats      = ref([])
+
+// ============== 会话状态（携程登录）==============
+// 单一事实源：从 ass:session:getStatus 拉一次，之后靠 onSessionChanged 更新
+const sessionStatus = reactive({
+  loggedIn: false,
+  loginAt: null,
+  loginAtText: null,
+  cookieCount: 0,
+  accountName: null,
+  accountDisplay: null,
+})
+
+async function refreshSessionStatus() {
+  try {
+    const s = await window.api.ass.sessionGetStatus()
+    if (!s) return
+    sessionStatus.loggedIn = !!s.loggedIn
+    sessionStatus.loginAt = s.loginAt ?? null
+    sessionStatus.loginAtText = s.loginAtText ?? null
+    sessionStatus.cookieCount = s.cookieCount ?? 0
+    sessionStatus.accountName = s.accountName ?? null
+    sessionStatus.accountDisplay = s.accountDisplay ?? null
+  } catch (e) {
+    console.warn('[ass] 刷新 session 状态失败:', e)
+  }
 }
 
-function formatTime(ts) {
-  if (!ts) return ''
-  const d = new Date(ts)
+async function onLoginClick() {
+  try {
+    const res = await window.api.ass.loginOpen()
+    if (res && res.ok && res.message) {
+      // 用日志提示一下（登录完成后 onSessionChanged 会自动更新 UI）
+      pushLog({ type: 'LOGIN_OPEN', message: res.message })
+    }
+  } catch (e) {
+    pushLog({ type: 'LOGIN_ERR', message: `打开登录窗口失败：${e?.message || e}` })
+  }
+}
+
+async function onLogoutClick() {
+  try {
+    const res = await window.api.ass.sessionLogout()
+    if (!res || !res.ok) {
+      lastError.value = { name: 'LogoutError', message: (res && res.error) || '注销失败' }
+      return
+    }
+    // 注销成功 → 强制刷新（注销 handler 内部也会 fire ass:session:changed，这里作双保险）
+    await refreshSessionStatus()
+  } catch (e) {
+    lastError.value = { name: 'LogoutError', message: e?.message || String(e) }
+  }
+}
+
+const canStart = computed(() => {
+  if (!filePath.value) return false
+  if (!Array.isArray(dateRange.value) || dateRange.value.length !== 2) return false
+  if (!dateRange.value[0] || !dateRange.value[1]) return false
+  return true
+})
+
+// ============== 辅助：日期值归一化 ============
+// n-date-picker type=daterange 实际返回 timestamp(number)，即使写了 value-format 在某些版本也不生效；
+// 此外要兼容 string 与 Date。统一输出 'YYYY-MM-DD'。
+function normalizeDate(v) {
+  if (v == null || v === '') return ''
+  let d
+  if (typeof v === 'number') d = new Date(v)
+  else if (v instanceof Date) d = v
+  else {
+    const s = String(v).trim()
+    // 已经是 YYYY-MM-DD？直接返回，避免时区偏移
+    if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(s)) return s
+    d = new Date(s)
+  }
+  if (isNaN(d.getTime())) return ''
   const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
-async function openLogin() {
-  await window.api.ass.loginOpen()
+// ============================================================
+// 日志核心：pushLog（新日志 unshift 到最顶端；结构化行与信息行统一入口）
+// ============================================================
+const MAX_LOGS = 500
+
+/**
+ * YYYY-MM-DD → YYYY/M/D（展示格式，去掉月份/日期前导零，斜杠分隔）
+ */
+function formatDateSlash(s) {
+  if (!s) return ''
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(s))
+  if (m) return `${Number(m[1])}/${Number(m[2])}/${Number(m[3])}`
+  return String(s)
 }
 
-async function logout() {
-  await window.api.ass.sessionLogout()
-  message.success('已退出登录')
-}
+function pushLog(payload) {
+  if (!payload) return
+  const now = new Date()
+  const ts =
+    now.toTimeString().slice(0, 8) +
+    '.' +
+    String(now.getMilliseconds()).padStart(3, '0')
 
-// ---------- 批处理状态 ----------
-const batch = reactive({
-  status: 'idle', // idle | running | paused | finished | stopped
-  fileName: '',
-  total: 0,
-  done: 0,
-  success: 0,
-  requestFailed: 0,
-  processFailed: 0,
-  skipped: 0,
-  error: null
-})
-
-const ctl = reactive({ concurrency: 1, intervalMs: 500 })
-
-function applyBatchState(state) {
-  if (!state) return
-  Object.assign(batch, state)
-}
-
-const isRunning = computed(() => batch.status === 'running')
-const hasFile = computed(() => batch.total > 0)
-const canStart = computed(
-  () => sessionStatus.loggedIn && hasFile.value && batch.status !== 'running'
-)
-
-const percent = computed(() => {
-  const totalDone = batch.done + batch.skipped
-  if (!batch.total) return 0
-  return Math.min(100, Math.round((totalDone / batch.total) * 100))
-})
-
-const statusText = computed(() => {
-  const map = {
-    idle: '待启动',
-    running: '运行中',
-    paused: '已暂停',
-    finished: '已完成',
-    stopped: '已停止'
-  }
-  return map[batch.status] ?? batch.status
-})
-
-const statusTagType = computed(() => {
-  const map = {
-    idle: 'default',
-    running: 'info',
-    paused: 'warning',
-    finished: 'success',
-    stopped: 'error'
-  }
-  return map[batch.status] ?? 'default'
-})
-
-// ---------- 控制动作 ----------
-async function pickFile() {
-  const result = await window.api.ass.batchPickFile()
-  if (result?.canceled) return
-  if (!result?.ok) {
-    message.error(result?.error || '选择文件失败')
+  // ---------- P1 / P2 每次单请求：结构化行 ----------
+  if (payload.type === 'P1_ITEM' || payload.type === 'P2_ITEM') {
+    const qp = payload.qp || {}
+    const dep = (qp.dep || '?').toUpperCase()
+    const arr = (qp.arr || '?').toUpperCase()
+    const route = `${dep}-${arr}`
+    const dateDisplay = formatDateSlash(qp.date || payload.date)
+    const row = {
+      _ts: ts,
+      _isItem: true,
+      _phase: payload.type,
+      _idx: payload.index ?? '?',
+      _tot: payload.total ?? '?',
+      _errorMsg: (payload.error && payload.error.message) ? payload.error.message : '',
+      route,
+      airline: qp.airline || '',
+      dateDisplay,
+      result: payload.result || '-',
+      count: typeof payload.count === 'number' ? payload.count : 0,
+    }
+    logs.value.unshift(row)
+    if (logs.value.length > MAX_LOGS) logs.value.length = MAX_LOGS
     return
   }
-  applyBatchState({
-    status: 'idle',
-    fileName: result.fileName,
-    total: result.count,
-    done: 0, success: 0, requestFailed: 0, processFailed: 0, skipped: 0, error: null
-  })
-  message.success(`已读取文件，提取到 ${result.count} 条查询请求`)
+
+  // ---------- 其他：信息类行（START/DONE/FATAL/LOGIN_*）----------
+  let kind = payload.phase || payload.type || 'INFO'
+  let msg = ''
+  if (payload.type === 'START') {
+    kind = 'INIT'
+    msg = `任务开始 → 日期 ${payload.options.startDate} ~ ${payload.options.endDate}，航司=${payload.options.airline || '(未指定)'}，输出=${payload.outputDir}`
+  } else if (payload.type === 'DONE') {
+    kind = 'DONE'
+    const r = payload.result
+    msg = `全部完成：P1 有${r.counts.p1.true} / 无${r.counts.p1.false} / ?${r.counts.p1.null}；P2 OK=${r.counts.p2.OK} / SKIP=${r.counts.p2.SKIP} / ERR=${r.counts.p2.ERROR}（TS=${r.ts}）`
+  } else if (payload.type === 'FATAL') {
+    kind = 'FATAL'
+    msg = `${payload.error?.name || 'Error'}：${payload.error?.message || ''}`
+  } else if (payload.type === 'LOGIN_REQUIRED') {
+    kind = 'LOGIN'
+    msg = payload.message || '检测到未登录，正在打开携程登录窗口…'
+  } else if (payload.type === 'LOGIN_OK') {
+    kind = 'LOGIN'
+    const st = payload.status || {}
+    msg = `登录成功 → ${st.accountDisplay || '账号已识别'}（Cookies=${st.cookieCount ?? 0}）`
+  } else if (payload.type === 'LOGIN_CANCELLED') {
+    kind = 'LOGIN'
+    msg = payload.message || '登录被取消，任务将不再继续。'
+  } else if (payload.type === 'LOGIN_OPEN') {
+    kind = 'LOGIN'
+    msg = payload.message || '已打开携程登录窗口'
+  } else if (payload.type === 'LOGIN_ERR') {
+    kind = 'ERROR'
+    msg = payload.message || '登录相关异常'
+  } else {
+    // 兼容老事件（未带 type 的 payload，直接显示消息字符串）
+    msg = payload._msg || payload.message || String(payload)
+  }
+
+  logs.value.unshift({ _ts: ts, _isItem: false, _kind: kind, _msg: msg })
+  if (logs.value.length > MAX_LOGS) logs.value.length = MAX_LOGS
 }
 
-async function start() {
-  if (!sessionStatus.loggedIn) {
-    message.warning('请先打开登录页完成登录')
+// ============== 操作 ==============
+async function onPickFile() {
+  const res = await window.api.ass.batchPickFile()
+  if (res && res.ok) filePath.value = res.filePath
+}
+
+async function onStart() {
+  // 清空前一轮结果
+  lastResult.value = null
+  lastError.value = null
+  logs.value = []
+  running.value = true
+
+  try {
+    const sd = normalizeDate(dateRange.value?.[0])
+    const ed = normalizeDate(dateRange.value?.[1])
+    if (!sd || !ed) {
+      throw new Error(`日期格式不正确，请重新选择（起始=${sd || '空'}, 结束=${ed || '空'}）`)
+    }
+    const res = await window.api.ass.batchStart({
+      filePath: filePath.value,
+      airline: airline.value,
+      startDate: sd,
+      endDate: ed,
+    })
+    if (res && res.ok) {
+      lastResult.value = res.result
+    } else {
+      lastError.value = { name: 'StartError', message: (res && res.error) || '未知失败原因' }
+    }
+  } catch (e) {
+    lastError.value = { name: e?.name || 'Error', message: e?.message || String(e) }
+  } finally {
+    running.value = false
+  }
+}
+
+function openOutputDir() {
+  if (!outputDir.value) return
+  // 复用 pcp 已暴露的"在系统文件管理器定位到文件/打开目录" IPC（纯 API 层，非代码耦合）
+  try {
+    if (window.api.pcp?.fileOpenDownloadDir) {
+      window.api.pcp.fileOpenDownloadDir(outputDir.value)
+    }
+  } catch {}
+}
+
+/** 清空航班统计（tjarr）——主进程处理并回推 STATS 事件刷新排行榜 */
+async function onClearStats() {
+  try {
+    await window.api.ass.statsClear()
+  } catch (e) {
+    console.warn('[ass] 清空统计失败:', e)
+  }
+}
+
+// ============== 事件订阅 ==============
+// ⚠️ preload.js 的订阅型回调都是单参数：callback(data)，不能写成 (event, data)！
+// 否则 data 会落到第一个参数位、data 形参变成 undefined → 被 if (!data) return 全吞。
+let _progressOff = null
+function onProgress(data) {
+  // 统计快照 → 排行榜（不入日志）
+  if (data && data.type === 'STATS') {
+    stats.value = Array.isArray(data.entries) ? data.entries : []
     return
   }
-  const result = await window.api.ass.batchStart({ ...ctl })
-  if (!result?.ok) {
-    message.error(result?.error || '启动失败')
-  }
+  // 除了写日志，顺手处理几个带 session 的事件作为"事件丢了时的二次保险"
+  if (data && data.type === 'LOGIN_OK') refreshSessionStatus()
+  if (data && data.type === 'LOGIN_REQUIRED') refreshSessionStatus()
+  if (data && data.type === 'LOGIN_CANCELLED') refreshSessionStatus()
+  pushLog(data)
+}
+function onSessionChanged(data) {
+  // session 变化时（登录成功 / 关闭登录窗 / 注销）同步刷新 reactive 对象
+  if (!data) return
+  sessionStatus.loggedIn = !!data.loggedIn
+  sessionStatus.loginAt = data.loginAt ?? null
+  sessionStatus.loginAtText = data.loginAtText ?? null
+  sessionStatus.cookieCount = data.cookieCount ?? 0
+  sessionStatus.accountName = data.accountName ?? null
+  sessionStatus.accountDisplay = data.accountDisplay ?? null
 }
 
-async function pause() {
-  await window.api.ass.batchPause()
-}
-
-async function stop() {
-  await window.api.ass.batchStop()
-  message.info('已发送停止指令，剩余任务将跳过')
-}
-
-// ---------- 生命周期 ----------
 onMounted(async () => {
-  applySessionStatus(await window.api.ass.sessionGetStatus())
-  applyBatchState(await window.api.ass.batchGetState())
-  window.api.ass.onSessionChanged(applySessionStatus)
-  window.api.ass.onBatchProgress(applyBatchState)
+  window.api.ass.onBatchProgress(onProgress)
+  window.api.ass.onSessionChanged(onSessionChanged)
+  _progressOff = () => {
+    // Naive no-off: ipcRenderer.on 每次监听永久存在，页面切换不会泄漏太多（本页面常驻）
+  }
+
+  // 拉初始状态
+  await Promise.all([refreshSessionStatus(), (async () => {
+    try {
+      const s = await window.api.ass.batchGetState()
+      running.value    = !!s.running
+      lastResult.value = s.lastResult
+      lastError.value  = s.lastError
+      outputDir.value  = s.outputDir || ''
+      if (Array.isArray(s.stats)) stats.value = s.stats
+    } catch {}
+  })()])
+})
+
+onBeforeUnmount(() => {
+  if (_progressOff) _progressOff()
 })
 </script>
 
 <style scoped>
-.ass-layout {
+/* ============================================================
+   左右布局：整页固定视口高度，两列各自独立滚动
+   - 左列：查询参数 + 汇总结果（除日志外的全部内容）
+   - 右列：日志区
+   ============================================================ */
+.ass-home {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  flex-flow: row nowrap;
   height: 100vh;
-  padding: 16px;
+  min-height: 0;
+  overflow: hidden;
   box-sizing: border-box;
-  overflow: hidden;
 }
 
-.ass-login-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.ass-left,
+.ass-right {
+  height: 100%;
+  min-height: 0;
+  min-height: 0;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 16px;
 }
 
-.ass-login-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.ass-left {
+  flex: 0.9;
+  min-width: 0;
 }
 
-.ass-title {
-  font-weight: 600;
-  font-size: 15px;
-}
-
-.ass-login-at {
-  color: #888;
-  font-size: 12px;
-}
-
-.ass-file-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.ass-file-name {
-  color: #555;
-  font-size: 13px;
-  max-width: 380px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ass-ctl-row {
-  display: flex;
-  align-items: center;
-}
-
-.ass-hint {
-  margin-top: 8px;
-  color: #999;
-  font-size: 12px;
-}
-
-.ass-progress-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.ass-progress-row .n-progress {
+.ass-right {
   flex: 1;
-}
-
-.ass-stats {
-  display: flex;
-  gap: 40px;
-  margin-top: 14px;
-  flex-wrap: wrap;
-}
-
-.ass-stat-suffix {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-left: 4px;
-  vertical-align: middle;
-}
-
-.ass-stat-ok {
-  background: #18a058;
-}
-
-.ass-stat-bad {
-  background: #d03050;
+  min-width: 0;
+  padding-left: 8px;
 }
 </style>
