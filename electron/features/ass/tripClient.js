@@ -113,7 +113,15 @@ export async function tripQuery(queryParam, session = null, requestLogin = null)
         //             → 自动 reloadAndWait，不打扰用户
         const loggedInSnap = !!(session && session.loggedIn)
         if (!triedReload && loggedInSnap) {
-          await _queryBrowser.reloadAndWaitForReady()
+          // 用户可能正在查询窗口的登录页里输入账号密码：
+          //   检测到输入中 → 绝不 reload（会清空输入），耐心等待其完成登录
+          //   无人输入（冷启动竞态）→ 照旧 reload 让 SPA 重读 partition 里的 token
+          const typing = await _queryBrowser.isUserTyping()
+          if (typing) {
+            await _queryBrowser.waitManualLogin(3 * 60 * 1000)
+          } else {
+            await _queryBrowser.reloadAndWaitForReady()
+          }
           triedReload = true
           lastErr = err
           continue

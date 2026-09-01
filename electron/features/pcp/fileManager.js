@@ -24,13 +24,14 @@ import { ExcelExporter, HR_FIELDS } from './ExcelExporter.js'
 
 /**
  * @typedef {Object} A1Item - Excel 解析后的原始行数据（parseXlsx 产出，持久化于 a1.json）
+ * 新格式说明：表头固定为 出发机场 / 到达机场 / 舱位 / 航司；舱位、航司按行读取，可为空
  * @property {string} id - 唯一标识（形如 row_0）
- * @property {string} hangsi - 航司二字码（如 FA）
+ * @property {string} hangsi - 航司二字码（来自"航司"列，如 FA，可为空）
  * @property {string} CF_jichang - 出发机场三字码（如 JNB）
  * @property {string} DD_jichang - 到达机场三字码（如 DUR）
- * @property {string} CH_city - 出发城市
- * @property {string} DD_city - 到达城市
- * @property {string} cangwei_str - 舱位序列（逗号分隔，如 "Y,J,F"）
+ * @property {string} CH_city - 出发城市（新格式无此列，恒为空）
+ * @property {string} DD_city - 到达城市（新格式无此列，恒为空）
+ * @property {string} cangwei_str - 舱位序列（来自"舱位"列，逗号分隔，如 "Y,J,F"，可为空）
  */
 
 /**
@@ -161,99 +162,34 @@ export class FileManager {
 
   /**
    * 解析 xlsx 文件，生成 a1（原始数据数组）
-   * 解析规则：第一行第一列的 cabin / airline_code 作为全局航线/舱位上下文，
-   *           每一行生成一条 a1 数据（id/CF_jichang/DD_jichang/hangsi/cangwei_str）
+   * 解析规则（v3 新格式，不再兼容旧英文表头）：
+   *   第 1 行为固定中文表头：出发机场 / 到达机场 / 舱位 / 航司
+   *   之后每行一条航线：出发机场、到达机场必填；舱位、航司按行读取（可为空）
    */
   parseXlsx(filePath) {
     try {
       const workbook = XLSX.readFile(filePath)
       const firstSheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[firstSheetName]
-      // header:1 → 输出二维数组，能拿到所有原始列名（兼容 cabin/airline_code 不在第 1 行/第 1 列的情况）
       const aoa = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null })
       if (!Array.isArray(aoa) || aoa.length < 2) {
         return { success: false, error: 'Excel 内容为空或只有标题行，请用标准模板' }
       }
 
-      // ------- 兼容各种列名/格式：先猜"标题行在哪一行" -------
-      // 常见两种：
-      //   1) 第 1 行 = cabin/airline_code 元数据，第 2 行才是 origin/arrival 等航线标题行（第 3 行起数据）
-      //   2) 第 1 行 = 就是航线标题行（元数据不存在或在文件其它位置）
-      let titleRowIdx = 0
-      // 找到第一个含 origin/arrival/出发/到达/orig/dest 等关键字的行作为真正的标题行
-      const headerKeywords = [
-        /origin/i, /arrival/i, /出发/, /到达/, /城市/, /机场/,
-        /from/i, /to/i, /dep|depart/i, /arr|arrive/i
-      ]
-      const scanLimit = Math.min(aoa.length - 1, 5)  // 最多在最前 5 行里找标题
-      for (let i = 0; i <= scanLimit; i++) {
-        const row = aoa[i] || []
-        const hasKey = row.some(cell => {
-          if (cell == null) return false
-          const s = String(cell).trim()
-          return headerKeywords.some(re => re.test(s))
-        })
-        if (hasKey) { titleRowIdx = i; break }
-      }
-      const titles = (aoa[titleRowIdx] || []).map(c => (c == null ? '' : String(c).trim()))
-      const dataRows = aoa.slice(titleRowIdx + 1).filter(r => r && r.some(c => c != null && String(c).trim() !== ''))
+      // ------- 新格式：第 1 行 = 标题行（固定中文表头）-------
+      const titles = (aoa[0] || []).map(c => (c == null ? '' : String(c).trim()))
+      const dataRows = aoa.slice(1).filter(r => r && r.some(c => c != null && String(c).trim() !== ''))
 
-      // ------- cabin / airline_code / hangsi / 舱位 / 航司 -------
-      // 优先从标题行上方的元数据行里找（第 0..titleRowIdx-1 行）
-      let cangwei = ''
-      let hangsi = ''
-      for (let i = 0; i < titleRowIdx; i++) {
-        const row = aoa[i] || []
-        for (let j = 0; j < row.length - 1; j++) {
-          const k = String(row[j] || '').trim().toLowerCase()
-          const v = String(row[j + 1] || '').trim()
-          if (!v) continue
-          if (/^(cabin|舱位|cangwei|cabin_code)$/.test(k)) cangwei = v
-          if (/^(airline_code|airline|航司|hangsi|carrier|航空公司|航司二字码)$/.test(k)) hangsi = v
-        }
-      }
-      // 然后看"标题行"里有没有 cabin/airline_code 列，有就取第一行数据的值
-      const cabinIdx = titles.findIndex(t => /^(cabin|舱位|cangwei)$/i.test(t))
-      const airlineIdx = titles.findIndex(t => /^(airline_code|airline|航司|hangsi|carrier|航空公司|航司二字码)$/i.test(t))
-      const row0 = dataRows[0] || []
-      if (!cangwei && cabinIdx >= 0 && row0[cabinIdx]) cangwei = String(row0[cabinIdx]).trim()
-      if (!hangsi && airlineIdx >= 0 && row0[airlineIdx]) hangsi = String(row0[airlineIdx]).trim()
-      // 不兜底：用户文件里拆不出 cangwei/hangsi 就是空，a1 该字段为空 → JXGJ 阶段 cangwei_arr/date_obj 空
-      // → 后续 O 阶段 0 任务 → 0 条结果。这是用户语义：用户给什么用什么，拆不出就跑 0 个
-      if (!cangwei) {
-        cangwei = ''
-        console.warn('[parseXlsx] 未在 Excel 中找到 cabin/舱位列/值，cangwei_str 将为空 → 跑出 0 条结果')
-      }
-      if (!hangsi) {
-        hangsi = ''
-        console.warn('[parseXlsx] 未在 Excel 中找到 airline_code/航司列/值，hangsi 将为空（JXGJ 接口大概率返回空列表）')
-      }
-
-      // ------- 列名映射：兼容各种 Excel 中文列头 -------
+      // ------- 列名映射：仅中文表头 -------
       const colMap = {
-        CF_jichang: ['origin', '出发机场', '出发地机场', '起飞机场', '出发港', 'dep_airport', 'depart_airport', 'depairport', '始发机场'],
-        DD_jichang: ['arrival', '到达机场', '目的地机场', '降落机场', '到达港', 'arr_airport', 'arrive_airport', 'arrairport', '终到机场'],
-        CH_city: ['出发城市', 'city_from', '出发地城市', '起始城市', 'origincity'],
-        DD_city: ['到达城市', 'city_to', '目的地城市', '终到城市', 'arrivalcity'],
-        hangsi: ['hangsi', 'airline_code', 'carrier', '航司', '承运航司', '航空公司'],
-        cangwei_str: ['cabin', '舱位', '舱位代码']
+        CF_jichang: ['出发机场'],
+        DD_jichang: ['到达机场'],
+        hangsi: ['航司'],
+        cangwei_str: ['舱位']
       }
       function pickField(row, keys) {
         for (const k of keys) {
-          // 精确匹配（大小写不敏感 + 去空格）
-          const idx = titles.findIndex(t => t.replace(/\s+/g, '').toLowerCase() === k.replace(/\s+/g, '').toLowerCase())
-          if (idx >= 0 && row[idx] != null) {
-            const v = String(row[idx]).trim()
-            if (v) return v
-          }
-        }
-        // 再试一次"包含"
-        for (const k of keys) {
-          const idx = titles.findIndex(t => {
-            const tl = t.replace(/\s+/g, '').toLowerCase()
-            const kl = k.replace(/\s+/g, '').toLowerCase()
-            return tl && (tl.includes(kl) || kl.includes(tl))
-          })
+          const idx = titles.findIndex(t => t.replace(/\s+/g, '') === k)
           if (idx >= 0 && row[idx] != null) {
             const v = String(row[idx]).trim()
             if (v) return v
@@ -262,15 +198,25 @@ export class FileManager {
         return ''
       }
 
+      if (!titles.includes('出发机场') || !titles.includes('到达机场')) {
+        console.warn('[parseXlsx] 表头缺少 出发机场/到达机场 列，航线数据可能解析为空')
+      }
+      if (!titles.includes('舱位')) {
+        console.warn('[parseXlsx] 未找到"舱位"列，cangwei_str 将为空')
+      }
+      if (!titles.includes('航司')) {
+        console.warn('[parseXlsx] 未找到"航司"列，hangsi 将为空')
+      }
+
       // 遍历每条航线，每条航线生成一个任务进队列
       this.a1 = dataRows.map((row, index) => ({
         id: `row_${index}`,
         CF_jichang: pickField(row, colMap.CF_jichang),
         DD_jichang: pickField(row, colMap.DD_jichang),
-        CH_city: pickField(row, colMap.CH_city),
-        DD_city: pickField(row, colMap.DD_city),
-        hangsi: hangsi || pickField(row, colMap.hangsi),
-        cangwei_str: cangwei || pickField(row, colMap.cangwei_str)
+        CH_city: '',
+        DD_city: '',
+        hangsi: pickField(row, colMap.hangsi),
+        cangwei_str: pickField(row, colMap.cangwei_str)
       }))
 
       this.saveData('a1.json', this.a1)

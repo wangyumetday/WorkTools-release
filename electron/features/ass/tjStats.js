@@ -34,10 +34,12 @@ export function addFlights(lowPrices) {
     const code = String(flight.agencyCode).trim()
     if (!code) continue
     if (!tjarr[code]) {
-      tjarr[code] = { code, name: resolveName(code), count: 0, flights: [] }
+      tjarr[code] = { code, name: resolveName(code), count: 0, winCount: 0, flights: [] }
     }
     tjarr[code].flights.push(flight)
     tjarr[code].count++
+    // showStat === 1 表示本条投价胜出
+    if (Number(flight.showState) === 1) tjarr[code].winCount++
   }
 }
 
@@ -45,14 +47,14 @@ export function addFlights(lowPrices) {
 export function snapshot() {
   return Object.values(tjarr)
     .sort((a, b) => (b.count - a.count) || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0))
-    .map((e) => ({ code: e.code, name: e.name, count: e.count }))
+    .map((e) => ({ code: e.code, name: e.name, count: e.count, winCount: e.winCount }))
 }
 
 /** 全量分组数据（含每条航班的完整原始对象），按 count 降序 */
 export function dumpGroups() {
   return Object.values(tjarr)
     .sort((a, b) => (b.count - a.count) || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0))
-    .map((e) => ({ code: e.code, name: e.name, count: e.count, flights: e.flights.slice() }))
+    .map((e) => ({ code: e.code, name: e.name, count: e.count, winCount: e.winCount, flights: e.flights.slice() }))
 }
 
 /** 清空统计 */

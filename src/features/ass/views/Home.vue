@@ -48,18 +48,9 @@
         </template>
 
         <!-- ============ 查询参数输入区（组件） ============ -->
-        <AssQueryForm
-          v-model:file-path="filePath"
-          v-model:airline="airline"
-          v-model:date-range="dateRange"
-          :running="running"
-          :can-start="canStart"
-          :output-dir="outputDir"
-          @pick-file="onPickFile"
-          @start="onStart"
-          @open-output-dir="openOutputDir"
-          @clear-stats="onClearStats"
-        />
+        <AssQueryForm v-model:file-path="filePath" v-model:airline="airline" v-model:date-range="dateRange"
+          :running="running" :can-start="canStart" :output-dir="outputDir" @pick-file="onPickFile" @start="onStart"
+          @open-output-dir="openOutputDir" @clear-stats="onClearStats" />
 
         <n-divider />
 
@@ -106,9 +97,9 @@
       </n-card>
     </div>
 
-    <!-- ============ 右列：日志区（组件，独立滚动） ============ -->
+    <!-- ============ 右列：日志区（稳定结构：不出现外层滚动条，滚动只在 log-area 内部） ============ -->
     <div class="ass-right">
-      <n-card :bordered="false" content-style="padding: 0;height: 100%;min-height: 0;" size="large">
+      <n-card :bordered="false" style="height: 100%;" content-style="padding: 0;height: 100%;min-height: 0;" size="large">
         <AssLogPanel :logs="logs" :stats="stats" />
       </n-card>
     </div>
@@ -129,13 +120,13 @@ const airline = ref('')
 const dateRange = ref(null) // [startStr, endStr]
 
 // ============== 运行状态 ==============
-const running    = ref(false)
+const running = ref(false)
 const lastResult = ref(null)
-const lastError  = ref(null)
-const outputDir  = ref('')
-const logs       = ref([])
+const lastError = ref(null)
+const outputDir = ref('')
+const logs = ref([])
 /** 航班统计排行榜（主进程 tjarr 快照，随 STATS 进度事件实时刷新）*/
-const stats      = ref([])
+const stats = ref([])
 
 // ============== 会话状态（携程登录）==============
 // 单一事实源：从 ass:session:getStatus 拉一次，之后靠 onSessionChanged 更新
@@ -348,7 +339,7 @@ function openOutputDir() {
     if (typeof window.api.ass?.outputOpen === 'function') {
       window.api.ass.outputOpen(outputDir.value || '', tjPath)
     }
-  } catch {}
+  } catch { }
 }
 
 /** 清空航班统计（tjarr）——主进程处理并回推 STATS 事件刷新排行榜 */
@@ -398,12 +389,12 @@ onMounted(async () => {
   await Promise.all([refreshSessionStatus(), (async () => {
     try {
       const s = await window.api.ass.batchGetState()
-      running.value    = !!s.running
+      running.value = !!s.running
       lastResult.value = s.lastResult
-      lastError.value  = s.lastError
-      outputDir.value  = s.outputDir || ''
+      lastError.value = s.lastError
+      outputDir.value = s.outputDir || ''
       if (Array.isArray(s.stats)) stats.value = s.stats
-    } catch {}
+    } catch { }
   })()])
 })
 
@@ -431,10 +422,17 @@ onBeforeUnmount(() => {
 .ass-right {
   height: 100%;
   min-height: 0;
-  min-height: 0;
-  overflow-y: auto;
   box-sizing: border-box;
   padding: 16px;
+}
+
+/* 左列内容多 → 列内滚动；右列 = 稳定结构，禁止外层滚动（滚动收敛在 log-area 内部） */
+.ass-left {
+  overflow-y: auto;
+}
+
+.ass-right {
+  overflow: hidden;
 }
 
 .ass-left {

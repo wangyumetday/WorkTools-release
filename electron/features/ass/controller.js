@@ -37,6 +37,8 @@ function resolveOutputDir(userDataPath) {
 /** 全局任务状态（暂只允许跑一个任务；§8 多任务/停止不做，简单够用） */
 const state = {
   running: false,
+  /** 应用正在退出：任务循环应在下一次检查点立即终止（防主窗口关闭后任务继续跑） */
+  stopping: false,
   lastResult: null,       // 上一次完成的 runAssTask result
   lastError: null,        // 上一次任务失败的错误摘要
 }
@@ -61,6 +63,14 @@ export function registerAssController({ mainWindow, userDataPath }) {
     try { win.webContents.send('ass:batch:progress', payload) } catch { /* ignore */ }
   }
   // NOTE: ass:session:changed 推送由 sessMgr.pushStatusChanged() 内部负责
+
+  // ============== 应用退出：终止任务 + 销毁查询窗口（防幽灵窗口） ==============
+  // 退出前先解除查询窗口的"任务中关闭=hide"拦截并销毁，同时置 stopping 位，
+  // 任务循环在下一次检查点会抛错终止，不再重新打开查询窗口
+  app.on('before-quit', () => {
+    state.stopping = true
+    try { qBrowser.destroy() } catch { /* ignore */ }
+  })
 
   // ============== 文件选择：.xlsx ==============
   ipcMain.handle('ass:batch:pickFile', async () => {
@@ -138,6 +148,7 @@ export function registerAssController({ mainWindow, userDataPath }) {
     qBrowser.setTaskRunning(true)
 
     state.running = true
+    state.stopping = false // 新一轮任务开始时重置退出标记
     state.lastResult = null
     state.lastError = null
 
@@ -168,6 +179,7 @@ export function registerAssController({ mainWindow, userDataPath }) {
         onProgress: emitProgress,
         requestLogin,
         session: sessMgr.getStatus(), // 透传给 tripClient → 供登录快照检查
+        shouldStop: () => state.stopping, // 应用退出时任务循环在下一检查点终止
       })
       state.lastResult = result
       emitProgress({ type: 'DONE', result })

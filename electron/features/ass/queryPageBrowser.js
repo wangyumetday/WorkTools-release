@@ -22,9 +22,10 @@
 //      全部进环形缓冲，任何页面交互失败时随错误一起带回主进程日志
 //   7. 请求间隔：上一请求返回后随机 3~7 秒才发下一请求（成功/失败都生效，绝不连发）
 //   8. 任务执行期间用户误关窗口 → 拦截 close 事件改为 hide()，不销毁会话（保持 partition 持续）
-//   9. 窗口显示：物理尺寸 = 逻辑布局尺寸 × 0.25（视觉等比缩小，页面内部布局不变），
-//      创建后停靠在屏幕右缘（垂直居中）；缩放只在「已登录」时应用，
-//      未登录保持 100%——同一 partition 的 zoom 会串到登录页，必须按登录态显式收敛
+//   9. 窗口显示随「页面实际路由」切换（不只是缩放，尺寸+位置一起联动）：
+//       - 查询页：缩放 0.25，物理窗 300×175 停靠屏幕右缘（垂直居中）
+//       - 登录页：100%，窗口放回 1200×700 并回到屏幕中央
+//      登录态快照只在开窗瞬间给初值
 // ============================================================
 
 import { BrowserWindow, session, screen } from 'electron'
@@ -34,8 +35,8 @@ import { PARTITION, LOW_PRICE_ROUTE, PURE_CHROME_UA, ensurePartitionUA } from '.
 const TARGET_API_SUFFIX = '/partnerportal/api/lowpricesearch'
 
 // ---- 请求间隔：上一个携程请求返回后，随机等 3~7 秒再发下一个请求 ----
-const INTERVAL_MIN_MS = 3000
-const INTERVAL_MAX_MS = 7000
+const INTERVAL_MIN_MS = 1500
+const INTERVAL_MAX_MS = 6000
 
 // ---- 窗口显示缩放 ----
 // 页面内部逻辑布局尺寸（innerWidth/innerHeight、媒体查询、Canvas 画像都按这个走）
@@ -57,6 +58,33 @@ function sleep(ms) {
 
 function randBetween(lo, hi) {
   return Math.floor(lo + Math.random() * (hi - lo + 1))
+}
+
+/**
+ * 按"页面是否查询态"返回窗口的 尺寸 + 位置：
+ *   - 查询态（已登录正在查询）：迷你物理窗停靠屏幕右缘（垂直居中）
+ *   - 非查询态（登录页等）：正常尺寸，屏幕居中
+ */
+function layoutForPage(onQueryPage) {
+  try {
+    const wa = screen.getPrimaryDisplay().workArea
+    if (onQueryPage) {
+      return {
+        width: PHYSICAL_WIDTH,
+        height: PHYSICAL_HEIGHT,
+        x: wa.x + wa.width - PHYSICAL_WIDTH,
+        y: wa.y + Math.round((wa.height - PHYSICAL_HEIGHT) / 2),
+      }
+    }
+    return {
+      width: LAYOUT_WIDTH,
+      height: LAYOUT_HEIGHT,
+      x: wa.x + Math.round((wa.width - LAYOUT_WIDTH) / 2),
+      y: wa.y + Math.round((wa.height - LAYOUT_HEIGHT) / 2),
+    }
+  } catch {
+    return { width: LAYOUT_WIDTH, height: LAYOUT_HEIGHT, x: undefined, y: undefined }
+  }
 }
 
 // ============================================================
@@ -81,6 +109,10 @@ export class QueryPageBrowser {
     this._pageLogTail = []
     /** 渲染进程崩溃信息（render-process-gone） */
     this._rendererGone = null
+    /** 当前已应用的缩放系数（避免重复调用 setZoomFactor） */
+    this._zoomState = null
+    /** 正在等待"跳转低价页"完成（防导航风暴/重复触发） */
+    this._navToLowPricePending = false
   }
 
   // ------------------------------------------------------------
@@ -101,8 +133,8 @@ export class QueryPageBrowser {
       // 已创建：如果是之前 hide 的就 show 出来，再 focus
       if (!this.win.isVisible()) this.win.show()
       this.win.focus()
-      // 按登录态收敛缩放（分区共享 zoom，必须显式控制，防止串到登录页）
-      if (loggedIn !== undefined) this._applyZoom(loggedIn)
+      // 按登录态收敛「缩放 + 尺寸 + 位置」（分区共享 zoom，防止串到登录页）
+      if (loggedIn !== undefined) this._applyLayout(loggedIn)
       // URL 如果因为用户手动切走了，重新导航回低价页
       try {
         const curUrl = this.win.webContents.getURL() || ''
@@ -115,20 +147,15 @@ export class QueryPageBrowser {
 
     const mainWindow = this.getMainWindow()
 
-    // 停靠位置：屏幕右缘、垂直居中（在构造参数里直接给 x/y，避免窗口先闪到默认位置再跳）
-    let dockX = undefined
-    let dockY = undefined
-    try {
-      const wa = screen.getPrimaryDisplay().workArea
-      dockX = wa.x + wa.width - PHYSICAL_WIDTH
-      dockY = wa.y + Math.round((wa.height - PHYSICAL_HEIGHT) / 2)
-    } catch { /* 定位失败不影响创建 */ }
+    // 初始 尺寸+位置 按传入的登录态给初值（窗口显示前就定好，避免闪跳）：
+    // 已登录 → 迷你窗停屏幕右缘；未登录 → 原大小居中
+    const initLayout = layoutForPage(loggedIn === true)
 
     this.win = new BrowserWindow({
-      width: PHYSICAL_WIDTH,
-      height: PHYSICAL_HEIGHT,
-      x: dockX,
-      y: dockY,
+      width: initLayout.width,
+      height: initLayout.height,
+      x: initLayout.x,
+      y: initLayout.y,
       minWidth: 200,
       minHeight: 140,
       // 不设 parent 模态，用户可以自由在主窗口和携程窗口之间切换 + 晃鼠标
@@ -167,26 +194,108 @@ export class QueryPageBrowser {
       this._pushPageLog(`[render-process-gone] reason=${details?.reason} exitCode=${details?.exitCode ?? '-'}`)
     })
 
+    // ---- 缩放随页面路由自动切换（事件驱动）：登录页 100%，查询页 0.25 ----
+    const syncZoom = () => { this._syncZoomByPageState() }
+    this.win.webContents.on('did-navigate', syncZoom)
+    this.win.webContents.on('did-navigate-in-page', syncZoom) // SPA hash 路由变化
+    this.win.webContents.on('did-finish-load', syncZoom)
+
     // ---- 加载低价政策页面 ----
     await this._safeLoad(LOW_PRICE_ROUTE)
 
-    // ---- 视觉缩放：仅已登录时应用（未登录保持 100%，登录窗口不受影响）----
-    if (loggedIn !== undefined) this._applyZoom(loggedIn)
+    // ---- 初始布局应用：仅传入明确登录态时（缩放 + 尺寸 + 位置一起收） ----
+    if (loggedIn !== undefined) this._applyLayout(loggedIn)
 
     // ---- 挂一次 CDP Network 域（用于后续所有查询抓响应体）----
     await this._attachDebuggerAndEnableNetwork()
   }
 
   /**
-   * 按登录态设置页面缩放。查询窗口与登录窗口共用同一 partition，
-   * Chromium 的页面缩放按 origin 存于分区（HostZoomMap），两边会互相影响，
-   * 因此这里显式收敛：true → 0.25 视觉缩小；false → 100%。
+   * 按登录态统一应用「缩放 + 窗口尺寸 + 位置」：
+   *   已登录（查询态）→ 0.25 缩放 + 迷你窗停右缘
+   *   未登录（登录页）→ 100% + 原大小居中
+   * 查询窗口与登录窗口共用同一 partition，Chromium 的页面缩放按 origin
+   * 存于分区（HostZoomMap），两边会互相影响，因此必须显式收敛。
+   * 状态去重：目标缩放未变化时不重复操作（避免打扰用户手动挪窗/调大小）。
    */
-  _applyZoom(loggedIn) {
+  _applyLayout(loggedIn) {
     if (!this.win || this.win.isDestroyed()) return
+    const target = loggedIn ? WINDOW_ZOOM_FACTOR : 1
+    if (this._zoomState === target) return
     try {
-      this.win.webContents.setZoomFactor(loggedIn ? WINDOW_ZOOM_FACTOR : 1)
-    } catch { /* zoom 设置失败不致命 */ }
+      const layout = layoutForPage(!!loggedIn)
+      this.win.setSize(layout.width, layout.height)
+      if (layout.x !== undefined && layout.y !== undefined) {
+        this.win.setPosition(layout.x, layout.y)
+      }
+      this.win.webContents.setZoomFactor(target)
+      this._zoomState = target
+    } catch { /* 布局应用失败不致命 */ }
+  }
+
+  /**
+   * 依据页面真实路由自动切换窗口布局（事件驱动）：
+   *   hash 含 login → 100% 缩放 + 原大小 + 屏幕中央（用户直接看到正常登录页）
+   *   hash 含 selfTest/LowPrice → 0.25 缩放 + 迷你窗停右缘
+   *   其他（加载中/未知路由）→ 保持现状，等下一次导航事件
+   *
+   * 注意：这段只读 location.hash 的一次性脚本走 CDP 原生评估通道，
+   * 不在页面挂任何钩子/全局量，也不 monkey-patch 任何 API——无新增暴露面。
+   */
+  async _syncZoomByPageState() {
+    if (!this.win || this.win.isDestroyed()) return
+    let hash = ''
+    try {
+      const r = await this.win.webContents.executeJavaScript(
+        `(function(){ try { return String(location.hash || ''); } catch(e) { return ''; } })()`
+      )
+      hash = String(r || '').toLowerCase()
+    } catch { /* 导航中执行失败，等下一次事件 */ }
+    if (hash.includes('login')) {
+      this._applyLayout(false)
+      return
+    }
+    if (hash.includes('selftest/lowprice')) {
+      this._applyLayout(true)
+      return
+    }
+    // 既不在登录页、也不在低价页（如登录成功后的主页）→ 立即跳转低价查询页
+    await this._ensureOnLowPriceRoute()
+  }
+
+  /**
+   * 已登录但不在低价查询页时，立即导航到低价查询页（登录成功后马上进入查询界面并缩窗）。
+   * 防重：每次跳转后有 8s 冷却（兜底复位），期间不再重复触发。
+   * @returns {Promise<boolean>} 是否执行了跳转
+   */
+  async _ensureOnLowPriceRoute() {
+    if (!this.win || this.win.isDestroyed()) return false
+    if (this._navToLowPricePending) return false
+    let hash = ''
+    try {
+      const r = await this.win.webContents.executeJavaScript(
+        `(function(){ try { return String(location.hash || ''); } catch(e) { return ''; } })()`
+      )
+      hash = String(r || '').toLowerCase()
+    } catch { return false }
+    if (!hash || hash === '#') return false               // 空白/加载中：不动
+    if (hash.includes('login')) return false              // 登录页：不跳（等用户登录）
+    if (hash.includes('selftest/lowprice')) return false  // 已在低价页
+    // 其它已登录路由（主页等）→ 跳低价查询页
+    this._navToLowPricePending = true
+    setTimeout(() => { this._navToLowPricePending = false }, 8000)
+    try {
+      await this._safeLoad(LOW_PRICE_ROUTE)
+      this._applyLayout(true) // 落地即缩窗（同文档 hash 导航也会触发 did-navigate-in-page 再确认一次）
+    } catch { this._navToLowPricePending = false }
+    return true
+  }
+
+  /** waitForReady 探测结果顺手校正布局（与 _syncZoomByPageState 同一套判定） */
+  _syncZoomFromProbe(info) {
+    if (!info || info.err) return
+    if (info.onLogin) this._applyLayout(false)
+    else if (info.hasForm) this._applyLayout(true)
   }
 
   /** 显式销毁窗口（登出/应用退出时调用） */
@@ -196,6 +305,7 @@ export class QueryPageBrowser {
     this._lastResponse = null
     this._pageLogTail = []
     this._rendererGone = null
+    this._zoomState = null
     if (this.win && !this.win.isDestroyed()) {
       try { this.win.removeAllListeners('close') } catch {}
       try { this.win.destroy() } catch {}
@@ -319,14 +429,14 @@ export class QueryPageBrowser {
    *   - 路由不在 login
    *   - 页面 DOM 里能找到"出发城市/到达城市/查询按钮"三要素
    *
-   * 状态机：
-   *   Phase A (tolerantMs 内)：哪怕 onLogin / tokenLen===0 也不抛，耐心等（partition localStorage 冷加载异步 + SPA 路由跳转回稳需要几百 ms）
-   *   Phase A 仍未就绪 → 自动 reload() 一次（强制 SPA 重新读 partition 中最新的 token/cookies）
-   *   Phase B (timeoutMs 内)：再宽容一轮
-   *   Phase B 仍停留在 onLogin 且 tokenLen===0 → 真登录失效，throw LOGIN_REQUIRED
+   * 状态机（已移除旧版的"自动 reload"）：
+   *   登录页 → 宽容等待（tolerantMs 后仍登录态 → throw LOGIN_REQUIRED 交给 tripClient）。
+   *   绝不在登录页上自动 reload：用户可能正在该页面里输入账号密码，
+   *   reload 会清空输入（幽灵刷新）。冷启动竞态由 tripClient 的
+   *   "确认无人输入后才 reload"策略兜底。
    *
-   * @param {number} timeoutMs  总超时（含 reload 前后两轮）
-   * @param {number} tolerantMs 第一轮"冷加载宽容期"，此期间内即便 onLogin 也不会抛
+   * @param {number} timeoutMs  总超时
+   * @param {number} tolerantMs 宽容期：此期间内即便 onLogin 也不抛
    */
   async waitForReady(timeoutMs = PAGE_READY_TIMEOUT_MS, tolerantMs = 10_000) {
     if (!this.win || this.win.isDestroyed()) {
@@ -337,7 +447,6 @@ export class QueryPageBrowser {
 
     const tolerantCutoff = Date.now() + tolerantMs
     const hardCutoff = Date.now() + timeoutMs
-    let reloaded = false
 
     while (Date.now() < hardCutoff) {
       let info = null
@@ -370,30 +479,15 @@ export class QueryPageBrowser {
         info = null
       }
 
+      // 探测结果顺手喂给缩放判定：登录页放大、真实表单页缩小（即时校正，不等导航事件）
+      if (info && !info.err) this._syncZoomFromProbe(info)
+
       // --- 成功出口：三要素全满足 ---
       if (info && !info.err && info.tokenLen > 0 && !info.onLogin && info.hasForm) return true
 
-      // --- 判断要不要触发"登录未登录" ---
+      // --- 登录页/无 token：绝不 reload（用户可能在输入账号密码）；宽容期后仍如此 → LOGIN_REQUIRED ---
       const loginLooking = info && !info.err && (info.onLogin || info.tokenLen === 0)
       if (loginLooking) {
-        // [Phase A 宽容期内]：partition localStorage 可能仍在从磁盘加载 / SPA 还没跳完路由
-        // → 不抛，不 reload，纯等
-        if (Date.now() < tolerantCutoff) {
-          await sleep(500)
-          continue
-        }
-        // [Phase A 超时 + 尚未 reload]：自动 reload 一次，给 SPA 一次重新读 token 的机会
-        //    （冷启动竞态下 SPA 读到空 token 后自己跳 login，但此时 partition 其实已有 token）
-        if (!reloaded) {
-          try {
-            await this.win.webContents.reload()
-            reloaded = true
-            await sleep(800) // 给 reload 启动首轮 DOM 渲染留点时间
-          } catch { /* ignore */ }
-          continue
-        }
-        // [reload 后仍 login 且无 token]：说明真的是登录失效，或者用户从未登录过
-        // → 只有当总超时剩余 < tolerantMs 时才抛（给 Phase B 也留够宽容时间）
         if (Date.now() > tolerantCutoff + tolerantMs) {
           throw new Error('LOGIN_REQUIRED')
         }
@@ -402,10 +496,65 @@ export class QueryPageBrowser {
       }
 
       // --- 其他不满足情形：DOM 表单还没渲染（token 有、路由对，但三要素缺 hasForm）继续循环 ---
+      //      有 token 且不在登录页却看不到查询表单 = 多半停在登录后主页 →
+      //      立即跳转低价查询页（与导航事件同步逻辑一致）
+      if (info && !info.err && info.tokenLen > 0 && !info.onLogin) {
+        await this._ensureOnLowPriceRoute()
+      }
       await sleep(500)
     }
 
     throw this._pageError('wait-ready', `页面 ${timeoutMs}ms 内未就绪（表单/DOM未渲染完成或登录态仍未恢复）`)
+  }
+
+  /**
+   * 用户是否正在登录页输入账号密码（activeElement 为输入框且有非空内容）
+   */
+  async isUserTyping() {
+    if (!this.win || this.win.isDestroyed()) return false
+    try {
+      const r = await this.win.webContents.executeJavaScript(
+        `(function(){
+          try {
+            var el = document.activeElement;
+            var tag = el ? String(el.tagName || '').toLowerCase() : '';
+            var isInput = tag === 'input' || tag === 'textarea';
+            var val = '';
+            try { if (isInput) val = String(el.value || ''); } catch(e) {}
+            var onLogin = String(location.hash || '').indexOf('login') > -1;
+            return JSON.stringify(!!(isInput && val.trim() && onLogin));
+          } catch(e) { return JSON.stringify(false); }
+        })()`
+      )
+      return r === true || r === 'true'
+    } catch { return false }
+  }
+
+  /**
+   * 用户正在查询窗口的登录页手动输入 → 耐心等待其完成登录（页面跳回低价页）。
+   * 期间绝不 reload，避免清空输入。
+   * @returns {Promise<boolean>} 页面是否已恢复就绪
+   */
+  async waitManualLogin(timeoutMs = 3 * 60 * 1000) {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (!this.win || this.win.isDestroyed()) return false
+      try {
+        const r = await this.win.webContents.executeJavaScript(
+          `(function(){
+            try {
+              var token = localStorage.getItem('token') || '';
+              var hash = String(location.hash || '');
+              return JSON.stringify({ tokenLen: token.length, onLogin: hash.indexOf('login') > -1 });
+            } catch(e) { return JSON.stringify({ err: true }); }
+          })()`
+        )
+        const info = JSON.parse(r)
+        if (info && !info.err && info.tokenLen > 0 && !info.onLogin) return true
+      } catch { /* 导航中，等下一轮 */ }
+      await sleep(1000)
+    }
+    return false
   }
 
   /**

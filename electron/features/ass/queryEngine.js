@@ -170,6 +170,7 @@ export async function runAssTask(opts) {
     onProgress = () => {},
     requestLogin = null,
     session = null,
+    shouldStop = null,
   } = opts
 
   if (!filePath)  throw new Error('filePath 必填')
@@ -178,6 +179,12 @@ export async function runAssTask(opts) {
   if (!outputDir) throw new Error('outputDir 必填')
 
   const airline = typeof airlineRaw === 'string' ? airlineRaw.trim() : ''
+
+  // ---- 停止检查点：应用退出/手动停止时在下一循环迭代抛错终止 ----
+  const isStopped = typeof shouldStop === 'function' ? shouldStop : () => false
+  const throwIfStopped = () => {
+    if (isStopped()) throw new Error('任务已被终止（应用退出）')
+  }
 
   // --- 步骤 1：解析 Excel ---
   const parseResult = await parseAirportPairsFromXlsx(filePath)
@@ -243,6 +250,7 @@ export async function runAssTask(opts) {
     let processedP1 = 0
     for (const { date, qps } of days) {
       for (let i = 0; i < qps.length; i++) {
+        throwIfStopped()
         const qp = qps[i]
         processedP1++
         const { hasFlight, rawResponse, error } = await judgeHasFlight(qp)
@@ -286,6 +294,7 @@ export async function runAssTask(opts) {
     let processedP2 = 0
     for (const { date, qps } of days) {
       for (let i = 0; i < qps.length; i++) {
+        throwIfStopped()
         const qp = qps[i]
         processedP2++
         const flag = hasFlightMap.get(qpKey(qp))

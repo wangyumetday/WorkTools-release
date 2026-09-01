@@ -95,6 +95,12 @@ function createWindow() {
     e.preventDefault()
   })
 
+  // 主窗口关闭 = 退出整个应用：携程查询副窗口和运行中的任务必须一并终止，
+  // 否则任务会在后台继续跑、副窗口被 hide 后还会被任务重新 show（幽灵窗口）
+  mainWindow.on('closed', () => {
+    app.quit()
+  })
+
   // 渲染层首帧合成完成后再显示窗口：用户从看到窗口的第一眼起就有内容（启动遮罩），无白屏
   mainWindow.once('ready-to-show', () => {
     mainWindow.show()
