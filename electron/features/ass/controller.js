@@ -12,8 +12,9 @@
 //   userDataPath 用于 ass_outputs 目录 + SessionManager 本地文件
 // ============================================================
 
-import { ipcMain, dialog, app } from 'electron'
+import { ipcMain, dialog, app, shell } from 'electron'
 import path from 'node:path'
+import fs from 'node:fs'
 import { runAssTask } from './queryEngine.js'
 import { AssSessionManager } from './sessionManager.js'
 import { QueryPageBrowser } from './queryPageBrowser.js'
@@ -199,6 +200,25 @@ export function registerAssController({ mainWindow, userDataPath }) {
     clearTjStats()
     emitProgress({ type: 'STATS', entries: tjStatsSnapshot() })
     return { ok: true }
+  })
+
+  // ============== 打开输出目录 / 定位到具体文件 ==============
+  //   - 传 filePath（存在的文件）→ 资源管理器打开所在目录并选中该文件
+  //   - 不传 filePath → 直接打开输出目录
+  ipcMain.handle('ass:output:open', async (_event, { dir, filePath } = {}) => {
+    if (filePath) {
+      if (!fs.existsSync(filePath)) {
+        return { ok: false, error: `文件不存在：${filePath}` }
+      }
+      shell.showItemInFolder(filePath)
+      return { ok: true }
+    }
+    const target = dir || resolveOutputDir(userDataPath)
+    try {
+      if (!fs.existsSync(target)) fs.mkdirSync(target, { recursive: true })
+    } catch { /* 创建失败则交给 openPath 报错 */ }
+    const err = await shell.openPath(target)
+    return err ? { ok: false, error: err } : { ok: true }
   })
 
   // ============== Pause / Stop：§8 不做，返回占位 ==============

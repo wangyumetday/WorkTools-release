@@ -108,6 +108,8 @@ const api = {
     batchStop:           ()                  => ipcRenderer.invoke('ass:batch:stop'),
     batchGetState:       ()                  => ipcRenderer.invoke('ass:batch:getState'),
     statsClear:          ()                  => ipcRenderer.invoke('ass:stats:clear'),
+    // 打开输出目录（传 filePath 时在资源管理器中定位并选中该文件）
+    outputOpen:          (dir, filePath)     => ipcRenderer.invoke('ass:output:open', { dir, filePath }),
     // 订阅型：会话状态变化（登录成功/窗口关闭/退出登录）
     onSessionChanged:    (callback)          => ipcRenderer.on('ass:session:changed', (_event, data) => callback(data)),
     // 订阅型：批处理进度推送（总/完成/成功/失败/状态）

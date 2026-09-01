@@ -339,11 +339,14 @@ async function onStart() {
 }
 
 function openOutputDir() {
-  if (!outputDir.value) return
-  // 复用 pcp 已暴露的"在系统文件管理器定位到文件/打开目录" IPC（纯 API 层，非代码耦合）
+  // 优先定位「最终文件」（本轮任务生成的 tjarr 统计报告 md）并在资源管理器中选中；
+  // 没有则直接打开输出目录
+  const tjPath = lastResult.value?.tjFilePath ?? null
+  const target = tjPath || outputDir.value
+  if (!target) return
   try {
-    if (window.api.pcp?.fileOpenDownloadDir) {
-      window.api.pcp.fileOpenDownloadDir(outputDir.value)
+    if (typeof window.api.ass?.outputOpen === 'function') {
+      window.api.ass.outputOpen(outputDir.value || '', tjPath)
     }
   } catch {}
 }
