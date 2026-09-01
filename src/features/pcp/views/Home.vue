@@ -16,39 +16,40 @@
         <div class="home-right">
           <TaskMonitor />
         </div>
-        <!-- 阶段3：Dev 模式切换按钮（左下角，仅元素+定位，视觉样式由用户自定义） -->
-        <button @click="toggleDevMode" class="pcp-dev-toggle" :class="{ 'pcp-dev-toggle--on': isDevMode }"
-          :title="isDevMode ? '当前 Dev 模式：点击切换为自动模式' : '当前自动模式：点击切换为 Dev 模式（步骤需手动点击触发）'">
-          {{ isDevMode ? 'Dev:On' : 'Dev:Off' }}
-        </button>
-        <!-- @click="toggleDevMode" -->
+        <!-- Dev 模式标识：仅当处于 Dev 模式时显示（按住左Ctrl+8888 切换 auto/dev） -->
+        <n-tag v-if="isDevMode" type="error" class="pcp-dev-indicator">Dev:On</n-tag>
       </div>
     </n-message-provider>
   </n-config-provider>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
-import { NConfigProvider, NMessageProvider } from 'naive-ui'
+import { computed, onMounted, onBeforeUnmount } from 'vue'
+import { NConfigProvider, NMessageProvider, NTag } from 'naive-ui'
 import TopToolbar from '../components/TopToolbar.vue'
 import ConfigPanel from '../components/ConfigPanel.vue'
 import StageFlow from '../components/StageFlow.vue'
 import TaskMonitor from '../components/TaskMonitor.vue'
 import TaskProgressBar from '../components/TaskProgressBar.vue'
 import { useTaskStore } from '../stores/task.js'
+import { installPcpDevListener } from '@/shared/secretUnlock'
 
 const store = useTaskStore()
 
 // Dev 模式：开启后步骤流需手动点击触发；关闭则点"开始"自动跑到底
 const isDevMode = computed(() => store.pipelineState.mode === 'dev')
 
-function toggleDevMode() {
-  store.setMode(isDevMode.value ? 'auto' : 'dev')
-}
-
+// PCP Dev 密码门：按住左 Ctrl + 8888 翻转 auto/dev 模式（n-tag 仅作显示）
+let removeDevListener = null
 onMounted(() => {
   // 首次挂载确保 store 已初始化（监听器注册 + 拉取 pipelineState）
   if (typeof store.init === 'function') store.init()
+  removeDevListener = installPcpDevListener(() => {
+    store.setMode(isDevMode.value ? 'auto' : 'dev')
+  })
+})
+onBeforeUnmount(() => {
+  if (removeDevListener) removeDevListener()
 })
 </script>
 
@@ -89,13 +90,11 @@ onMounted(() => {
   overflow: hidden;
 }
 
-/* 阶段3：Dev 模式切换按钮 —— 仅定位到左下角，视觉样式（颜色/边框/字体等）由用户自定义 */
-.pcp-dev-toggle {
+/* Dev 模式标识：定位到左下角，仅显示用 */
+.pcp-dev-indicator {
   position: absolute;
-  /* left: 0; */
   right: 16px;
   bottom: 16px;
   z-index: 10;
-  cursor: pointer;
 }
 </style>

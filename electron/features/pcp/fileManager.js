@@ -162,9 +162,9 @@ export class FileManager {
 
   /**
    * 解析 xlsx 文件，生成 a1（原始数据数组）
-   * 解析规则（v3 新格式，不再兼容旧英文表头）：
-   *   第 1 行为固定中文表头：出发机场 / 到达机场 / 舱位 / 航司
-   *   之后每行一条航线：出发机场、到达机场必填；舱位、航司按行读取（可为空）
+   * 解析规则（死字段严格匹配 + 首行舱位/航司全局兜底）：
+   *   第 1 行为固定中文表头：出发机场 / 到达机场 / 舱位 / 航司（严格相等，不模糊匹配）
+   *   之后每行一条航线：出发机场、到达机场必填；舱位、航司取首行值全局兜底给空单元格行
    */
   parseXlsx(filePath) {
     try {
@@ -208,6 +208,14 @@ export class FileManager {
         console.warn('[parseXlsx] 未找到"航司"列，hangsi 将为空')
       }
 
+      // ------- 首行数据的 舱位/航司 列值提取为全局值，兜底给空单元格行 -------
+      // 与旧版行为一致：首行填的舱位/航司应用到所有行，保证空舱位行也能匹配航班
+      const cwIdx = titles.findIndex(t => t.replace(/\s+/g, '') === '舱位')
+      const hsIdx = titles.findIndex(t => t.replace(/\s+/g, '') === '航司')
+      const row0 = dataRows[0] || []
+      const globalCangwei = (cwIdx >= 0 && row0[cwIdx] != null) ? String(row0[cwIdx]).trim() : ''
+      const globalHangsi = (hsIdx >= 0 && row0[hsIdx] != null) ? String(row0[hsIdx]).trim() : ''
+
       // 遍历每条航线，每条航线生成一个任务进队列
       this.a1 = dataRows.map((row, index) => ({
         id: `row_${index}`,
@@ -215,8 +223,8 @@ export class FileManager {
         DD_jichang: pickField(row, colMap.DD_jichang),
         CH_city: '',
         DD_city: '',
-        hangsi: pickField(row, colMap.hangsi),
-        cangwei_str: pickField(row, colMap.cangwei_str)
+        hangsi: globalHangsi || pickField(row, colMap.hangsi),           // 全局兜底：首行航司值
+        cangwei_str: globalCangwei || pickField(row, colMap.cangwei_str) // 全局兜底：首行舱位值
       }))
 
       this.saveData('a1.json', this.a1)
