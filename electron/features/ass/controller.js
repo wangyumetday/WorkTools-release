@@ -105,7 +105,7 @@ export function registerAssController({ mainWindow, userDataPath }) {
     // waitForReady(30s) 里内置了 10s 宽容期 + auto reload + Phase B 第二轮宽容，
     // 足以消化 partition localStorage 冷加载竞态，不会再出现"10 条 P2 瞬时全 LOGIN_REQUIRED"。
     try {
-      await qBrowser.open()
+      await qBrowser.open(true) // 此处在登录前置检查通过之后 → 已登录，应用视觉缩放 0.25
       emitProgress({
         type: 'INFO',
         kind: 'info',
@@ -148,7 +148,8 @@ export function registerAssController({ mainWindow, userDataPath }) {
       const ok = await sessMgr.waitForLogin(10 * 60 * 1000)
       if (ok) {
         // 登录完成后，需要让查询窗口重新加载（token 已经在 partition 里，页面刷新就能读到 localStorage.token）
-        try { await qBrowser.open() } catch {}
+        // 并恢复"已登录"视觉缩放 0.25
+        try { await qBrowser.open(true) } catch {}
         return true
       }
       emitProgress({ type: 'LOGIN_CANCELLED', message: '登录窗口已关闭/超时，Phase 2 将把该查询记为 ERROR。' })

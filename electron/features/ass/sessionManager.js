@@ -165,6 +165,15 @@ export class AssSessionManager {
 
     this.loginWindow.loadURL(LOGIN_URL)
 
+    // 登录页强制 100% 缩放：查询窗口与登录窗口共用同一 partition，
+    // Chromium 的页面缩放按 origin 存在分区里（HostZoomMap），
+    // 查询窗口"已登录"状态下会设 0.25，这里必须显式压回 1 保证登录输入框可见
+    const lwc = this.loginWindow.webContents
+    try { lwc.setZoomFactor(1) } catch {}
+    lwc.once('did-finish-load', () => {
+      try { lwc.setZoomFactor(1) } catch {}
+    })
+
     // 窗口被用户手动关闭 → 停止轮询
     this.loginWindow.on('closed', () => {
       this.stopLoginPoll()

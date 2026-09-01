@@ -19,6 +19,20 @@ asar-list.txt
 # 测试数据 / fixture
 testfold/
 
+# E2E 运行输出（任务结果文件，不入库）
+ass_outputs_e2e/
+
+# 个人试验 / 抓包样本目录（wenti = 疑问排查时的抓包与脚本，不入库）
+wenti/
+
+# 接口抓包样本（含账号/供应商信息，不入库；模块使用的死数据在 electron/features/ass/supplierNames.json）
+src/features/ass/docs/qingqiu.json
+src/features/ass/docs/fanhui.json
+
+# 业务数据样本（PCP 文档目录下的 JSON 导出 / Excel 数据文件，不入库；说明类 .md 保留）
+docs/pcp/*.json
+docs/pcp/*.xlsx
+
 # 临时 / 调试脚本
 *.tmp-*
 tmp-*.ps1

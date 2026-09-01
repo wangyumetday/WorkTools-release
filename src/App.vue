@@ -22,6 +22,43 @@ import dialog from '@/shared/dialog.js'
 // 防重复：当前是否已经显示过"下载中"的提示，避免 downloading 事件每 200ms 刷一次都去弹
 let downloadingHintShown = false
 
+/**
+ * releaseNotes → 可直接 innerHTML 的安全 HTML 片段
+ * 兼容三种来源形态：
+ *   1. GitHub body_html（含 <p>/<a class="commit-link"> 等真实标签）→ 原样渲染
+ *   2. GitHub 自动生成的 Markdown（**加粗** / 链接 / 换行）→ 轻量转换
+ *   3. 整体被转义过的文本（&lt;p&gt;...）→ 先反转义再按 1/2 处理
+ */
+function normalizeReleaseNotesHtml(notes) {
+  let raw = ''
+  if (Array.isArray(notes)) {
+    raw = notes.map((n) => (n && n.note ? n.note : '')).join('\n')
+  } else {
+    raw = notes ? String(notes) : ''
+  }
+  if (!raw.trim()) return ''
+
+  // 一层反转义（来源可能把 HTML 整体转义成了文本）
+  const text = raw
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&#x27;/g, "'")
+    .replace(/&amp;/g, '&')
+
+  // 含真实 HTML 标签 → 直接当 HTML 用
+  if (/<[a-z][\s\S]*>/i.test(text)) return text
+
+  // 否则当 Markdown/纯文本：转义 → **加粗** → URL 自动转链 → 换行
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(https?:\/\/[^\s<>"']+)/g, '<a href="$1" style="color:#2080f0;word-break:break-all;">$1</a>')
+    .replace(/\r?\n/g, '<br>')
+}
+
 function handleUpdateState({ type, data }) {
   switch (type) {
     case 'available':
@@ -38,16 +75,24 @@ function handleUpdateState({ type, data }) {
 
     case 'downloaded': {
       const v2 = data && data.version ? `v${data.version}` : ''
-      const hasNotes = !!data?.releaseNotes
+      const notesHtml = normalizeReleaseNotesHtml(data?.releaseNotes)
       dialog.confirm({
         type: 'warning',
         title: `新版本 ${v2} 已下载完成`,
         content: () => h('div', { style: { lineHeight: '1.6' } }, [
           h('p', { style: { margin: '0 0 8px 0' } }, '是否立即重启安装？（软件会自动重启）'),
-          hasNotes
+          notesHtml
             ? h('div', {
-                style: { fontSize: '13px', color: '#666', maxHeight: '200px', overflowY: 'auto' },
-                innerHTML: `<strong>更新内容：</strong><br>${data.releaseNotes}`
+                style: {
+                  fontSize: '13px',
+                  color: '#555',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  background: '#f6f8fa',
+                  borderRadius: '4px',
+                  padding: '8px 10px'
+                },
+                innerHTML: `<div style="margin-bottom:4px;font-weight:600;">更新内容：</div>${notesHtml}`
               })
             : null
         ]),

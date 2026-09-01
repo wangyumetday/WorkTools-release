@@ -22,7 +22,8 @@ import { createPairedJsonlWriters } from './outputWriter.js'
 import { processP1 } from './userHooks/processP1.js'
 import { processP2 } from './userHooks/processP2.js'
 import { tripQuery } from './tripClient.js'
-import { addFlights, snapshot as tjSnapshot } from './tjStats.js'
+import { addFlights, snapshot as tjSnapshot, dumpGroups } from './tjStats.js'
+import { writeTjarrReport } from './reportWriter.js'
 
 // ---------- 工具 ----------
 
@@ -207,6 +208,8 @@ export async function runAssTask(opts) {
   // --- 步骤 3：创建 P1/P2 输出对 ---
   const writers = await createPairedJsonlWriters({ outputDir })
   const hasFlightMap = new Map() // key=qpKey → boolean|null
+  /** tjarr 统计报告（md）路径；任务结束时写入 */
+  let tjFilePath = null
 
   const counts = {
     p1: { true: 0, false: 0, null: 0 },
@@ -350,6 +353,22 @@ export async function runAssTask(opts) {
     // 无论成功失败（哪怕中途抛了上层中断类错误导致没跑完）
     // 先把已经写入的数据安全落盘，避免损坏
     await writers.close()
+
+    // ---- 输出最终 tjarr 统计报告（md）----
+    try {
+      tjFilePath = writeTjarrReport({
+        outputDir,
+        ts: writers.ts,
+        filePath,
+        airline,
+        startDate,
+        endDate,
+        pairs,
+        groups: dumpGroups(),
+      })
+    } catch (err) {
+      console.warn('[ass] 统计报告输出失败：', err?.message)
+    }
   }
 
   return {
@@ -357,6 +376,8 @@ export async function runAssTask(opts) {
     outputDir: writers.outputDir,
     p1FilePath: writers.p1FilePath,
     p2FilePath: writers.p2FilePath,
+    /** tjarr 统计报告（md）路径；写失败为 null */
+    tjFilePath,
     parseInfo: {
       pairsCount: R,
       hasHeader,

@@ -56,8 +56,9 @@ export async function tripQuery(queryParam, session = null, requestLogin = null)
   }
 
   // ---------- Step 2: 打开查询窗口（首次创建；已创建则恢复显示+回到低价页）----------
+  // 走到这里登录已就绪 → 应用视觉缩放（0.25）；未登录期间一律 100%
   try {
-    await _queryBrowser.open()
+    await _queryBrowser.open(true)
   } catch (e) {
     throw new Error(`打开携程查询窗口失败：${e?.message || String(e)}`)
   }
@@ -89,10 +90,13 @@ export async function tripQuery(queryParam, session = null, requestLogin = null)
           if (typeof requestLogin !== 'function') {
             throw new Error('携程登录已过期（接口返回未登录），但未提供 requestLogin 回调')
           }
+          // 重新登录期间恢复 100%（登录窗口不缩放）；登录完成后再恢复 0.25
+          await _queryBrowser.open(false)
           const relogOk = await requestLogin()
           if (!relogOk) {
             throw new Error('携程登录过期且用户未完成重新登录，当前查询已放弃')
           }
+          await _queryBrowser.open(true)
           triedRelogin = true
           triedReload = false // 真·重新登录后重置 reload 机会（页面SPA 会重新读新 token）
           continue
@@ -119,10 +123,13 @@ export async function tripQuery(queryParam, session = null, requestLogin = null)
           if (typeof requestLogin !== 'function') {
             throw new Error('查询页面检测到未登录（页面路由在 /login），但未提供 requestLogin 回调')
           }
+          // 重新登录期间恢复 100%（登录窗口不缩放）；登录完成后再恢复 0.25
+          await _queryBrowser.open(false)
           const ok = await requestLogin()
           if (!ok) {
             throw new Error('用户未完成携程重新登录，当前查询已放弃')
           }
+          await _queryBrowser.open(true)
           triedRelogin = true
           triedReload = false // 真登录成功后也再给一次 reload 机会
           lastErr = err

@@ -23,7 +23,8 @@
 //   7. 请求间隔：上一请求返回后随机 3~7 秒才发下一请求（成功/失败都生效，绝不连发）
 //   8. 任务执行期间用户误关窗口 → 拦截 close 事件改为 hide()，不销毁会话（保持 partition 持续）
 //   9. 窗口显示：物理尺寸 = 逻辑布局尺寸 × 0.25（视觉等比缩小，页面内部布局不变），
-//      创建后停靠在屏幕右缘（垂直居中）
+//      创建后停靠在屏幕右缘（垂直居中）；缩放只在「已登录」时应用，
+//      未登录保持 100%——同一 partition 的 zoom 会串到登录页，必须按登录态显式收敛
 // ============================================================
 
 import { BrowserWindow, session, screen } from 'electron'
@@ -86,16 +87,22 @@ export class QueryPageBrowser {
   // 生命周期
   // ------------------------------------------------------------
 
-  /** 打开查询窗口（若已存在则 focus）。登录/注销后调用。 */
-  async open() {
+  /**
+   * 打开查询窗口（若已存在则 focus）。登录/注销后调用。
+   * @param {boolean|undefined} loggedIn 登录态：
+   *   true       → 应用视觉缩放 0.25（已登录才缩放）
+   *   false      → 还原 100%（未登录/重新登录期间不缩放）
+   *   undefined  → 不动缩放（waitForReady 等内部复用路径）
+   */
+  async open(loggedIn = undefined) {
     ensurePartitionUA()
 
     if (this.win && !this.win.isDestroyed()) {
       // 已创建：如果是之前 hide 的就 show 出来，再 focus
       if (!this.win.isVisible()) this.win.show()
       this.win.focus()
-      // 兜底重设缩放（同源导航/用户误触缩放后恢复目标比例）
-      try { this.win.webContents.setZoomFactor(WINDOW_ZOOM_FACTOR) } catch {}
+      // 按登录态收敛缩放（分区共享 zoom，必须显式控制，防止串到登录页）
+      if (loggedIn !== undefined) this._applyZoom(loggedIn)
       // URL 如果因为用户手动切走了，重新导航回低价页
       try {
         const curUrl = this.win.webContents.getURL() || ''
@@ -163,13 +170,23 @@ export class QueryPageBrowser {
     // ---- 加载低价政策页面 ----
     await this._safeLoad(LOW_PRICE_ROUTE)
 
-    // ---- 视觉缩放：zoom 0.25 → 页面布局仍是 LAYOUT 1200×700，屏幕上显示为四分之一 ----
-    try {
-      this.win.webContents.setZoomFactor(WINDOW_ZOOM_FACTOR)
-    } catch { /* zoom 设置失败不致命 */ }
+    // ---- 视觉缩放：仅已登录时应用（未登录保持 100%，登录窗口不受影响）----
+    if (loggedIn !== undefined) this._applyZoom(loggedIn)
 
     // ---- 挂一次 CDP Network 域（用于后续所有查询抓响应体）----
     await this._attachDebuggerAndEnableNetwork()
+  }
+
+  /**
+   * 按登录态设置页面缩放。查询窗口与登录窗口共用同一 partition，
+   * Chromium 的页面缩放按 origin 存于分区（HostZoomMap），两边会互相影响，
+   * 因此这里显式收敛：true → 0.25 视觉缩小；false → 100%。
+   */
+  _applyZoom(loggedIn) {
+    if (!this.win || this.win.isDestroyed()) return
+    try {
+      this.win.webContents.setZoomFactor(loggedIn ? WINDOW_ZOOM_FACTOR : 1)
+    } catch { /* zoom 设置失败不致命 */ }
   }
 
   /** 显式销毁窗口（登出/应用退出时调用） */

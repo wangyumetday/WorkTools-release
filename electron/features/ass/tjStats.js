@@ -48,9 +48,16 @@ export function snapshot() {
     .map((e) => ({ code: e.code, name: e.name, count: e.count }))
 }
 
+/** 全量分组数据（含每条航班的完整原始对象），按 count 降序 */
+export function dumpGroups() {
+  return Object.values(tjarr)
+    .sort((a, b) => (b.count - a.count) || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0))
+    .map((e) => ({ code: e.code, name: e.name, count: e.count, flights: e.flights.slice() }))
+}
+
 /** 清空统计 */
 export function clear() {
   for (const k of Object.keys(tjarr)) delete tjarr[k]
 }
 
-export default { addFlights, snapshot, clear, resolveName }
+export default { addFlights, snapshot, dumpGroups, clear, resolveName }
