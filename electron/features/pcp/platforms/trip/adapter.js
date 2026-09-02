@@ -263,25 +263,14 @@ function priceComparisonPolicy(originalData, resData) {
   const dateKey = originalData?.dateKey || 'unknown-date'
 
   // [debug] 一次性字段名采样：第一次进 priceComparisonPolicy 时输出 jxgj item / trip flights / lowPrices 的字段名
-  //   目的：定位"processedData=0"是字段名不匹配还是业务比价输
-  //   定位后可整段删除
+
   if (!priceComparisonPolicy._sampled) {
     priceComparisonPolicy._sampled = true
     const sampleItem = forData[0] || {}//元数据
     const sampleFlight = flights[0] || {}//trip flights航班
     const sampleLp = lowPrices[0] || {}//trip lowPrices套餐
     const samplePrice = (sampleLp[TRIP_RESPONSE_FIELDS.prices] && sampleLp[TRIP_RESPONSE_FIELDS.prices][0]) || {}
-    //
-    // console.log('[trip/debug] ===== 字段名采样（仅一次） =====')
-    // console.log('[trip/debug] jxgj item 字段:', Object.keys(sampleItem))
-    // console.log('[trip/debug]   item.H航班号 =', sampleItem.H航班号, '| item.C出发机场 =', sampleItem.C出发机场, '| item.D到达机场 =', sampleItem.D到达机场, '| item.C出发日期 =', sampleItem.C出发日期, '| item.dijia =', sampleItem.dijia, '| item.C成人总票价_CNY_INT =', sampleItem.C成人总票价_CNY_INT)
-    // console.log('[trip/debug] trip flights 字段:', Object.keys(sampleFlight))
-    // console.log('[trip/debug]   f.flightNo =', sampleFlight.flightNo, '| f.departAirport =', sampleFlight.departAirport, '| f.arriveAirport =', sampleFlight.arriveAirport, '| f.takeOffDateTime =', sampleFlight.takeOffDateTime, '| f.flightId =', sampleFlight.flightId)
-    // console.log('[trip/debug] trip lowPrices 字段:', Object.keys(sampleLp))
-    // console.log('[trip/debug]   lp.flightRefs =', JSON.stringify(sampleLp.flightRefs))
-    // console.log('[trip/debug] trip lowPrices[0].prices[0] 字段:', Object.keys(samplePrice))
-    // console.log('[trip/debug]   p.baggage =', samplePrice.baggage, '| p.showState =', samplePrice.showState, '| p.isOwn =', samplePrice.isOwn, '| p.sortIndicator =', samplePrice.sortIndicator)
-    // console.log('[trip/debug] ====================================')
+    
   }
 
   let matchedFlights = 0//
