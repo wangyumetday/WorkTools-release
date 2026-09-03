@@ -23,7 +23,7 @@
         <div class="crow">
           <span class="crow-name">{{ srcName }}</span>
           <input class="crow-input" :class="{ 'is-flash': activeFlash === 'src' }" :value="srcRaw" @input="onSrcInput"
-            @keydown="onSrcKeydown" @focus="markFlash('src', $event)" placeholder="如 500krw" spellcheck="false" />
+            @keydown="onSrcKeydown" @focus="markFlash('src', $event)" placeholder="例：500krw" spellcheck="false" />
           <span v-if="srcPreview" class="crow-preview" :class="{ 'is-error': !srcPreview.valid }">{{ srcPreview.text
             }}</span>
           <span class="crow-code">{{ srcCode }}</span>
