@@ -26,10 +26,12 @@
             class="crow-input"
             :value="srcRaw"
             @input="onSrcInput"
+            @keydown="onSrcKeydown"
             @focus="selectAll"
             placeholder="如 500krw"
             spellcheck="false"
           />
+          <span v-if="srcPreview" class="crow-preview" :class="{ 'is-error': !srcPreview.valid }">{{ srcPreview.text }}</span>
           <span class="crow-code">{{ srcCode }}</span>
         </div>
         <!-- 下行：CNY 结果（可反向输入） -->
@@ -39,10 +41,12 @@
             class="crow-input"
             :value="cnyVal"
             @input="onCnyInput"
+            @keydown="onCnyKeydown"
             @focus="selectAll"
             placeholder="0.00"
             spellcheck="false"
           />
+          <span v-if="cnyPreview" class="crow-preview" :class="{ 'is-error': !cnyPreview.valid }">{{ cnyPreview.text }}</span>
           <span class="crow-code">CNY</span>
         </div>
       </div>
@@ -85,9 +89,15 @@
             :value="getRowDisplay(cur)"
             @focus="onRowFocus(cur, $event)"
             @input="onRowInput(cur, $event)"
+            @keydown="onRowKeydown(cur, $event)"
             @blur="onRowBlur(cur)"
             spellcheck="false"
           />
+          <span v-if="rowPreviews[cur.currencies.code]"
+                class="crow-preview"
+                :class="{ 'is-error': !rowPreviews[cur.currencies.code].valid }">
+            {{ rowPreviews[cur.currencies.code].text }}
+          </span>
           <span class="crow-code">{{ cur.currencies.code }}</span>
         </div>
       </div>
@@ -96,12 +106,98 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import Decimal from 'decimal.js'
 import { useDataStore } from '../stores/data.js'
 import addCurrency from '../components/addCurrency.vue'
 
 const store = useDataStore()
+
+// ==================== 算式计算器（+ - * / 左到右，无优先级） ====================
+// 用于悬浮窗所有币种输入框的实时预览：输入含运算符时显示 = 结果或 = ?
+// 设计要点：
+//   - tokenizer + 左到右逐对归约，每步 Decimal 运算保证金额精度
+//   - 校验与执行共享同一 tokenizer 管道（避免"校验过了但执行报错"）
+//   - 支持：负数开头（-5+3）、运算符后跟负号（6--1*5 → ((6)-(-1))*5=35）
+//   - 不支持：括号、函数、百分比、币种尾巴（1+5美元 属于非法）
+// 返回：{ ok: true, value: Decimal } 或 { ok: false }
+function tokenize(raw) {
+  if (!raw) return null
+  const tokens = []
+  let i = 0
+  const s = raw.trim()
+  const numRe = /^-?\d+(?:\.\d+)?/
+  // 开头可跟可选 +/-（作为第一个数字的符号）
+  if (s[i] === '-' || s[i] === '+') {
+    const m = s.slice(i).match(numRe)
+    if (!m) return null
+    tokens.push(m[0])
+    i += m[0].length
+  }
+  while (i < s.length) {
+    const ch = s[i]
+    if (/[0-9.]/.test(ch)) {
+      const m = s.slice(i).match(numRe)
+      if (!m) return null
+      tokens.push(m[0])
+      i += m[0].length
+    } else if (/^[+\-*/]$/.test(ch)) {
+      tokens.push(ch)
+      i++
+      // 运算符后可跟可选 +/-（作为下一个数字的符号）
+      if (i < s.length && (s[i] === '-' || s[i] === '+')) {
+        const m = s.slice(i).match(numRe)
+        if (!m) return null
+        tokens.push(m[0])
+        i += m[0].length
+      }
+    } else {
+      // 非法字符（币种名、中文、括号等）
+      return null
+    }
+  }
+  if (tokens.length === 0) return null
+  // 序列校验：偶数位（0,2,4...）必须是数字；奇数位（1,3,5...）必须是运算符
+  for (let k = 0; k < tokens.length; k++) {
+    const isNum = /^-?\d+(?:\.\d+)?$/.test(tokens[k])
+    const isOp = /^[+\-*/]$/.test(tokens[k])
+    if (k % 2 === 0 && !isNum) return null
+    if (k % 2 === 1 && !isOp) return null
+  }
+  // 序列长度必须是奇数（数字 运算符 数字 ... 数字）
+  if (tokens.length % 2 !== 1) return null
+  return tokens
+}
+
+function calcExpr(raw) {
+  const tokens = tokenize(raw)
+  if (!tokens) return { ok: false }
+  try {
+    // 左到右逐对归约，无优先级
+    let acc = new Decimal(tokens[0])
+    for (let k = 1; k < tokens.length; k += 2) {
+      const op = tokens[k]
+      const b = new Decimal(tokens[k + 1])
+      if (op === '+') acc = acc.plus(b)
+      else if (op === '-') acc = acc.minus(b)
+      else if (op === '*') acc = acc.times(b)
+      else if (op === '/') {
+        if (b.isZero()) return { ok: false } // 除零
+        acc = acc.div(b)
+      }
+    }
+    // Decimal.isFinite() 检查非 NaN/Infinity
+    if (!acc.isFinite()) return { ok: false }
+    return { ok: true, value: acc }
+  } catch {
+    return { ok: false }
+  }
+}
+
+// 判断输入是否包含运算符（只有纯数字/空串时不显示计算预览）
+function hasOperator(raw) {
+  return /[+\-*/]/.test((raw ?? '').trim())
+}
 
 // ==================== 换算成人民币 ====================
 // 上行：源币种原始输入（"数值+币种代码"如 500krw）
@@ -113,6 +209,34 @@ const srcCode = ref('---')
 const srcLocked = ref(false)
 // 下行：CNY 金额字符串
 const cnyVal = ref('')
+
+// ==================== 算式预览状态 ====================
+// srcPreview / cnyPreview：{ text, valid } | null；同步行用 reactive map
+const srcPreview = ref(null)
+const cnyPreview = ref(null)
+const rowPreviews = reactive({}) // key = code, value = { text, valid } | null
+
+// 更新某个输入框的计算预览
+function refreshPreview(raw, targetRef) {
+  if (!hasOperator(raw)) {
+    targetRef.value = null
+    return
+  }
+  const r = calcExpr(raw)
+  if (r.ok) {
+    targetRef.value = { text: `= ${r.value.toFixed(2)}`, valid: true }
+  } else {
+    targetRef.value = { text: '= ?', valid: false }
+  }
+}
+
+// 把算式应用为结果（Enter/= 触发），返回 null 表示无法应用
+function applyCalcResult(raw) {
+  if (!hasOperator(raw)) return null
+  const r = calcExpr(raw)
+  if (!r.ok) return null
+  return r.value.toFixed(2) // 统一保留 2 位小数
+}
 
 // ==================== 币种名解析（三字码 + 中文 + 英文名） ====================
 // 硬编码常见币种中文简称/全称（高频覆盖）
@@ -1500,6 +1624,7 @@ function selectAll(e) {
 //       · 有效币种 = 当前锁定 → 只更新数值（保持锁定）
 //       · 未知币种 → 非锁定态显示"未知"；锁定态忽略
 //   - 纯数字 → 锁定态下只更新数值部分；非锁定态不处理
+//   - 含运算符 → 实时计算预览（Enter/= 应用结果）
 function onSrcInput(e) {
   srcRaw.value = e.target.value
   const raw = srcRaw.value.trim()
@@ -1508,8 +1633,16 @@ function onSrcInput(e) {
     srcName.value = '源币种'
     srcCode.value = '---'
     cnyVal.value = ''
+    refreshPreview(raw, srcPreview)
     return
   }
+
+  // 含运算符：按算式处理，币种尾巴不识别
+  if (hasOperator(raw)) {
+    refreshPreview(raw, srcPreview)
+    return
+  }
+  refreshPreview(raw, srcPreview) // 纯数字不含运算符 → 清预览
 
   const parsed = parseSrcInput(raw)
   if (!parsed) {
@@ -1546,6 +1679,21 @@ function onSrcInput(e) {
   }
 }
 
+// 上行 Enter/=：把算式应用为结果。锁定态下直接替换 srcRaw 数值；
+// 非锁定态替换后走正常解析（如果不含币种尾巴，锁定态不会被解除）。
+function onSrcKeydown(e) {
+  if (e.key !== 'Enter' && e.key !== '=') return
+  e.preventDefault()
+  const raw = (e.target.value ?? '').trim()
+  const result = applyCalcResult(raw)
+  if (result == null) return
+  srcRaw.value = result
+  // 应用后走正常 onSrcInput 链路（但 @input 不会自动触发，手动调一次）
+  srcLocked.value && /^[\d.]+$/.test(result)
+    ? updateCnyWithAmount(result)
+    : onSrcInput({ target: { value: result } })
+}
+
 // 锁定态下纯数字输入时，用已锁定币种算 CNY
 function updateCnyWithAmount(amountStr) {
   const r = findCurrencies(srcCode.value)
@@ -1558,10 +1706,14 @@ function updateCnyWithAmount(amountStr) {
 }
 
 // 下行输入：反向算源币种（只替换数值，币种代码跟随已锁定的 srcCode）
+// 同样支持算式预览 + Enter/= 应用
 function onCnyInput(e) {
   cnyVal.value = e.target.value
   const raw = (cnyVal.value ?? '').trim()
+  refreshPreview(raw, cnyPreview)
   if (!raw) return
+  // 含运算符：预览已更新，跳过数字校验直接返回
+  if (hasOperator(raw)) return
   if (!/^\d+(?:\.\d+)?$/.test(raw)) return
   // 锁定态用 srcCode；非锁定态用当前 srcRaw 里解析的 code
   const effectiveCode = srcLocked.value ? srcCode.value : (parseSrcInput(srcRaw.value)?.code ?? srcCode.value)
@@ -1577,6 +1729,17 @@ function onCnyInput(e) {
   } catch {
     // 反算失败不回填
   }
+}
+
+// 下行 Enter/=：把算式应用为 CNY 金额，走正常反向算源币种
+function onCnyKeydown(e) {
+  if (e.key !== 'Enter' && e.key !== '=') return
+  e.preventDefault()
+  const raw = (e.target.value ?? '').trim()
+  const result = applyCalcResult(raw)
+  if (result == null) return
+  cnyVal.value = result
+  onCnyInput({ target: { value: result } })
 }
 
 // ==================== 同步换算 ====================
@@ -1612,9 +1775,19 @@ function onRowFocus(cur, e) {
 // 行输入：更新 editingBuffer + 写 store + 同步其他被动
 function onRowInput(cur, e) {
   const raw = (e.target.value ?? '').trim()
-  // 任何输入（包括空、纯数字、非法格式）都先缓存——让输入框完全由用户掌控
-  editingBuffer.value[cur.currencies.code] = raw
+  const code = cur.currencies.code
+  // 任何输入都先缓存——让输入框完全由用户掌控
+  editingBuffer.value[code] = raw
   becomeInitiative(cur)
+
+  // 计算预览（同步行用 rowPreviews reactive map）
+  if (hasOperator(raw)) {
+    const r = calcExpr(raw)
+    rowPreviews[code] = r.ok ? { text: `= ${r.value.toFixed(2)}`, valid: true } : { text: '= ?', valid: false }
+  } else {
+    delete rowPreviews[code]
+  }
+
   if (!raw) {
     cur.currencies.value = 0
     store.syncPassiveValues()
@@ -1624,6 +1797,19 @@ function onRowInput(cur, e) {
     cur.currencies.value = Number(raw)
     store.syncPassiveValues()
   }
+}
+
+// 同步行 Enter/=：把算式应用为结果（更新 editingBuffer + store 联动）
+function onRowKeydown(cur, e) {
+  if (e.key !== 'Enter' && e.key !== '=') return
+  e.preventDefault()
+  const raw = (e.target.value ?? '').trim()
+  const result = applyCalcResult(raw)
+  if (result == null) return
+  const num = Number(result)
+  cur.currencies.value = num
+  editingBuffer.value[cur.currencies.code] = result // 让 getRowDisplay 显示结果
+  store.syncPassiveValues()
 }
 
 // 行失焦：清 editingBuffer，恢复 toFixed(2) 显示
@@ -1791,6 +1977,26 @@ onMounted(async () => {
   color: #39ff14;
   letter-spacing: 0.04em;
   user-select: none;
+}
+
+/* 算式计算预览：放在 input 和 crow-code 之间
+   flex-shrink:0 → 容器宽度随内容自适应，出现时自然把算式往左顶开，不被挤压
+   颜色选 rgba(180, 220, 255, 0.65) —— 偏青偏蓝，比纯白浅但在深灰背景上清晰可见
+   text-decoration 用 dotted 虚线下划线，营造"提示/预览"语义 */
+.crow-preview {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: rgba(180, 220, 255, 0.65);
+  user-select: none;
+  white-space: nowrap;
+  text-decoration: underline dotted rgba(180, 220, 255, 0.4);
+  text-underline-offset: 2px;
+  margin-left: 2px;
+  margin-right: 2px;
+}
+.crow-preview.is-error {
+  color: rgba(255, 120, 120, 0.8);
+  text-decoration-color: rgba(255, 120, 120, 0.5);
 }
 
 /* 选中的输入框：荧光「亮度高低」呼吸闪烁（青色 + 0.8s ease-in-out，
