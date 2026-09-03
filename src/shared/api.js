@@ -102,7 +102,12 @@ const mockApi = {
     open:                () => { mockNotReady('floating.open');       return mockDelay(false) },
     expand:              () => { mockNotReady('floating.expand');     return mockDelay(false) },
     collapse:            () => { mockNotReady('floating.collapse');   return mockDelay(false) },
+    dragStart:           () => { mockNotReady('floating.dragStart');  return mockDelay(false) },
+    dragStop:            () => { mockNotReady('floating.dragStop');   return mockDelay(false) },
+    setOpacity:          () => { mockNotReady('floating.setOpacity'); return mockDelay(false) },
+    setZoom:             () => { mockNotReady('floating.setZoom');    return mockDelay(false) },
     close:               () => { mockNotReady('floating.close');      return mockDelay(false) },
+    togglePin:           () => { mockNotReady('floating.togglePin');   return mockDelay(false) },
     onStateChange:       () => { mockNotReady('floating.onStateChange') }
   },
 

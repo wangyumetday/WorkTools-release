@@ -69,6 +69,8 @@ onMounted(async () => {
   if (store.syncDate !== today) {
     await store.updata_exchangeRates()
   }
+  // 首次加载种入默认 CNY/USD（仅 activeCurrency 为空时生效）
+  store.seedDefaultCurrencies()
   store.loading = false
 })
 </script>

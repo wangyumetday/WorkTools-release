@@ -18,6 +18,7 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import fs from 'node:fs'
 import { open as openInspector } from 'node:inspector'
 import { autoUpdater } from 'electron-updater'
 
@@ -34,6 +35,8 @@ import { registerErcController } from './features/erc/controller.js'
 import { registerAssController } from './features/ass/controller.js'
 // Floating：悬浮窗管理 + IPC 注册（shared 基础设施，跨 feature 复用）
 import { registerFloatingController } from './shared/floatingWindow.js'
+// Tray：系统托盘（后台挂起），主窗口 hide 后从托盘恢复 / 真正退出
+import { createAppTray, refreshAppTrayMenu } from './shared/appTray.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -57,6 +60,9 @@ if (!app.isPackaged) {
 
 // 主窗口引用（用于 IPC 推送事件给渲染层、dialog 父窗口）
 let mainWindow = null
+// 是否"真正退出"标志：true 时主窗口 close 直接放行（→ 关闭所有窗口 → app.quit）。
+// false 时 close 被拦截，弹"后台挂起 / 关闭软件"询问；挂起只 hide 不销毁。
+let isQuitting = false
 // PCP 各 manager 单例（initFeatures 实例化，registerIpcHandlers 注入 controller）
 let taskManager, fileManager, credentialManager, configManager, pipeline
 
@@ -95,10 +101,16 @@ function createWindow() {
     e.preventDefault()
   })
 
-  // 主窗口关闭 = 退出整个应用：携程查询副窗口和运行中的任务必须一并终止，
-  // 否则任务会在后台继续跑、副窗口被 hide 后还会被任务重新 show（幽灵窗口）
+  // 主窗口关闭不再"一闭就退"：拦截 close 事件，询问"后台挂起 / 关闭软件"。
+  //   - 后台挂起：preventDefault + hide()，主窗口隐藏但不销毁，应用驻留托盘，
+  //     悬浮窗（独立 BrowserWindow）照常运行；window-all-closed 因主窗口仍
+  //     存在（隐藏也算）不会触发，应用保活。
+  //   - 关闭软件：isQuitting=true 后放行 close → 所有窗口关闭 → app.quit()。
+  // 说明：挂起是"显式保活"，与此前"关闭即终止任务/副窗口"的防幽灵窗口逻辑
+  //   不冲突——那是真正退出路径；挂起时用户可从托盘随时"显示主窗口"。
+  mainWindow.on('close', handleMainClose)
   mainWindow.on('closed', () => {
-    app.quit()
+    mainWindow = null
   })
 
   // 渲染层首帧合成完成后再显示窗口：用户从看到窗口的第一眼起就有内容（启动遮罩），无白屏
@@ -149,6 +161,85 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
+}
+
+// ============================================================
+// 后台挂起 / 真正退出（托盘 + 关闭询问 + 关闭偏好持久化）
+// ============================================================
+// 关闭偏好：'ask' 每次询问（默认） / 'tray' 后台挂起 / 'quit' 直接关闭。
+// 持久化到 userData/window-close-preference.json；用户在对话框勾选"记住本次
+// 选择"或托盘菜单"关闭主窗口时"子菜单切换，均落盘到这同一文件（单一数据源）。
+let closePref = null // lazy：null=尚未加载（app.getPath 需 ready 后才稳）
+function closePrefFile() {
+  return path.join(app.getPath('userData'), 'window-close-preference.json')
+}
+function getClosePref() {
+  if (closePref === null) {
+    closePref = 'ask'
+    try {
+      const obj = JSON.parse(fs.readFileSync(closePrefFile(), 'utf8'))
+      if (['ask', 'tray', 'quit'].includes(obj.action)) closePref = obj.action
+    } catch { /* 无文件或非法 → 默认 ask */ }
+  }
+  return closePref
+}
+function setClosePref(action) {
+  if (!['ask', 'tray', 'quit'].includes(action)) return
+  closePref = action
+  try {
+    fs.writeFileSync(closePrefFile(), JSON.stringify({ action }))
+  } catch { /* 落盘失败不影响当次行为 */ }
+  // 同步托盘菜单 radio 勾选态
+  refreshAppTrayMenu()
+}
+
+// 恢复并聚焦主窗口（托盘左键点击与右键菜单"显示主窗口"复用）
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.show()
+  mainWindow.restore()
+  mainWindow.focus()
+}
+
+// 真正退出：置标志后 app.quit()。quit 会关闭所有窗口（含悬浮窗/查询副窗口），
+// 主窗口 close 事件再次触发时因 isQuitting=true 直接放行。
+function quitApp() {
+  isQuitting = true
+  app.quit()
+}
+
+// 主窗口 close 拦截：
+//   - 已记住偏好 tray/quit → 直接执行，不再弹框
+//   - 默认 ask → 弹原生询问（含"记住本次选择"复选框），勾选则落盘偏好
+async function handleMainClose(e) {
+  if (isQuitting) return
+  e.preventDefault()
+  if (!mainWindow || mainWindow.isDestroyed()) return
+
+  const pref = getClosePref()
+  if (pref === 'tray') { mainWindow.hide(); return }
+  if (pref === 'quit') { quitApp(); return }
+
+  const { response, checkboxChecked } = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    title: '关闭 Work Tools',
+    message: '关闭主窗口后，悬浮窗汇率换算仍可继续使用。',
+    detail: '后台挂起：主窗口隐藏到系统托盘，悬浮窗照常运行，可点托盘图标恢复。\n关闭软件：完全退出应用。',
+    buttons: ['后台挂起', '关闭软件', '取消'],
+    defaultId: 0,
+    cancelId: 2,
+    noLink: true,
+    checkboxLabel: '记住本次选择（之后可在托盘菜单"关闭主窗口时"里修改）',
+    checkboxChecked: false
+  })
+  if (response === 0) {
+    if (checkboxChecked) setClosePref('tray')
+    mainWindow.hide()
+  } else if (response === 1) {
+    if (checkboxChecked) setClosePref('quit')
+    quitApp()
+  }
+  // response === 2（取消 / Esc）：什么都不做，主窗口保持打开
 }
 
 // ============================================================
@@ -323,6 +414,13 @@ app.whenReady().then(() => {
   createWindow()
   initFeatures()
   registerIpcHandlers()
+  // 系统托盘常驻：主窗口"后台挂起"后从托盘恢复 / 真正退出 / 修改关闭偏好
+  createAppTray({
+    onShow: showMainWindow,
+    onQuit: quitApp,
+    getClosePref,
+    onSetClosePref: setClosePref
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

@@ -2,17 +2,17 @@
      CurrencyConverter.vue - 汇率转换页
      职责：
        - 展示参与换算的币种（activeCurrency）的 SingleCurrency 卡片网格
-       - "加币种"按钮打开 drawer 选择币种加入
-     说明：上方"换算成人民币"区块为预留占位
+       - "加币种"按钮打开 drawer 选择币种加入换算
+     说明：上方"换算成人民币"区块由 ToCNY 组件实现
      ============================================================ -->
 
 <template>
   <div class="content">
-    <!-- 预留：任意币种换算成人民币 -->
+    <!-- 任意币种换算成人民币 -->
     <n-layout class="toCNY">
       <n-layout-header>换算成人民币</n-layout-header>
       <n-layout-content content-style="padding: 24px;">
-        任意币种换算成人民币
+        <ToCNY />
       </n-layout-content>
     </n-layout>
 
@@ -41,7 +41,6 @@
       :max-width="500"
       :min-width="200"
       :placement="placement"
-      :native-scrollbar="false"
       resizable
     >
       <n-drawer-content title="选择币种" :native-scrollbar="false" body-class="ndc-body">
@@ -54,6 +53,7 @@
 <script setup>
 import { NLayout, NLayoutHeader, NLayoutContent, NDrawer, NButton, NDrawerContent } from 'naive-ui'
 import SingleCurrency from '../components/SingleCurrency.vue'
+import ToCNY from '../components/ToCNY.vue'
 import addCurrency from '../components/addCurrency.vue'
 import { useDataStore } from '../stores/data.js'
 import { ref } from 'vue'

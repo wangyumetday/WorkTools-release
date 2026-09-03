@@ -120,12 +120,21 @@ const api = {
   floating: {
     // 主窗口触发：打开悬浮窗（如已存在则显示并置顶）
     open:                ()                  => ipcRenderer.invoke('floating:open'),
-    // 悬浮窗内触发：鼠标进入 → 展开
+    // 展开到 EXPANDED 尺寸（渲染层 mouseenter 触发）
     expand:              ()                  => ipcRenderer.invoke('floating:expand'),
-    // 悬浮窗内触发：鼠标离开 + 延迟 → 缩成图标
+    // 收缩到 COLLAPSED 尺寸（渲染层 mouseleave 300ms 后触发）
     collapse:            ()                  => ipcRenderer.invoke('floating:collapse'),
+    // 起拖/松拖：渲染层 mousedown/mouseup 触发，主进程轮询 cursor 移动窗口
+    dragStart:           ()                  => ipcRenderer.invoke('floating:dragStart'),
+    dragStop:            ()                  => ipcRenderer.invoke('floating:dragStop'),
+    // 设置整窗透明度（0.1~1.0，越界主进程自动 clamp）
+    setOpacity:          (value)             => ipcRenderer.invoke('floating:setOpacity', value),
+    // 设置整窗缩放因子（0.5~1.5，越界主进程自动 clamp）
+    setZoom:             (value)             => ipcRenderer.invoke('floating:setZoom', value),
     // 关闭悬浮窗
     close:               ()                  => ipcRenderer.invoke('floating:close'),
+    // 切换固定钉（pinned 时永不收缩），返回新状态（true=已固定）
+    togglePin:           ()                  => ipcRenderer.invoke('floating:togglePin'),
     // 监听悬浮窗状态变化（如被手动关闭、最小化），主窗口 UI 据此更新按钮态
     onStateChange:       (callback)          => ipcRenderer.on('floating:stateChange', (_event, data) => callback(data))
   },

@@ -23,9 +23,10 @@ import FloatingShell from '@/shell/FloatingShell.vue'
 import { routes as pcpRoutes } from '@/features/pcp/routes'
 import { routes as ercRoutes } from '@/features/erc/routes'
 import { routes as assRoutes } from '@/features/ass/routes'
-// 悬浮窗单独 import ERC Home：不复用 ercRoutes 引用，避免 vue-router
-// 内部基于 path 做匹配记录时与主壳 /erc 路由互相覆盖
-import ErcHome from '@/features/erc/views/Home.vue'
+// 悬浮窗单独 import FloatingHome：不复用 ercRoutes 引用，避免 vue-router
+// 内部基于 path 做匹配记录时与主壳 /erc 路由互相覆盖；同时让悬浮窗用
+// 专用紧凑布局（FloatingHome），与主壳 Home 的大尺寸 UI 解耦
+import FloatingHome from '@/features/erc/views/FloatingHome.vue'
 
 const routes = [
   {
@@ -50,7 +51,7 @@ const routes = [
       // 空子路径 redirect 到 /floating/erc（悬浮窗承载 ERC 界面）
       { path: '', redirect: '/floating/erc' },
       // 单独定义路由对象，name 加 'floating-' 前缀避免与主壳 'erc' 冲突
-      { path: 'erc', name: 'floating-erc', component: ErcHome }
+      { path: 'erc', name: 'floating-erc', component: FloatingHome }
     ]
   }
 ]

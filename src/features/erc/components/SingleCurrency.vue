@@ -8,7 +8,7 @@
      ============================================================ -->
 
 <template>
-  <div class="sc" @click="setInitiativeCurrency(true)">
+  <div class="sc" ref="scRoot" @click="setInitiativeCurrency">
     <div class="sc-num">
       <n-input
         class="sc-nin"
@@ -70,24 +70,39 @@ const props = defineProps({
   currency: { type: Object, required: true }
 })
 
+// 卡片根元素引用，用于判断当前焦点是否落在本卡片内（避免误跳过其他卡片刷新）
+const scRoot = ref(null)
+
 // 用户实际输入的原始字符串（仅含表达式或数字，不含 = 结果）
-const rawExpression = ref(String(props.currency.currencies.value ?? 0))
+// 被动币种初始展示 2 位小数；主动币种展示原值
+const initVal = props.currency.currencies.value ?? 0
+const rawExpression = ref(
+  props.currency.currencies.initiative ? String(initVal) : Number(initVal).toFixed(2)
+)
 
 // 实时计算的结果；null 表示当前无需显示 = 结果（纯数字或非法表达式）
 const displayResult = ref(null)
+// 标记本卡片输入框是否被用户编辑过（用于失焦恢复判断）
+const dirty = ref(false)
 
 // 是否显示 =结果：仅当 displayResult 非空且为有效数字
 const showEquals = computed(
   () => displayResult.value !== null && !Number.isNaN(displayResult.value)
 )
 
-// 当外部值变化（如被动币种被 syncValue 刷新），同步到输入框显示
+// 当外部值变化（如被动币种被 syncPassiveValues 刷新），同步到输入框显示
 // 跳过用户正在编辑的输入框，避免覆盖未提交的输入
+// 被动币种展示固定 2 位小数；主动币种展示原值（无强制小数位）
 watch(
   () => props.currency.currencies.value,
   (newVal) => {
-    if (document.activeElement?.closest('.sc-nin')) return
-    rawExpression.value = String(newVal ?? 0)
+    // 仅跳过用户正在编辑的本卡片，其他卡片被动刷新不受影响
+    if (scRoot.value?.contains(document.activeElement)) return
+    if (props.currency.currencies.initiative) {
+      rawExpression.value = String(newVal ?? 0)
+    } else {
+      rawExpression.value = Number(newVal ?? 0).toFixed(2)
+    }
     displayResult.value = null
   }
 )
@@ -121,22 +136,26 @@ function evaluateLeftToRight(expr) {
 }
 
 // 每次输入实时计算并同步值：纯数字不显示 =；表达式有效则显示 =结果
+// 改动即把当前币种设为主动币种，其余被动币种由 store.syncPassiveValues 联动重算
 function handleInput(value) {
   rawExpression.value = value ?? ''
+  dirty.value = true
   const raw = (value ?? '').trim()
 
   if (!raw) {
     displayResult.value = null
+    becomeInitiative()
     props.currency.currencies.value = 0
-    syncValue()
+    store.syncPassiveValues()
     return
   }
 
   // 纯数字：不显示 = 结果，直接同步值
   if (/^-?\d+\.?\d*$/.test(raw)) {
     displayResult.value = null
+    becomeInitiative()
     props.currency.currencies.value = Number(raw)
-    syncValue()
+    store.syncPassiveValues()
     return
   }
 
@@ -148,19 +167,27 @@ function handleInput(value) {
     return
   }
   displayResult.value = result
+  becomeInitiative()
   props.currency.currencies.value = result
-  syncValue()
+  store.syncPassiveValues()
 }
 
 // 失焦时整理：若当前显示的是表达式，把输入框折叠为结果数字，便于下次编辑
+// 仅在用户编辑过时恢复，避免点击提升后失焦把 2 位小数展示覆写为全精度浮点
 function commitCalculation() {
   if (displayResult.value !== null) {
     rawExpression.value = String(displayResult.value)
     displayResult.value = null
-  } else {
-    // 当前为非法或空，恢复为当前币种值
-    rawExpression.value = String(props.currency.currencies.value ?? 0)
+    dirty.value = false
+    return
   }
+  if (!dirty.value) return
+  // 当前为非法或空，恢复为当前币种值
+  const v = props.currency.currencies.value ?? 0
+  rawExpression.value = props.currency.currencies.initiative
+    ? String(v)
+    : Number(v).toFixed(2)
+  dirty.value = false
 }
 
 // 删除该币种（从参与换算中移除）
@@ -168,23 +195,21 @@ function removeCurrency(currency) {
   store.removeCurrency(currency)
 }
 
-// 设为主动币种：先把所有币种的 initiative 清零，再把当前币种设为主动
-function setInitiativeCurrency(status) {
-  if (!props.currency.currencies.initiative) {
-    store.activeCurrency.map(item => {
-      item.currencies.initiative = false
-    })
-    props.currency.currencies.initiative = true
-  }
+// 设为主动币种：清零其余 initiative，置当前为主动，并联动重算被动币种
+function becomeInitiative() {
+  if (props.currency.currencies.initiative) return
+  store.activeCurrency.forEach(item => {
+    item.currencies.initiative = false
+  })
+  props.currency.currencies.initiative = true
 }
 
-// 同步转换值：根据当前主动币种的 BASE_VALUE 刷新所有被动币种
-function syncValue() {
-  store.activeCurrency.map(item => {
-    if (!item.currencies.initiative) {
-      item.currencies.value = item.currencies.rate * store.BASE_VALUE
-    }
-  })
+// 点击卡片：设为主动并联动重算（点击被动币种时以其当前值为新锚点）
+function setInitiativeCurrency() {
+  if (!props.currency.currencies.initiative) {
+    becomeInitiative()
+    store.syncPassiveValues()
+  }
 }
 </script>
 

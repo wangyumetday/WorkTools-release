@@ -1,0 +1,102 @@
+{
+  "data": [
+    {
+      "id": "page-v1-21th-dark",
+      "title": "方案一：21th 暗色仪表板",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1788326168000,
+      "canvasData": {
+        "x": 0,
+        "y": 0,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 900,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-f114955d",
+          "measuredAt": 1788326739266
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/v1-21th-dark.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-v2-21th-light",
+      "title": "方案二：21th 亮色仪表板",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1788326168000,
+      "canvasData": {
+        "x": 480,
+        "y": 0,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 900,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-aced6d22",
+          "measuredAt": 1788326739266
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/v2-21th-light.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-v3-compact",
+      "title": "方案三：紧凑单列布局",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1788326168000,
+      "canvasData": {
+        "x": 960,
+        "y": 0,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 900,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-3f71c4a1",
+          "measuredAt": 1788326739266
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/v3-compact.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-v4-floating",
+      "title": "方案四：半透明悬浮窗",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1788326168000,
+      "canvasData": {
+        "x": 1440,
+        "y": 0,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 900,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-3756c632",
+          "measuredAt": 1788326739266
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/v4-floating.html",
+        "interactions": []
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "desktop",
+    "projectName": "ERC 汇率换算设计稿探索",
+    "designLibrary": null
+  }
+}

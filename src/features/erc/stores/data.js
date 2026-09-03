@@ -13,6 +13,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import Decimal from 'decimal.js'
 import api from '@/shared/api.js'
 
 export const useDataStore = defineStore('erc-data', () => {
@@ -86,18 +87,70 @@ export const useDataStore = defineStore('erc-data', () => {
   function updataActiveCurrency(cur) {
     const index = activeCurrency.value.indexOf(cur)
     if (index === -1) {
+      // 加入空列表时，首币种升为主动，保证有锚点
+      if (activeCurrency.value.length === 0) {
+        cur.currencies.initiative = true
+      }
       activeCurrency.value.push(cur)
+      syncPassiveValues()
     } else {
-      activeCurrency.value.splice(index, 1)
+      removeCurrency(cur)
     }
   }
 
   // 从参与换算中移除币种
   function removeCurrency(currency) {
     const index = activeCurrency.value.indexOf(currency)
-    if (index !== -1) {
-      activeCurrency.value.splice(index, 1)
+    if (index === -1) return
+    const wasInitiative = currency.currencies.initiative
+    activeCurrency.value.splice(index, 1)
+    // 移除的若是主动币种，把首个剩余升为主动并重算
+    if (wasInitiative && activeCurrency.value.length > 0) {
+      activeCurrency.value[0].currencies.initiative = true
+      syncPassiveValues()
     }
+  }
+
+  // ==================== 同步换算 ====================
+  // 以当前主动币种为锚点，重算所有被动币种值（交叉汇率经 USD）
+  // 内部存全精度 Number，展示层由组件自行四舍五入到 4 位小数
+  function syncPassiveValues() {
+    const ic = initiativeCurrency.value
+    if (!ic) return
+    const rate = ic.currencies.rate
+    if (!rate) return
+    // base = 主动币种值 / 其 rate = USD 等价额
+    const base = ic.currencies.value / rate
+    activeCurrency.value.forEach(item => {
+      if (item.currencies.initiative) return
+      const r = item.currencies.rate
+      if (!r) return
+      try {
+        // 被动币种值 = r × base = 值 × (R被动 / R主)
+        item.currencies.value = new Decimal(r).times(base).toNumber()
+      } catch (e) {
+        // 静默跳过
+      }
+    })
+  }
+
+  // 首次加载种入默认币种：CNY(主动,值=100) + USD，并联动算一次
+  // 仅在 activeCurrency 为空时执行；缺数据则不种（无兜底）
+  function seedDefaultCurrencies() {
+    if (activeCurrency.value.length > 0) return
+    const cny = currencies_list.value.find(
+      i => i.currencies.code.toUpperCase() === 'CNY'
+    )
+    const usd = currencies_list.value.find(
+      i => i.currencies.code.toUpperCase() === 'USD'
+    )
+    if (!cny || !usd) return
+    cny.currencies.initiative = true
+    cny.currencies.value = 100
+    usd.currencies.initiative = false
+    usd.currencies.value = 0
+    activeCurrency.value.push(cny, usd)
+    syncPassiveValues()
   }
 
   return {
@@ -107,7 +160,8 @@ export const useDataStore = defineStore('erc-data', () => {
     // getters
     initiativeCurrency, BASE_VALUE,
     // actions
-    load_all_countries_list, updata_exchangeRates, updataActiveCurrency, removeCurrency
+    load_all_countries_list, updata_exchangeRates, updataActiveCurrency, removeCurrency,
+    syncPassiveValues, seedDefaultCurrencies
   }
 }, {
   // 持久化：汇率和币种列表写入 localStorage，避免每次启动都重新拉接口

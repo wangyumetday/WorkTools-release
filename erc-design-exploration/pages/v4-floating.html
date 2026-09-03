@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="zh" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERC 汇率换算悬浮窗</title>
+    <style id="theme-vars">
+/* 21th Design Library Tokens */
+/* Source preserved from uploaded CSS with grouped English comments only. */
+
+/* Tailwind import */
+@import "tailwindcss";
+
+/* Dark variant */
+@custom-variant dark (&:is(.dark *));
+
+/* Light theme tokens */
+:root {
+  /* Surface colors */
+  --background: oklch(0.8328 0.0044 197.0717);
+  --foreground: oklch(0.1776 0 0);
+  --card: oklch(0.8868 0.0022 197.1175);
+  --card-foreground: oklch(0.1776 0 0);
+  --popover: oklch(0.8868 0.0022 197.1175);
+  --popover-foreground: oklch(0.1776 0 0);
+  --primary: oklch(0.1776 0 0);
+  --primary-foreground: oklch(1.0000 0 0);
+  --secondary: oklch(0.1776 0 0);
+  --secondary-foreground: oklch(1.0000 0 0);
+  --muted: oklch(0.8868 0.0022 197.1175);
+  --muted-foreground: oklch(0.6268 0 0);
+  --accent: oklch(0.5011 0.2803 263.8212);
+  --accent-foreground: oklch(1.0000 0 0);
+  --destructive: oklch(0.5787 0.2005 26.1521);
+  --destructive-foreground: oklch(1.0000 0 0);
+  --border: oklch(1.0000 0 0);
+  --input: oklch(1.0000 0 0);
+  --ring: oklch(0 0 0);
+
+  /* Data visualization colors */
+  --chart-1: oklch(0.5012 0.2803 263.8733);
+  --chart-2: oklch(0.5816 0.2280 265.4658);
+  --chart-3: oklch(0.6785 0.1688 267.8633);
+  --chart-4: oklch(0.7653 0.1192 269.2317);
+  --chart-5: oklch(0.8531 0.0721 270.9681);
+
+  /* Sidebar colors */
+  --sidebar: oklch(0.8868 0.0022 197.1175);
+  --sidebar-foreground: oklch(0 0 0);
+  --sidebar-primary: oklch(0 0 0);
+  --sidebar-primary-foreground: oklch(1.0000 0 0);
+  --sidebar-accent: oklch(0.8328 0.0044 197.0717);
+  --sidebar-accent-foreground: oklch(0 0 0);
+  --sidebar-border: oklch(1.0000 0 0);
+  --sidebar-ring: oklch(0 0 0);
+
+  /* Typography tokens */
+  --font-sans: Geist Mono, ui-monospace, monospace;
+  --font-serif: Geist, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: Geist Mono, ui-monospace, monospace;
+
+  /* Radius and shadow primitives */
+  --radius: 0rem;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --shadow-x: 2px;
+  --shadow-y: 2px;
+  --shadow-blur: 0px;
+  --shadow-spread: 0px;
+  --shadow-opacity: 1;
+  --shadow-color: oklch(0 0 0);
+  --shadow-2xs: 2px 2px 0px 0px hsl(0 0% 0% / 0.50);
+  --shadow-xs: 2px 2px 0px 0px hsl(0 0% 0% / 0.50);
+  --shadow-sm: 2px 2px 0px 0px hsl(0 0% 0% / 1.00), 2px 1px 2px -1px hsl(0 0% 0% / 1.00);
+  --shadow: 2px 2px 0px 0px hsl(0 0% 0% / 1.00), 2px 1px 2px -1px hsl(0 0% 0% / 1.00);
+  --shadow-md: 2px 2px 0px 0px hsl(0 0% 0% / 1.00), 2px 2px 4px -1px hsl(0 0% 0% / 1.00);
+  --shadow-lg: 2px 2px 0px 0px hsl(0 0% 0% / 1.00), 2px 4px 6px -1px hsl(0 0% 0% / 1.00);
+  --shadow-xl: 2px 2px 0px 0px hsl(0 0% 0% / 1.00), 2px 8px 10px -1px hsl(0 0% 0% / 1.00);
+  --shadow-2xl: 2px 2px 0px 0px hsl(0 0% 0% / 2.50);
+
+  /* Layout and tracking */
+  --tracking-normal: -0.05em;
+  --spacing: 0.25rem;
+}
+
+/* Dark theme tokens */
+.dark {
+  /* Surface colors */
+  --background: oklch(0.1448 0 0);
+  --foreground: oklch(1.0000 0 0);
+  --card: oklch(0.2178 0 0);
+  --card-foreground: oklch(1.0000 0 0);
+  --popover: oklch(0.2178 0 0);
+  --popover-foreground: oklch(1.0000 0 0);
+  --primary: oklch(1.0000 0 0);
+  --primary-foreground: oklch(0 0 0);
+  --secondary: oklch(0.3211 0 0);
+  --secondary-foreground: oklch(1.0000 0 0);
+  --muted: oklch(0.3211 0 0);
+  --muted-foreground: oklch(0.7380 0 0);
+  --accent: oklch(0.2520 0 0);
+  --accent-foreground: oklch(1.0000 0 0);
+  --destructive: oklch(0.6368 0.2078 25.3313);
+  --destructive-foreground: oklch(1.0000 0 0);
+  --border: oklch(0.3211 0 0);
+  --input: oklch(0.2178 0 0);
+  --ring: oklch(0.3211 0 0);
+
+  /* Data visualization colors */
+  --chart-1: oklch(0.7137 0.1434 254.6240);
+  --chart-2: oklch(0.7253 0.1752 349.7607);
+  --chart-3: oklch(0.7729 0.1535 163.2231);
+  --chart-4: oklch(0.8369 0.1644 84.4286);
+  --chart-5: oklch(0.6801 0.1583 276.9349);
+
+  /* Sidebar colors */
+  --sidebar: oklch(0.1448 0 0);
+  --sidebar-foreground: oklch(1.0000 0 0);
+  --sidebar-primary: oklch(1.0000 0 0);
+  --sidebar-primary-foreground: oklch(0 0 0);
+  --sidebar-accent: oklch(0.2520 0 0);
+  --sidebar-accent-foreground: oklch(1.0000 0 0);
+  --sidebar-border: oklch(0.3211 0 0);
+  --sidebar-ring: oklch(0.3211 0 0);
+
+  /* Typography tokens */
+  --font-sans: Geist Mono, ui-monospace, monospace;
+  --font-serif: Geist, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: Geist Mono, ui-monospace, monospace;
+
+  /* Radius and shadow primitives */
+  --radius: 0rem;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --shadow-x: 2px;
+  --shadow-y: 2px;
+  --shadow-blur: 0px;
+  --shadow-spread: 0px;
+  --shadow-opacity: 1;
+  --shadow-color: #000000;
+  --shadow-2xs: 2px 2px 0px 0px hsl(0 0% 0% / 0.50);
+  --shadow-xs: 2px 2px 0px 0px hsl(0 0% 0% / 0.50);
+  --shadow-sm: 2px 2px 0px 0px hsl(0 0% 0% / 1.00), 2px 1px 2px -1px hsl(0 0% 0% / 1.00);
+  --shadow: 2px 2px 0px 0px hsl(0 0% 0% / 1.00), 2px 1px 2px -1px hsl(0 0% 0% / 1.00);
+  --shadow-md: 2px 2px 0px 0px hsl(0 0% 0% / 1.00), 2px 2px 4px -1px hsl(0 0% 0% / 1.00);
+  --shadow-lg: 2px 2px 0px 0px hsl(0 0% 0% / 1.00), 2px 4px 6px -1px hsl(0 0% 0% / 1.00);
+  --shadow-xl: 2px 2px 0px 0px hsl(0 0% 0% / 1.00), 2px 8px 10px -1px hsl(0 0% 0% / 1.00);
+  --shadow-2xl: 2px 2px 0px 0px hsl(0 0% 0% / 2.50);
+}
+
+/* Theme inline token mappings */
+@theme inline {
+  /* Color aliases */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Font aliases */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif);
+
+  /* Radius aliases */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+
+  /* Shadow aliases */
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
+
+  /* Tracking aliases */
+  --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
+  --tracking-tight: calc(var(--tracking-normal) - 0.025em);
+  --tracking-normal: var(--tracking-normal);
+  --tracking-wide: calc(var(--tracking-normal) + 0.025em);
+  --tracking-wider: calc(var(--tracking-normal) + 0.05em);
+  --tracking-widest: calc(var(--tracking-normal) + 0.1em);
+}
+
+/* Base layer */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    letter-spacing: var(--tracking-normal);
+  }
+}
+
+/* Semantic alias layer for component previews */
+:root {
+  /* Surface aliases */
+  --semantic-surface-page: var(--background);
+  --semantic-surface-panel: var(--card);
+  --semantic-surface-overlay: var(--popover);
+  --semantic-surface-muted: var(--muted);
+  --semantic-surface-sidebar: var(--sidebar);
+
+  /* Text aliases */
+  --semantic-text-primary: var(--foreground);
+  --semantic-text-secondary: var(--muted-foreground);
+  --semantic-text-panel: var(--card-foreground);
+  --semantic-text-overlay: var(--popover-foreground);
+  --semantic-text-sidebar: var(--sidebar-foreground);
+  --semantic-text-inverse: var(--primary-foreground);
+
+  /* Brand aliases */
+  --semantic-brand-primary: var(--primary);
+  --semantic-brand-secondary: var(--secondary);
+  --semantic-brand-accent: var(--accent);
+  --semantic-brand-danger: var(--destructive);
+  --semantic-brand-focus: var(--ring);
+
+  /* Border aliases */
+  --semantic-border-default: var(--border);
+  --semantic-border-strong: var(--ring);
+  --semantic-border-panel: var(--sidebar-border);
+  --semantic-border-interactive: var(--input);
+
+  /* Input aliases */
+  --semantic-input-background: var(--input);
+  --semantic-input-foreground: var(--foreground);
+  --semantic-input-placeholder: var(--muted-foreground);
+
+  /* Chart aliases */
+  --semantic-chart-1: var(--chart-1);
+  --semantic-chart-2: var(--chart-2);
+  --semantic-chart-3: var(--chart-3);
+  --semantic-chart-4: var(--chart-4);
+  --semantic-chart-5: var(--chart-5);
+
+  /* Sidebar aliases */
+  --semantic-sidebar-background: var(--sidebar);
+  --semantic-sidebar-foreground: var(--sidebar-foreground);
+  --semantic-sidebar-primary: var(--sidebar-primary);
+  --semantic-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --semantic-sidebar-accent: var(--sidebar-accent);
+  --semantic-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --semantic-sidebar-border: var(--sidebar-border);
+  --semantic-sidebar-ring: var(--sidebar-ring);
+
+  /* Shadow aliases */
+  --semantic-shadow-rest: var(--shadow);
+  --semantic-shadow-sm: var(--shadow-sm);
+  --semantic-shadow-md: var(--shadow-md);
+  --semantic-shadow-lg: var(--shadow-lg);
+
+  /* Radius aliases */
+  --semantic-radius-sm: 0px;
+  --semantic-radius-md: 0px;
+  --semantic-radius-lg: 0px;
+  --semantic-radius-xl: 0px;
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+    --radius-sm: var(--radius-sm);
+    --radius-md: var(--radius-md);
+    --radius-lg: var(--radius-lg);
+    --radius-xl: var(--radius-xl);
+  }
+  @layer base {
+    body { background: var(--background); color: var(--foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style id="semantic-token-fallback">
+      .bg-background { background-color: var(--background); }
+      .text-background { color: var(--background); }
+      .border-background { border-color: var(--background); }
+      .ring-background { --tw-ring-color: var(--background); }
+      .bg-foreground { background-color: var(--foreground); }
+      .text-foreground { color: var(--foreground); }
+      .border-foreground { border-color: var(--foreground); }
+      .ring-foreground { --tw-ring-color: var(--foreground); }
+      .bg-card { background-color: var(--card); }
+      .text-card { color: var(--card); }
+      .border-card { border-color: var(--card); }
+      .ring-card { --tw-ring-color: var(--card); }
+      .bg-card-foreground { background-color: var(--card-foreground); }
+      .text-card-foreground { color: var(--card-foreground); }
+      .border-card-foreground { border-color: var(--card-foreground); }
+      .ring-card-foreground { --tw-ring-color: var(--card-foreground); }
+      .bg-popover { background-color: var(--popover); }
+      .text-popover { color: var(--popover); }
+      .border-popover { border-color: var(--popover); }
+      .ring-popover { --tw-ring-color: var(--popover); }
+      .bg-popover-foreground { background-color: var(--popover-foreground); }
+      .text-popover-foreground { color: var(--popover-foreground); }
+      .border-popover-foreground { border-color: var(--popover-foreground); }
+      .ring-popover-foreground { --tw-ring-color: var(--popover-foreground); }
+      .bg-primary { background-color: var(--primary); }
+      .text-primary { color: var(--primary); }
+      .border-primary { border-color: var(--primary); }
+      .ring-primary { --tw-ring-color: var(--primary); }
+      .bg-primary-foreground { background-color: var(--primary-foreground); }
+      .text-primary-foreground { color: var(--primary-foreground); }
+      .border-primary-foreground { border-color: var(--primary-foreground); }
+      .ring-primary-foreground { --tw-ring-color: var(--primary-foreground); }
+      .bg-secondary { background-color: var(--secondary); }
+      .text-secondary { color: var(--secondary); }
+      .border-secondary { border-color: var(--secondary); }
+      .ring-secondary { --tw-ring-color: var(--secondary); }
+      .bg-secondary-foreground { background-color: var(--secondary-foreground); }
+      .text-secondary-foreground { color: var(--secondary-foreground); }
+      .border-secondary-foreground { border-color: var(--secondary-foreground); }
+      .ring-secondary-foreground { --tw-ring-color: var(--secondary-foreground); }
+      .bg-muted { background-color: var(--muted); }
+      .text-muted { color: var(--muted); }
+      .border-muted { border-color: var(--muted); }
+      .ring-muted { --tw-ring-color: var(--muted); }
+      .bg-muted-foreground { background-color: var(--muted-foreground); }
+      .text-muted-foreground { color: var(--muted-foreground); }
+      .border-muted-foreground { border-color: var(--muted-foreground); }
+      .ring-muted-foreground { --tw-ring-color: var(--muted-foreground); }
+      .bg-accent { background-color: var(--accent); }
+      .text-accent { color: var(--accent); }
+      .border-accent { border-color: var(--accent); }
+      .ring-accent { --tw-ring-color: var(--accent); }
+      .bg-accent-foreground { background-color: var(--accent-foreground); }
+      .text-accent-foreground { color: var(--accent-foreground); }
+      .border-accent-foreground { border-color: var(--accent-foreground); }
+      .ring-accent-foreground { --tw-ring-color: var(--accent-foreground); }
+      .bg-destructive { background-color: var(--destructive); }
+      .text-destructive { color: var(--destructive); }
+      .border-destructive { border-color: var(--destructive); }
+      .ring-destructive { --tw-ring-color: var(--destructive); }
+      .bg-destructive-foreground { background-color: var(--destructive-foreground); }
+      .text-destructive-foreground { color: var(--destructive-foreground); }
+      .border-destructive-foreground { border-color: var(--destructive-foreground); }
+      .ring-destructive-foreground { --tw-ring-color: var(--destructive-foreground); }
+      .bg-border { background-color: var(--border); }
+      .text-border { color: var(--border); }
+      .border-border { border-color: var(--border); }
+      .ring-border { --tw-ring-color: var(--border); }
+      .bg-input { background-color: var(--input); }
+      .text-input { color: var(--input); }
+      .border-input { border-color: var(--input); }
+      .ring-input { --tw-ring-color: var(--input); }
+      .bg-ring { background-color: var(--ring); }
+      .text-ring { color: var(--ring); }
+      .border-ring { border-color: var(--ring); }
+      .ring-ring { --tw-ring-color: var(--ring); }
+      .bg-chart-1 { background-color: var(--chart-1); }
+      .text-chart-1 { color: var(--chart-1); }
+      .border-chart-1 { border-color: var(--chart-1); }
+      .ring-chart-1 { --tw-ring-color: var(--chart-1); }
+      .bg-chart-2 { background-color: var(--chart-2); }
+      .text-chart-2 { color: var(--chart-2); }
+      .border-chart-2 { border-color: var(--chart-2); }
+      .ring-chart-2 { --tw-ring-color: var(--chart-2); }
+      .bg-chart-3 { background-color: var(--chart-3); }
+      .text-chart-3 { color: var(--chart-3); }
+      .border-chart-3 { border-color: var(--chart-3); }
+      .ring-chart-3 { --tw-ring-color: var(--chart-3); }
+      .bg-chart-4 { background-color: var(--chart-4); }
+      .text-chart-4 { color: var(--chart-4); }
+      .border-chart-4 { border-color: var(--chart-4); }
+      .ring-chart-4 { --tw-ring-color: var(--chart-4); }
+      .bg-chart-5 { background-color: var(--chart-5); }
+      .text-chart-5 { color: var(--chart-5); }
+      .border-chart-5 { border-color: var(--chart-5); }
+      .ring-chart-5 { --tw-ring-color: var(--chart-5); }
+      .bg-sidebar { background-color: var(--sidebar); }
+      .text-sidebar { color: var(--sidebar); }
+      .border-sidebar { border-color: var(--sidebar); }
+      .ring-sidebar { --tw-ring-color: var(--sidebar); }
+      .bg-sidebar-foreground { background-color: var(--sidebar-foreground); }
+      .text-sidebar-foreground { color: var(--sidebar-foreground); }
+      .border-sidebar-foreground { border-color: var(--sidebar-foreground); }
+      .ring-sidebar-foreground { --tw-ring-color: var(--sidebar-foreground); }
+      .bg-sidebar-primary { background-color: var(--sidebar-primary); }
+      .text-sidebar-primary { color: var(--sidebar-primary); }
+      .border-sidebar-primary { border-color: var(--sidebar-primary); }
+      .ring-sidebar-primary { --tw-ring-color: var(--sidebar-primary); }
+      .bg-sidebar-primary-foreground { background-color: var(--sidebar-primary-foreground); }
+      .text-sidebar-primary-foreground { color: var(--sidebar-primary-foreground); }
+      .border-sidebar-primary-foreground { border-color: var(--sidebar-primary-foreground); }
+      .ring-sidebar-primary-foreground { --tw-ring-color: var(--sidebar-primary-foreground); }
+      .bg-sidebar-accent { background-color: var(--sidebar-accent); }
+      .text-sidebar-accent { color: var(--sidebar-accent); }
+      .border-sidebar-accent { border-color: var(--sidebar-accent); }
+      .ring-sidebar-accent { --tw-ring-color: var(--sidebar-accent); }
+      .bg-sidebar-accent-foreground { background-color: var(--sidebar-accent-foreground); }
+      .text-sidebar-accent-foreground { color: var(--sidebar-accent-foreground); }
+      .border-sidebar-accent-foreground { border-color: var(--sidebar-accent-foreground); }
+      .ring-sidebar-accent-foreground { --tw-ring-color: var(--sidebar-accent-foreground); }
+      .bg-sidebar-border { background-color: var(--sidebar-border); }
+      .text-sidebar-border { color: var(--sidebar-border); }
+      .border-sidebar-border { border-color: var(--sidebar-border); }
+      .ring-sidebar-border { --tw-ring-color: var(--sidebar-border); }
+      .bg-sidebar-ring { background-color: var(--sidebar-ring); }
+      .text-sidebar-ring { color: var(--sidebar-ring); }
+      .border-sidebar-ring { border-color: var(--sidebar-ring); }
+      .ring-sidebar-ring { --tw-ring-color: var(--sidebar-ring); }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body class="min-h-screen font-sans antialiased bg-background text-white flex items-center justify-center p-6">
+  <!-- Floating window -->
+  <section class="relative w-full max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-card/75 shadow-2xl backdrop-blur-xl">
+    <!-- Drag bar -->
+    <div class="h-8 flex items-center justify-between px-3 border-b border-white/10 bg-white/5" data-dom-id="drag-bar">
+      <div class="flex items-center gap-2 text-white/40">
+        <i data-lucide="grip-horizontal" class="w-4 h-4"></i>
+        <span class="text-[10px] tracking-wide">ERC 汇率换算</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="p-1 rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors" data-dom-id="btn-refresh">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+        </button>
+        <button class="p-1 rounded text-white/40 hover:text-white hover:bg-white/10 transition-colors" data-dom-id="btn-close">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="p-4 space-y-4">
+      <!-- Header status -->
+      <header class="flex items-center justify-between">
+        <h1 class="text-sm font-semibold tracking-tight">汇率转换</h1>
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary border border-primary/20">
+          <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+          已同步
+        </span>
+      </header>
+
+      <!-- Convert to CNY -->
+      <section class="p-3 rounded-xl bg-white/5 border border-white/10 space-y-2">
+        <div class="text-xs text-white/50">换算成人民币</div>
+        <div class="flex items-center gap-2">
+          <div class="flex-1 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-black/25 border border-white/10">
+            <input type="text" value="500" class="w-16 bg-transparent outline-none text-sm text-white placeholder:text-white/30" readonly>
+            <span class="text-xs text-white/40">KRW</span>
+          </div>
+          <i data-lucide="arrow-right-left" class="w-4 h-4 text-white/40"></i>
+          <div class="flex-1 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-black/25 border border-white/10">
+            <input type="text" value="2.62" class="w-full bg-transparent outline-none text-sm text-white placeholder:text-white/30" readonly>
+            <span class="text-xs text-white/40">CNY</span>
+          </div>
+        </div>
+        <div class="text-[10px] text-white/40">1 KRW ≈ 0.00524 CNY</div>
+      </section>
+
+      <!-- Sync conversion -->
+      <section>
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs text-white/50">同步换算</span>
+          <button class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium bg-white/5 border border-white/10 hover:bg-white/10 transition-colors" data-dom-id="btn-add-currency">
+            <i data-lucide="plus" class="w-3 h-3"></i>
+            加币种
+          </button>
+        </div>
+
+        <!-- Base currency -->
+        <div class="mb-2 p-3 rounded-xl bg-primary/10 border border-primary/20">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[10px] text-primary/80">主动</span>
+            <span class="text-[10px] text-primary/80">CNY</span>
+          </div>
+          <input type="text" value="100" class="w-full bg-transparent outline-none text-lg font-medium text-white mb-0.5" readonly>
+          <div class="text-[10px] text-white/50">人民币</div>
+        </div>
+
+        <!-- Passive grid -->
+        <div class="grid grid-cols-2 gap-2">
+          <div class="p-3 rounded-xl bg-white/5 border border-white/10">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] text-white/40">被动</span>
+              <span class="text-[10px] text-white/40">USD</span>
+            </div>
+            <input type="text" value="13.81" class="w-full bg-transparent outline-none text-base font-medium text-white mb-0.5" readonly>
+            <div class="text-[10px] text-white/50">美元</div>
+          </div>
+          <div class="p-3 rounded-xl bg-white/5 border border-white/10">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] text-white/40">被动</span>
+              <span class="text-[10px] text-white/40">KRW</span>
+            </div>
+            <input type="text" value="19,068" class="w-full bg-transparent outline-none text-base font-medium text-white mb-0.5" readonly>
+            <div class="text-[10px] text-white/50">韩元</div>
+          </div>
+          <div class="p-3 rounded-xl bg-white/5 border border-white/10">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] text-white/40">被动</span>
+              <span class="text-[10px] text-white/40">EUR</span>
+            </div>
+            <input type="text" value="12.73" class="w-full bg-transparent outline-none text-base font-medium text-white mb-0.5" readonly>
+            <div class="text-[10px] text-white/50">欧元</div>
+          </div>
+          <div class="p-3 rounded-xl bg-white/5 border border-white/10">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[10px] text-white/40">被动</span>
+              <span class="text-[10px] text-white/40">JPY</span>
+            </div>
+            <input type="text" value="2,064" class="w-full bg-transparent outline-none text-base font-medium text-white mb-0.5" readonly>
+            <div class="text-[10px] text-white/50">日元</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <div class="flex items-center justify-between text-[10px] text-white/40 pt-1">
+        <span>更新于 2026-09-02 14:32</span>
+        <span class="text-white/25">v1.0</span>
+      </div>
+    </div>
+  </section>
+
+  <script>lucide.createIcons();</script>
+</body>
+</html>
