@@ -22,33 +22,19 @@
         <!-- 上行：源币种输入（500krw 自动解析） -->
         <div class="crow">
           <span class="crow-name">{{ srcName }}</span>
-          <input
-            class="crow-input"
-            :class="{ 'is-flash': activeFlash === 'src' }"
-            :value="srcRaw"
-            @input="onSrcInput"
-            @keydown="onSrcKeydown"
-            @focus="markFlash('src', $event)"
-            placeholder="如 500krw"
-            spellcheck="false"
-          />
-          <span v-if="srcPreview" class="crow-preview" :class="{ 'is-error': !srcPreview.valid }">{{ srcPreview.text }}</span>
+          <input class="crow-input" :class="{ 'is-flash': activeFlash === 'src' }" :value="srcRaw" @input="onSrcInput"
+            @keydown="onSrcKeydown" @focus="markFlash('src', $event)" placeholder="如 500krw" spellcheck="false" />
+          <span v-if="srcPreview" class="crow-preview" :class="{ 'is-error': !srcPreview.valid }">{{ srcPreview.text
+            }}</span>
           <span class="crow-code">{{ srcCode }}</span>
         </div>
         <!-- 下行：CNY 结果（可反向输入） -->
         <div class="crow">
           <span class="crow-name">人民币</span>
-          <input
-            class="crow-input"
-            :class="{ 'is-flash': activeFlash === 'cny' }"
-            :value="cnyVal"
-            @input="onCnyInput"
-            @keydown="onCnyKeydown"
-            @focus="markFlash('cny', $event)"
-            placeholder="0.00"
-            spellcheck="false"
-          />
-          <span v-if="cnyPreview" class="crow-preview" :class="{ 'is-error': !cnyPreview.valid }">{{ cnyPreview.text }}</span>
+          <input class="crow-input" :class="{ 'is-flash': activeFlash === 'cny' }" :value="cnyVal" @input="onCnyInput"
+            @keydown="onCnyKeydown" @focus="markFlash('cny', $event)" placeholder="0.00" spellcheck="false" />
+          <span v-if="cnyPreview" class="crow-preview" :class="{ 'is-error': !cnyPreview.valid }">{{ cnyPreview.text
+            }}</span>
           <span class="crow-code">CNY</span>
         </div>
       </div>
@@ -56,8 +42,8 @@
 
     <!-- ============ 同步换算 ============ -->
     <section class="fh-sec">
-      <div class="fh-sec-title">
-        <span>同步换算</span>
+      <div class="fh-sec-title duo-section">
+        <span>多币种同步换算</span>
         <button class="fh-add" @click="showPicker = !showPicker">
           {{ showPicker ? '收起' : '加币种' }}
         </button>
@@ -70,35 +56,21 @@
 
       <!-- 币种行竖排，最多 5 行滚动 -->
       <div v-else class="fh-sync-list">
-        <div
-          v-for="cur in store.activeCurrency"
-          :key="cur.currencies.code"
-          class="crow"
-          :class="{ 'is-init': cur.currencies.initiative }"
-        >
-          <button
-            class="crow-del"
-            title="移除币种"
-            @click="store.removeCurrency(cur)"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-              <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+        <div v-for="cur in store.activeCurrency" :key="cur.currencies.code" class="crow"
+          :class="{ 'is-init': cur.currencies.initiative }">
+          <button class="crow-del" title="移除币种" @click="store.removeCurrency(cur)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              aria-hidden="true">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
             </svg>
           </button>
           <span class="crow-name">{{ cur.name }}</span>
-          <input
-            class="crow-input"
-            :class="{ 'is-flash': activeFlash === 'row:' + cur.currencies.code }"
-            :value="getRowDisplay(cur)"
-            @focus="onRowFocus(cur, $event)"
-            @input="onRowInput(cur, $event)"
-            @keydown="onRowKeydown(cur, $event)"
-            @blur="onRowBlur(cur)"
-            spellcheck="false"
-          />
-          <span v-if="rowPreviews[cur.currencies.code]"
-                class="crow-preview"
-                :class="{ 'is-error': !rowPreviews[cur.currencies.code].valid }">
+          <input class="crow-input" :class="{ 'is-flash': activeFlash === 'row:' + cur.currencies.code }"
+            :value="getRowDisplay(cur)" @focus="onRowFocus(cur, $event)" @input="onRowInput(cur, $event)"
+            @keydown="onRowKeydown(cur, $event)" @blur="onRowBlur(cur)" spellcheck="false" />
+          <span v-if="rowPreviews[cur.currencies.code]" class="crow-preview"
+            :class="{ 'is-error': !rowPreviews[cur.currencies.code].valid }">
             {{ rowPreviews[cur.currencies.code].text }}
           </span>
           <span class="crow-code">{{ cur.currencies.code }}</span>
@@ -1912,7 +1884,10 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  /* 渐变背景短一些 */
+  background: linear-gradient(to right, 9px 0px, rgba(99, 226, 183, 0.85), rgba(255, 255, 255, 0.08));
 }
+
 .fh-sec-title {
   display: flex;
   align-items: center;
@@ -1922,7 +1897,14 @@ onMounted(async () => {
   letter-spacing: 0.04em;
   user-select: none;
 }
+
+.duo-section {
+  /* border: 1px solid rgba(255, 255, 255, 0.12); */
+  margin-top: 2px;
+}
+
 .fh-add {
+  
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.85);
@@ -1931,6 +1913,7 @@ onMounted(async () => {
   border-radius: 4px;
   cursor: pointer;
 }
+
 .fh-add:hover {
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
@@ -1939,15 +1922,19 @@ onMounted(async () => {
 /* 行容器 */
 .fh-rows,
 .fh-sync-list {
+  border-left: 4px solid rgba(45, 117, 93, 0.85);
+
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
+
 /* 同步换算列表：最多 5 行（每行 30px + gap 4px ≈ 166px），超出滚动 */
 .fh-sync-list {
   max-height: 166px;
   overflow-y: auto;
 }
+
 /* 加币种选择面板：自身不滚动，交给 addCurrency 内部列表滚动（--currency-list-max-h 约束列表高度） */
 .fh-picker {
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -1968,14 +1955,17 @@ onMounted(async () => {
   box-sizing: border-box;
   transition: background 0.12s, border-color 0.12s;
 }
+
 /* 主动币种（换算锚点）：仅保留左侧 2px 青绿锚点条。
    不使用整块青绿背景/青绿边框——那套"选中卡"视觉只属于加币种列表
    （.currency-item.is-selected），避免选中态观感"透传"到同步换算列表。
    正在编辑哪一行由输入框 :focus 的青色呼吸闪烁表达，背景/边框维持默认灰白。 */
 .crow.is-init {
-  border-left: 2px solid rgba(99, 226, 183, 0.85);
+  /* border-left: 2px solid rgba(99, 226, 183, 0.85); */
+  border-left: 2px solid rgba(45, 117, 93, 0.85);
   padding-left: 7px;
 }
+
 /* 删除按钮：默认半透明，hover 提亮变红 */
 .crow-del {
   flex: 0 0 auto;
@@ -1991,16 +1981,19 @@ onMounted(async () => {
   border-radius: 3px;
   transition: color 0.12s, background 0.12s;
 }
+
 .crow-del:hover {
   color: rgba(255, 90, 90, 0.95);
   background: rgba(255, 90, 90, 0.12);
 }
+
 .crow-del svg {
   width: 10px;
   height: 10px;
   display: block;
   pointer-events: none;
 }
+
 .crow-name {
   flex: 0 0 auto;
   font-size: 11px;
@@ -2011,6 +2004,7 @@ onMounted(async () => {
   max-width: 70px;
   user-select: none;
 }
+
 .crow-input {
   flex: 1 1 auto;
   min-width: 0;
@@ -2023,9 +2017,11 @@ onMounted(async () => {
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 4px rgba(57, 255, 20, 0.35);
 }
+
 .crow-input::placeholder {
   color: rgba(255, 255, 255, 0.3);
 }
+
 .crow-code {
   flex: 0 0 auto;
   font-size: 10px;
@@ -2049,6 +2045,7 @@ onMounted(async () => {
   margin-left: 2px;
   margin-right: 2px;
 }
+
 .crow-preview.is-error {
   color: rgba(255, 120, 120, 0.8);
   text-decoration-color: rgba(255, 120, 120, 0.5);
@@ -2061,11 +2058,15 @@ onMounted(async () => {
 .crow-input.is-flash {
   animation: fh-flash 0.8s ease-in-out infinite;
 }
+
 @keyframes fh-flash {
-  0%, 100% {
+
+  0%,
+  100% {
     color: #00ffff;
     text-shadow: 0 0 8px rgba(0, 255, 255, 0.8);
   }
+
   50% {
     color: rgba(0, 255, 255, 0.35);
     text-shadow: none;
@@ -2076,10 +2077,12 @@ onMounted(async () => {
 .fh-sync-list::-webkit-scrollbar {
   width: 4px;
 }
+
 .fh-sync-list::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 2px;
 }
+
 .fh-sync-list::-webkit-scrollbar-track {
   background: transparent;
 }

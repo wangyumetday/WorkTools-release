@@ -17,7 +17,7 @@
     <n-input
       class="tc-input"
       :value="rawInput"
-      placeholder="如 500krw"
+      placeholder="例： 500krw"
       @update:value="handleSrcInput"
       clearable
     />
