@@ -162,8 +162,10 @@ function hasTaskProgress(s) {
   return Number.isFinite(s.totalTasks)
 }
 
-// ========== 可点击判断（只有 upload/jxgj/trip/export 四个"入口"能点）==========
+// ========== 可点击判断（步骤条手动点击统一由 dev 模式门控）==========
 // 设计语义：
+//   · 步骤条的手动点击能力 = dev 模式专属（快捷键 Ctrl+8888 开启）；
+//     auto 模式下步骤条纯展示，上传/下载走 TopToolbar 的"选择文件/下载结果"按钮。
 //   · 真实步骤流「硬锁定」= running/paused（正在跑或任务暂停中）
 //     → upload/jxgj/trip 全部不可点；避免重入跑 jxgj 两次，也避免换输入文件混结果
 //   · dev 模式 waiting_next = 设计上预期"停在中间等用户点下一步手动触发"
@@ -171,11 +173,14 @@ function hasTaskProgress(s) {
 //       但 upload（换文件）在 waiting_next 仍然禁（跑了一半不能换文件）
 //   · 配置/账号锁定（pipelineInProgress = running/waiting_next/paused）与步骤点击是两件事：
 //     waiting_next 时配置和账号不能改（防止前后结果不一致），但允许手动点步骤推流程。
-//   · export 永远是独立伪步骤，只看 _exportGate.can。
+//   · export 永远是独立伪步骤，只看 _exportGate.can（同样仅 dev 模式可从步骤条点）。
 function isClickable(stage, i) {
   const status = ps.value.status || 'idle'
   // 硬锁定：正在跑 / 已暂停 → 任何真实入口（upload/jxgj/trip）都不让点
   const hardLock = status === 'running' || status === 'paused'
+
+  // 步骤条手动点击 = dev 模式专属；auto 模式一律不可点（上传/下载用 TopToolbar 按钮）
+  if (!isDev.value) return false
 
   // export 阶段：伪步骤 → 不算真实步骤流；只要门控 can===true 就能下载（完成/失败都允许再导一份）
   if (stage.key === 'export') return exportGate.value.can === true

@@ -101,7 +101,31 @@
       15%  { background: #10b981; box-shadow: 0 0 0 4px rgba(16,185,129,0.15); }
       100% { background: #10b981; box-shadow: 0 0 0 4px rgba(16,185,129,0.15); }
     }
+
+    /* ============================================================
+       悬浮窗（#/floating）首帧处理：
+       悬浮窗是 transparent:true 无边框小窗，与主窗口共用本文件。
+       Vue 挂载前只有上面的内联样式生效（html/body 不透明白底 + splash），
+       会在透明小窗里闪一下白底启动画面。<head> 里的同步脚本在首次绘制前
+       给 <html> 加 .is-floating 类，据此隐藏 splash 并强制透明——
+       挂载前悬浮窗全透明（不可见），Vue 挂载后暗色壳直接出现，无闪屏。
+       主窗口 URL 不带 floating hash，splash 照常显示。
+       ============================================================ */
+    html.is-floating,
+    html.is-floating body,
+    html.is-floating #app {
+      background: transparent;
+    }
+    html.is-floating #splash {
+      display: none;
+    }
   </style>
+  <script>
+    // 必须放在 <head>、同步执行：在 <body> 解析/首次绘制前就决定是否挂类
+    if (location.hash.toLowerCase().indexOf('floating') !== -1) {
+      document.documentElement.classList.add('is-floating')
+    }
+  </script>
 </head>
 <body>
   <div id="app">

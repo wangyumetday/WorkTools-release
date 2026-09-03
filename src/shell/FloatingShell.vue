@@ -26,31 +26,30 @@
     <div class="drag-bar" @mousedown="handleDragStart">
       <div class="drag-left">
         <svg class="ico ico-grip" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/>
-          <circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/>
-          <circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/>
+          <circle cx="9" cy="6" r="1.6" />
+          <circle cx="15" cy="6" r="1.6" />
+          <circle cx="9" cy="12" r="1.6" />
+          <circle cx="15" cy="12" r="1.6" />
+          <circle cx="9" cy="18" r="1.6" />
+          <circle cx="15" cy="18" r="1.6" />
         </svg>
         <span class="drag-title">ERC 汇率换算</span>
       </div>
       <div class="drag-right">
-        <button
-          class="icon-btn"
-          :class="{ 'is-pinned': pinned }"
-          :title="pinned ? '已固定，点击解除' : '点击固定，悬浮窗不再收起'"
-          @click="togglePin"
-        >
-          <svg class="ico" viewBox="0 0 24 24" :fill="pinned ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 17v5"/>
-            <path d="M9 10.76a2 2 0 0 1 .99-1.74l7.79-4.42a.5.5 0 0 1 .72.66l-3.62 5.15a2 2 0 0 0-.31 1.07V16a2 2 0 0 1-2 2h-3.06a2 2 0 0 1-2-2v-2.42a2 2 0 0 0-.31-1.07L3.15 7.48a.5.5 0 0 1 .72-.66l7.79 4.42A2 2 0 0 1 12 10.76"/>
+        <button class="icon-btn" :class="{ 'is-pinned': pinned }" :title="pinned ? '已固定，点击解除' : '点击固定，悬浮窗不再收起'"
+          @click="togglePin">
+          <svg class="ico" viewBox="0 0 24 24" :fill="pinned ? 'currentColor' : 'none'" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 17v5" />
+            <path
+              d="M9 10.76a2 2 0 0 1 .99-1.74l7.79-4.42a.5.5 0 0 1 .72.66l-3.62 5.15a2 2 0 0 0-.31 1.07V16a2 2 0 0 1-2 2h-3.06a2 2 0 0 1-2-2v-2.42a2 2 0 0 0-.31-1.07L3.15 7.48a.5.5 0 0 1 .72-.66l7.79 4.42A2 2 0 0 1 12 10.76" />
           </svg>
         </button>
-        <button
-          class="icon-btn"
-          title="关闭悬浮窗"
-          @click="handleClose"
-        >
-          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-            <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+        <button class="icon-btn" title="关闭悬浮窗" @click="handleClose">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            aria-hidden="true">
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
           </svg>
         </button>
       </div>
@@ -65,28 +64,13 @@
       </div>
       <div class="zoom-bar">
         <span class="zoom-label">缩放</span>
-        <input
-          class="zoom-slider"
-          type="range"
-          :min="0.5"
-          :max="1.5"
-          :step="0.05"
-          :value="zoom"
-          @input="handleZoom"
-        />
+        <input class="zoom-slider" type="range" :min="0.5" :max="1.5" :step="0.05" :value="zoom" @input="handleZoom" />
         <span class="zoom-value">{{ zoom.toFixed(2) }}x</span>
       </div>
       <div class="opacity-bar">
         <span class="opacity-label">透明度</span>
-        <input
-          class="opacity-slider"
-          type="range"
-          :min="0.1"
-          :max="1"
-          :step="0.05"
-          :value="opacity"
-          @input="handleOpacity"
-        />
+        <input class="opacity-slider" type="range" :min="0.1" :max="1" :step="0.05" :value="opacity"
+          @input="handleOpacity" />
         <span class="opacity-value">{{ Math.round(opacity * 100) }}%</span>
       </div>
     </div>
@@ -260,8 +244,8 @@ onUnmounted(() => {
   flex-direction: column;
   position: relative;
   box-shadow:
-    inset 0px 0px 2px 1px rgba(0, 255, 255, 0.4),
-    inset 0px 0px 2px 4px rgba(0, 255, 255, 0.2);
+    inset 0px 0px 2px 1px rgba(0, 255, 255, 0.3),
+    inset 0px 0px 2px 2px rgba(0, 255, 255, 0.2);
 }
 
 /* ==================== drag bar ==================== */
@@ -283,21 +267,30 @@ onUnmounted(() => {
   user-select: none;
   cursor: grab;
 }
+
 /* grip 图标：纯装饰（拖拽由 .drag-bar 的 mousedown 统一处理） */
 .ico-grip {
   pointer-events: none;
 }
+
 .drag-left {
   display: flex;
   align-items: center;
   gap: 6px;
 }
+
 .drag-title {
+  /* min-width:100px; */
   font-size: 11px;
   letter-spacing: 0.04em;
   color: rgba(255, 255, 255, 0.72);
   user-select: none;
+  /* 字体不可换行，超出部分用省略号 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
 .drag-right {
   display: flex;
   align-items: center;
@@ -319,13 +312,16 @@ onUnmounted(() => {
   border-radius: 4px;
   transition: color 0.12s, background 0.12s;
 }
+
 .icon-btn:hover {
   color: rgba(255, 255, 255, 0.95);
   background: rgba(255, 255, 255, 0.1);
 }
+
 .icon-btn.is-pinned {
   color: rgba(255, 255, 255, 0.95);
 }
+
 .icon-btn.is-pinned:hover {
   background: rgba(255, 255, 255, 0.12);
 }
@@ -345,6 +341,7 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
 }
+
 /* 收起态：主进程把窗口物理高度缩到 36px（仅顶栏），DOM 溢出已被
    .floating-shell { overflow: hidden } 裁掉。再加 visibility + pointer-events
    让它彻底不响应事件，避免收起态意外触发内部 hover/input。 */
@@ -352,6 +349,7 @@ onUnmounted(() => {
   visibility: hidden;
   pointer-events: none;
 }
+
 .floating-content {
   -webkit-app-region: no-drag;
   flex: 1 1 auto;
@@ -378,6 +376,7 @@ onUnmounted(() => {
 .fade-leave-active {
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
+
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
@@ -389,10 +388,12 @@ onUnmounted(() => {
 .floating-content::-webkit-scrollbar {
   width: 4px;
 }
+
 .floating-content::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 2px;
 }
+
 .floating-content::-webkit-scrollbar-track {
   background: transparent;
 }
@@ -404,6 +405,7 @@ onUnmounted(() => {
   user-select: none;
   flex: 0 0 auto;
 }
+
 .opacity-value,
 .zoom-value {
   font-size: 10px;
@@ -426,6 +428,7 @@ onUnmounted(() => {
   outline: none;
   cursor: pointer;
 }
+
 .opacity-slider::-webkit-slider-thumb,
 .zoom-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -437,6 +440,7 @@ onUnmounted(() => {
   cursor: pointer;
   border: none;
 }
+
 .opacity-slider::-moz-range-thumb,
 .zoom-slider::-moz-range-thumb {
   width: 12px;

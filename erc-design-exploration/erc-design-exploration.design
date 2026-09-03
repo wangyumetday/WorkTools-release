@@ -91,6 +91,75 @@
         "htmlSrc": "pages/v4-floating.html",
         "interactions": []
       }
+    },
+    {
+      "id": "page-v4-floating-variant-1",
+      "title": "方案四：半透明悬浮窗 — 标题强化+分隔线",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1788418421000,
+      "canvasData": {
+        "x": 1920,
+        "y": 0,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 900,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-variant-1",
+          "measuredAt": 1788418421000
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/v4-floating-variant-1.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-v4-floating-variant-2",
+      "title": "方案四：半透明悬浮窗 — Tab切换式",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1788418421000,
+      "canvasData": {
+        "x": 2400,
+        "y": 0,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 900,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-variant-2",
+          "measuredAt": 1788418421000
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/v4-floating-variant-2.html",
+        "interactions": []
+      }
+    },
+    {
+      "id": "page-v4-floating-variant-3",
+      "title": "方案四：半透明悬浮窗 — 卡片形态差异",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1788418421000,
+      "canvasData": {
+        "x": 2880,
+        "y": 0,
+        "group": 0,
+        "layoutSnapshot": {
+          "version": 1,
+          "contentHeight": 900,
+          "viewportWidth": 1440,
+          "sourceHash": "fnv1a-variant-3",
+          "measuredAt": 1788418421000
+        }
+      },
+      "devMetadata": {
+        "htmlSrc": "pages/v4-floating-variant-3.html",
+        "interactions": []
+      }
     }
   ],
   "config": {

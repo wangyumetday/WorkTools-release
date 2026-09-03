@@ -53,10 +53,12 @@ jobs:
 
       # ================================================================
       # Phase 1.5: 生成更新日志 —— 取"上个 tag → 本次 tag"之间的
-      #   每次提交的摘要（commit subject + 短 hash），写入 RELEASE_NOTES.md
-      #   作为 Release body。electron-updater 会把它作为 releaseNotes
-      #   推给客户端更新弹窗。不用 GitHub 自动生成 notes（那套按 PR 归类，
-      #   直接 push 无 PR 时 body 只剩一行 compare 版本号链接）。
+      #   每次提交的【摘要 + 详情】（对应 GitHub Desktop 的标题 + 描述文本域）：
+      #   - subject (%s) 作为条目行，后跟短 hash
+      #   - body (%b) 的每个非空行缩进 4 空格排在下方（无 body 则只显示摘要）
+      #   写入 RELEASE_NOTES.md 作为 Release body，electron-updater 作为
+      #   releaseNotes 推给客户端更新弹窗。不用 GitHub 自动生成 notes
+      #   （那套按 PR 归类，直接 push 无 PR 时 body 只剩一行 compare 版本号）。
       # ================================================================
       - name: Generate changelog from commits
         shell: pwsh
@@ -64,14 +66,33 @@ jobs:
           $current = "${{ github.ref_name }}"
           $tags = @(git tag --sort=-v:refname)
           $prev = $tags | Where-Object { $_ -ne $current } | Select-Object -First 1
+          # git pretty 用 0x1f 分隔字段（hash|subject|body）、0x1e 分隔记录，
+          # 保证 body 含多行也能被安全切分
           if ($prev) {
             Write-Host "Commits between $prev and $current :"
-            $log = @(git log "$prev..HEAD" --pretty=format:"- %s  (%h)")
+            $rawText = (git log "$prev..HEAD" "--pretty=format:%h%x1f%s%x1f%b%x1e") -join "`n"
           } else {
             Write-Host "No previous tag found, listing all commits:"
-            $log = @(git log --pretty=format:"- %s  (%h)")
+            $rawText = (git log "--pretty=format:%h%x1f%s%x1f%b%x1e") -join "`n"
           }
-          $body = ($log -join "`n")
+          $RS = [char]0x1e
+          $FS = [char]0x1f
+          $out = New-Object System.Collections.Generic.List[string]
+          foreach ($rec in ($rawText -split [regex]::Escape($RS))) {
+            if ($rec.Trim().Length -eq 0) { continue }
+            $parts = $rec.Split([char[]]@($FS), 3)
+            $hash = $parts[0].Trim()
+            $subject = if ($parts.Length -ge 2) { $parts[1].Trim() } else { '' }
+            if (-not $subject) { continue }
+            $out.Add("- $subject  ($hash)")
+            if ($parts.Length -ge 3 -and $parts[2].Trim().Length -gt 0) {
+              foreach ($line in ($parts[2] -split "`r?`n")) {
+                $t = $line.Trim()
+                if ($t.Length -gt 0) { $out.Add("    $t") }
+              }
+            }
+          }
+          $body = ($out -join "`n")
           [System.IO.File]::WriteAllText((Join-Path $PWD 'RELEASE_NOTES.md'), $body, [System.Text.UTF8Encoding]::new($false))
           Write-Host "----- RELEASE_NOTES.md -----"
           Get-Content RELEASE_NOTES.md

@@ -66,13 +66,16 @@ function normalizeReleaseNotesHtml(notes) {
       .replace(/<\/?code>/gi, '') // 把替换后残留的 <code></code> 标签一起剥掉
   }
 
-  // 否则当 Markdown/纯文本：转义 → **加粗** → URL 自动转链 → 换行
+  // 否则当 Markdown/纯文本：转义 → **加粗** → URL 自动转链 → 缩进保留 → 换行
+  //   详情行（commit body）在 RELEASE_NOTES.md 里以 4 空格缩进排在摘要下方，
+  //   HTML 默认会折叠行首空白，这里把行首空白转成 &nbsp; 以保留层级排版。
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(https?:\/\/[^\s<>"']+)/g, '<a href="$1" style="color:#2080f0;word-break:break-all;">$1</a>')
+    .replace(/^[ \t]+/gm, (m) => '&nbsp;'.repeat(m.length))
     .replace(/\r?\n/g, '<br>')
 }
 

@@ -24,10 +24,11 @@
           <span class="crow-name">{{ srcName }}</span>
           <input
             class="crow-input"
+            :class="{ 'is-flash': activeFlash === 'src' }"
             :value="srcRaw"
             @input="onSrcInput"
             @keydown="onSrcKeydown"
-            @focus="selectAll"
+            @focus="markFlash('src', $event)"
             placeholder="如 500krw"
             spellcheck="false"
           />
@@ -39,10 +40,11 @@
           <span class="crow-name">人民币</span>
           <input
             class="crow-input"
+            :class="{ 'is-flash': activeFlash === 'cny' }"
             :value="cnyVal"
             @input="onCnyInput"
             @keydown="onCnyKeydown"
-            @focus="selectAll"
+            @focus="markFlash('cny', $event)"
             placeholder="0.00"
             spellcheck="false"
           />
@@ -86,6 +88,7 @@
           <span class="crow-name">{{ cur.name }}</span>
           <input
             class="crow-input"
+            :class="{ 'is-flash': activeFlash === 'row:' + cur.currencies.code }"
             :value="getRowDisplay(cur)"
             @focus="onRowFocus(cur, $event)"
             @input="onRowInput(cur, $event)"
@@ -194,9 +197,18 @@ function calcExpr(raw) {
   }
 }
 
-// 判断输入是否包含运算符（只有纯数字/空串时不显示计算预览）
+// 判断输入是否包含"二元运算符"（只有纯数字/空串时不显示计算预览）
+// 注意：开头的 +/- 是数字符号（负数/正数），不是运算符，必须先剥掉再判断，
+// 否则纯负数 "-5.00" 会被误判成算式 → 应用结果后预览复活 / 直接输负数误显预览
 function hasOperator(raw) {
-  return /[+\-*/]/.test((raw ?? '').trim())
+  const s = (raw ?? '').trim()
+  if (!s) return false
+  return /[+\-*/]/.test(s.replace(/^[+-]/, ''))
+}
+
+// 是否为单个纯数字（含负数、小数），不含任何二元运算符
+function isPureNumber(raw) {
+  return /^-?\d+(?:\.\d+)?$/.test((raw ?? '').trim())
 }
 
 // ==================== 换算成人民币 ====================
@@ -236,6 +248,18 @@ function applyCalcResult(raw) {
   const r = calcExpr(raw)
   if (!r.ok) return null
   return r.value.toFixed(2) // 统一保留 2 位小数
+}
+
+// 联动写值：一个框的换算结果"程序化覆盖"另一个框时，被覆盖框的算式预览必须清——
+// 因为框里显示的已是联动结果，不再是用户输入的算式，预览失去依据。
+// （用户在本框亲自输入走 onXxxInput + refreshPreview，不经这两个 helper）
+function setSrcValue(val) {
+  srcRaw.value = val
+  srcPreview.value = null
+}
+function setCnyValue(val) {
+  cnyVal.value = val
+  cnyPreview.value = null
 }
 
 // ==================== 币种名解析（三字码 + 中文 + 英文名） ====================
@@ -1577,7 +1601,10 @@ function parseSrcInput(input) {
   const match = raw.match(/^(\d+(?:\.\d+)?)\s*(.+)$/)
   if (!match) return null
   const amount = match[1]
-  const tail = match[2].trim()
+  // 金额与币种之间允许分隔符：200/jpy、200 / jpy、200|jpy
+  //   注意：200/2 这类"/ 后接数字"的是除法算式，调用方 calcExpr 会先算成功，
+  //   不会走到币种解析；只有"/ 后接币种名"（算式非法）时才靠这里兜底识别。
+  const tail = match[2].trim().replace(/^[\/\\|\s]+/, '')
   if (!tail) return null
 
   const idx = buildCodeIndex()
@@ -1612,42 +1639,75 @@ function findCurrencies(code) {
   return { src, cny, srcRate, cnyRate }
 }
 
-// 输入框聚焦自动全选：便于直接输入覆盖旧值
-function selectAll(e) {
-  e.target.select()
+// 闪烁单选状态：全局只有一个输入框保持青色呼吸闪烁。
+//   focus 某个输入框 → 登记它的 key（'src' / 'cny' / 'row:<code>'）并全选内容；
+//   blur【不清除】——焦点离开到空白处/按钮上时，最后聚焦的输入框继续闪烁；
+//   只有点到【另一个输入框】触发新 focus 覆盖 key，旧的闪烁才取消。
+const activeFlash = ref('')
+function markFlash(key, e) {
+  activeFlash.value = key
+  if (e && e.target) e.target.select()
+}
+
+// 有效币种解析结果 → 切换锁定 + 换算 CNY（"500usd" 与 "200/jpy" 两种格式共用）
+function applyParsedSrc(parsed, r) {
+  const switched = !srcLocked.value || srcCode.value !== r.src.currencies.code
+  if (switched) {
+    srcLocked.value = true
+    srcName.value = r.src.name
+    srcCode.value = r.src.currencies.code
+  }
+  try {
+    setCnyValue(new Decimal(parsed.amount).times(r.cnyRate).div(r.srcRate).toFixed(2))
+  } catch {
+    setCnyValue('')
+  }
 }
 
 // 上行输入：
-//   - 空 → 解除锁定，清空状态
-//   - "数值+3字母"格式 → 查币种：
+//   - 空 → 只清空金额（下行）；币种锁定状态【保持不变】
+//   - 币种切换的唯一时机：输入了新的有效币种（500usd / 200/jpy / 300日元）将其覆盖：
 //       · 有效币种 ≠ 当前锁定 → 切换锁定
 //       · 有效币种 = 当前锁定 → 只更新数值（保持锁定）
-//       · 未知币种 → 非锁定态显示"未知"；锁定态忽略
+//       · 未知币种 → 非锁定态显示"未知"；锁定态忽略（不覆盖）
 //   - 纯数字 → 锁定态下只更新数值部分；非锁定态不处理
-//   - 含运算符 → 实时计算预览（Enter/= 应用结果）
+//   - 含运算符 → 实时计算预览（Enter/= 应用结果）；
+//     算式非法但形如"金额/币种"时按币种识别（/ 后接名字而非数字）
 function onSrcInput(e) {
   srcRaw.value = e.target.value
   const raw = srcRaw.value.trim()
   if (!raw) {
-    srcLocked.value = false
-    srcName.value = '源币种'
-    srcCode.value = '---'
-    cnyVal.value = ''
+    // 清空金额：币种锁定/名称/代码全部保持不动——
+    // 已锁定 USD 时清空，币种仍是 USD；初始未锁定态本来就是"源币种 ---"。
+    setCnyValue('') // 清空下行，连带清下行算式预览
     refreshPreview(raw, srcPreview)
     return
   }
 
-  // 含运算符：按算式处理，币种尾巴不识别
+  // 含运算符：优先按算式处理（计算优先于币种识别）
   if (hasOperator(raw)) {
-    refreshPreview(raw, srcPreview)
+    const expr = calcExpr(raw)
+    if (expr.ok) {
+      refreshPreview(raw, srcPreview) // 合法算式 → 显示 = 结果
+      return
+    }
+    // 算式非法：但可能是"金额/币种"格式（/ 后接币种名而非数字，如 200/jpy）
+    const slashParsed = parseSrcInput(raw)
+    const slashR = slashParsed ? findCurrencies(slashParsed.code) : null
+    if (slashParsed && slashR) {
+      srcPreview.value = null // 是币种输入而非算式 → 不出预览
+      applyParsedSrc(slashParsed, slashR)
+      return
+    }
+    refreshPreview(raw, srcPreview) // 确实算不出 → 显示 = ?
     return
   }
   refreshPreview(raw, srcPreview) // 纯数字不含运算符 → 清预览
 
   const parsed = parseSrcInput(raw)
   if (!parsed) {
-    // 无币种代码：锁定态下只接受纯数字（单独改数值部分），其他格式忽略
-    if (srcLocked.value && /^[\d.]+$/.test(raw)) {
+    // 无币种代码：锁定态下只接受纯数字（含负数，单独改数值部分），其他格式忽略
+    if (srcLocked.value && isPureNumber(raw)) {
       updateCnyWithAmount(raw)
     }
     return
@@ -1660,23 +1720,13 @@ function onSrcInput(e) {
     if (!srcLocked.value) {
       srcName.value = '未知币种'
       srcCode.value = parsed.rawCode.toUpperCase()
-      cnyVal.value = ''
+      setCnyValue('') // 下行清空，连带清下行算式预览
     }
     return
   }
 
   // 有效币种 → 切换锁定 + 更新显示
-  const switched = !srcLocked.value || srcCode.value !== r.src.currencies.code
-  if (switched) {
-    srcLocked.value = true
-    srcName.value = r.src.name
-    srcCode.value = r.src.currencies.code
-  }
-  try {
-    cnyVal.value = new Decimal(parsed.amount).times(r.cnyRate).div(r.srcRate).toFixed(2)
-  } catch {
-    cnyVal.value = ''
-  }
+  applyParsedSrc(parsed, r)
 }
 
 // 上行 Enter/=：把算式应用为结果。锁定态下直接替换 srcRaw 数值；
@@ -1687,9 +1737,10 @@ function onSrcKeydown(e) {
   const raw = (e.target.value ?? '').trim()
   const result = applyCalcResult(raw)
   if (result == null) return
-  srcRaw.value = result
+  setSrcValue(result) // 写回上行 + 清上行预览
   // 应用后走正常 onSrcInput 链路（但 @input 不会自动触发，手动调一次）
-  srcLocked.value && /^[\d.]+$/.test(result)
+  // 锁定态 + 纯数字（含负数结果）→ 直接换算 CNY；否则走完整解析
+  srcLocked.value && isPureNumber(result)
     ? updateCnyWithAmount(result)
     : onSrcInput({ target: { value: result } })
 }
@@ -1699,9 +1750,9 @@ function updateCnyWithAmount(amountStr) {
   const r = findCurrencies(srcCode.value)
   if (!r) return
   try {
-    cnyVal.value = new Decimal(amountStr).times(r.cnyRate).div(r.srcRate).toFixed(2)
+    setCnyValue(new Decimal(amountStr).times(r.cnyRate).div(r.srcRate).toFixed(2))
   } catch {
-    cnyVal.value = ''
+    setCnyValue('')
   }
 }
 
@@ -1714,7 +1765,7 @@ function onCnyInput(e) {
   if (!raw) return
   // 含运算符：预览已更新，跳过数字校验直接返回
   if (hasOperator(raw)) return
-  if (!/^\d+(?:\.\d+)?$/.test(raw)) return
+  if (!isPureNumber(raw)) return
   // 锁定态用 srcCode；非锁定态用当前 srcRaw 里解析的 code
   const effectiveCode = srcLocked.value ? srcCode.value : (parseSrcInput(srcRaw.value)?.code ?? srcCode.value)
   const r = findCurrencies(effectiveCode)
@@ -1723,9 +1774,10 @@ function onCnyInput(e) {
     const srcAmount = new Decimal(raw).times(r.srcRate).div(r.cnyRate)
     // 锁定态：只回填纯数值（保持"锁定后只输数字"的契约）
     // 非锁定态：回填"数值+code"（用户能看到当前币种）
-    srcRaw.value = srcLocked.value
+    // setSrcValue 会连带清掉上行的算式预览（上行已被反算结果覆盖）
+    setSrcValue(srcLocked.value
       ? srcAmount.toFixed(2)
-      : `${srcAmount.toFixed(2)}${effectiveCode}`
+      : `${srcAmount.toFixed(2)}${effectiveCode}`)
   } catch {
     // 反算失败不回填
   }
@@ -1738,7 +1790,7 @@ function onCnyKeydown(e) {
   const raw = (e.target.value ?? '').trim()
   const result = applyCalcResult(raw)
   if (result == null) return
-  cnyVal.value = result
+  setCnyValue(result) // 写回下行 + 清下行预览
   onCnyInput({ target: { value: result } })
 }
 
@@ -1763,6 +1815,7 @@ function getRowDisplay(cur) {
 
 // 行获得焦点：切为主动 + 存 editingBuffer
 function onRowFocus(cur, e) {
+  activeFlash.value = 'row:' + cur.currencies.code // 登记闪烁单选（blur 不取消，点别的输入框才切换）
   editingCode = cur.currencies.code
   becomeInitiative(cur)
   // 聚焦后本行显示 editingBuffer（初始为当前值的 toFixed 字符串），与 Vue 渲染同步
@@ -1809,13 +1862,15 @@ function onRowKeydown(cur, e) {
   const num = Number(result)
   cur.currencies.value = num
   editingBuffer.value[cur.currencies.code] = result // 让 getRowDisplay 显示结果
+  delete rowPreviews[cur.currencies.code] // 应用结果后预览消失
   store.syncPassiveValues()
 }
 
-// 行失焦：清 editingBuffer，恢复 toFixed(2) 显示
+// 行失焦：清 editingBuffer，恢复 toFixed(2) 显示；同时清掉未应用的算式预览
 function onRowBlur(cur) {
   editingCode = null
   delete editingBuffer.value[cur.currencies.code]
+  delete rowPreviews[cur.currencies.code]
 }
 
 // 设为主动：清零其他 initiative，置当前为主动
@@ -2000,8 +2055,10 @@ onMounted(async () => {
 }
 
 /* 选中的输入框：荧光「亮度高低」呼吸闪烁（青色 + 0.8s ease-in-out，
-   亮度随文字颜色 + 荧光光晕同步起伏，节奏加快仍柔和） */
-.crow-input:focus {
+   亮度随文字颜色 + 荧光光晕同步起伏，节奏加快仍柔和）。
+   闪烁为单选状态（.is-flash 由 activeFlash 驱动）：blur 不停止，
+   只有聚焦到另一个输入框时旧的才取消。 */
+.crow-input.is-flash {
   animation: fh-flash 0.8s ease-in-out infinite;
 }
 @keyframes fh-flash {
