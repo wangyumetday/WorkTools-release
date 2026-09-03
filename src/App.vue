@@ -46,8 +46,25 @@ function normalizeReleaseNotesHtml(notes) {
     .replace(/&#39;|&#x27;/g, "'")
     .replace(/&amp;/g, '&')
 
-  // 含真实 HTML 标签 → 直接当 HTML 用
-  if (/<[a-z][\s\S]*>/i.test(text)) return text
+  // 含真实 HTML 标签 → 清理 commit hash 链接后直接当 HTML 用
+  // GitHub 会把 markdown 里的 7 位 hex commit hash 自动渲染成
+  // <a class="commit-link" href=".../commit/xxx"><code>xxx</code></a>，
+  // electron-updater 拿到 body_html 后原样下发，客户端直接显示成可点链接。
+  // 这里把 commit-link 的 <a> 降级为小字灰色 <span>，并同时剥掉内层 <code>
+  // （它有默认 monospace 字体，且 span color/font-size 不一定能覆盖到）。
+  if (/<[a-z][\s\S]*>/i.test(text)) {
+    return text
+      .replace(
+        /<a\b[^>]*class="[^"]*commit-link[^"]*"[^>]*>([\s\S]*?)<\/a>/gi,
+        '<span style="font-size:11px;color:#999;">$1</span>'
+      )
+      .replace(
+        // 兜底：匹配任意只包含纯 hex hash 的 <a>（即使没 commit-link class 也降级）
+        /<a\b[^>]*>([0-9a-f]{7,40})<\/a>/gi,
+        '<span style="font-size:11px;color:#999;">$1</span>'
+      )
+      .replace(/<\/?code>/gi, '') // 把替换后残留的 <code></code> 标签一起剥掉
+  }
 
   // 否则当 Markdown/纯文本：转义 → **加粗** → URL 自动转链 → 换行
   return text
@@ -92,7 +109,7 @@ function handleUpdateState({ type, data }) {
                   borderRadius: '4px',
                   padding: '8px 10px'
                 },
-                innerHTML: `<div style="margin-bottom:4px;font-weight:600;">更新内容：</div>${notesHtml}`
+                innerHTML: notesHtml
               })
             : null
         ]),

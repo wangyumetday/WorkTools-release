@@ -67,14 +67,11 @@ jobs:
           if ($prev) {
             Write-Host "Commits between $prev and $current :"
             $log = @(git log "$prev..HEAD" --pretty=format:"- %s  (%h)")
-            $footer = "`n`n---`n完整对比：https://github.com/${{ github.repository }}/compare/$prev...$current`n"
           } else {
             Write-Host "No previous tag found, listing all commits:"
             $log = @(git log --pretty=format:"- %s  (%h)")
-            $footer = "`n"
           }
-          $body = "## 更新内容`n`n" + ($log -join "`n") + $footer
-          # UTF-8 无 BOM 写入，避免 release notes 首字符带 BOM 乱码
+          $body = ($log -join "`n")
           [System.IO.File]::WriteAllText((Join-Path $PWD 'RELEASE_NOTES.md'), $body, [System.Text.UTF8Encoding]::new($false))
           Write-Host "----- RELEASE_NOTES.md -----"
           Get-Content RELEASE_NOTES.md
