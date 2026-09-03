@@ -10,37 +10,31 @@ dist/
 dist_electron/
 asar-list.txt
 
+# ============================================================
+# 本地非工程文件统一目录（整体不入库）
+#   _local/design/   UI 设计探索稿
+#   _local/docs/     调研报告 / 需求 / 接口文档
+#   _local/tests/    E2E 测试脚本 + fixtures
+#   _local/samples/  抓包样本数据
+#   _local/wenti/    疑问排查时的抓包与实验脚本
+#   _local/e2e-outputs/  E2E 运行输出
+# ============================================================
+_local/
+
+# 开发过程草稿 / scratch（工作区 issue tracker 约定路径）
+.scratch/
+
 # 旧引用/备份（已误删，残留 git 跟踪）
 .ref/
 
-# 开发过程草稿 / scratch
-.scratch/
-
 # 测试数据 / fixture
 testfold/
-
-# E2E 运行输出（任务结果文件，不入库）
-ass_outputs_e2e/
-
-# 个人试验 / 抓包样本目录（wenti = 疑问排查时的抓包与脚本，不入库）
-wenti/
-
-# 接口抓包样本（含账号/供应商信息，不入库；模块使用的死数据在 electron/features/ass/supplierNames.json）
-src/features/ass/docs/qingqiu.json
-src/features/ass/docs/fanhui.json
-
-# 业务数据样本（PCP 文档目录下的 JSON 导出 / Excel 数据文件，不入库；说明类 .md 保留）
-docs/pcp/*.json
-docs/pcp/*.xlsx
 
 # 临时 / 调试脚本
 *.tmp-*
 tmp-*.ps1
 test-debug.mjs
 test-fold-snapshot.mjs
-
-# 中间产物
-docs/pcp/pdf_text.txt
 
 # 日志
 *.log
