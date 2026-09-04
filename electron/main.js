@@ -30,7 +30,7 @@ import { TaskManager } from './features/pcp/taskManager.js'
 import { Pipeline } from './features/pcp/pipeline.js'
 import { registerPcpController } from './features/pcp/controller.js'
 // ERC feature：controller（无状态服务，无需 manager）
-import { registerErcController } from './features/erc/controller.js'
+import { registerErcController, startRateScheduler } from './features/erc/controller.js'
 // ASS feature：携程低价政策推荐（登录窗口 + 会话管理 + 自动查询）
 import { registerAssController } from './features/ass/controller.js'
 // Floating：悬浮窗管理 + IPC 注册（shared 基础设施，跨 feature 复用）
@@ -329,6 +329,7 @@ function initFeatures() {
 function registerIpcHandlers() {
   registerPcpController({ mainWindow, taskManager, fileManager, credentialManager, configManager, pipeline })
   registerErcController()
+  startRateScheduler()  // 启动 30 分钟定时刷新（立即拉一次 + 周期）
   registerFloatingController(mainWindow)
   registerAssController({ mainWindow, userDataPath: app.getPath('userData') })
 

@@ -70,16 +70,26 @@ export const useDataStore = defineStore('erc-data', () => {
   async function updata_exchangeRates() {
     try {
       const res = await api.erc.getExchangeRate()
-      currencies_list.value.map(item => {
-        if (res.conversion_rates[item.currencies.code] != undefined) {
-          item.currencies.rate = res.conversion_rates[item.currencies.code]
-        }
-      })
-      const resDate = new Date(res.time_last_update_unix * 1000).toISOString().slice(0, 10)
-      syncDate.value = resDate
+      applyRateUpdate(res)
     } catch (error) {
       // 静默失败（原逻辑如此，避免网络抖动打断用户操作）
     }
+  }
+
+  // 应用一次汇率更新（主进程定时刷新推送 / 渲染层主动拉取共用同一逻辑）
+  // 参数 res 为 fetchExchangeRate 返回的结构：{ result, conversion_rates, time_last_update_unix }
+  function applyRateUpdate(res) {
+    if (!res || !res.conversion_rates) return
+    currencies_list.value.map(item => {
+      if (res.conversion_rates[item.currencies.code] != undefined) {
+        item.currencies.rate = res.conversion_rates[item.currencies.code]
+      }
+    })
+    if (res.time_last_update_unix) {
+      syncDate.value = new Date(res.time_last_update_unix * 1000).toISOString().slice(0, 10)
+    }
+    // 汇率更新后联动重算被动币种，确保显示同步
+    syncPassiveValues()
   }
 
   // ==================== 币种增删 ====================
@@ -160,7 +170,7 @@ export const useDataStore = defineStore('erc-data', () => {
     // getters
     initiativeCurrency, BASE_VALUE,
     // actions
-    load_all_countries_list, updata_exchangeRates, updataActiveCurrency, removeCurrency,
+    load_all_countries_list, updata_exchangeRates, applyRateUpdate, updataActiveCurrency, removeCurrency,
     syncPassiveValues, seedDefaultCurrencies
   }
 }, {

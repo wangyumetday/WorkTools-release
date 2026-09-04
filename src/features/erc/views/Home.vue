@@ -72,6 +72,11 @@ onMounted(async () => {
   // 首次加载种入默认 CNY/USD（仅 activeCurrency 为空时生效）
   store.seedDefaultCurrencies()
   store.loading = false
+  // 订阅主进程定时刷新推送（30 分钟一次）
+  // 主进程单点调度，渲染层只接收，无需本地 setInterval
+  api.erc.onRateUpdated((res) => {
+    store.applyRateUpdate(res)
+  })
 })
 </script>
 

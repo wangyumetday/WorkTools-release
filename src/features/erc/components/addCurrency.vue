@@ -18,7 +18,7 @@
         class="search-input"
         type="text"
         v-model="searchCode"
-        placeholder="输入三字码搜索"
+        placeholder="输入三字码 / 中文名 / 英文名搜索"
         spellcheck="false"
       />
     </div>
@@ -47,18 +47,17 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useDataStore } from '../stores/data.js'
+import { matchCurrencyByKeyword } from '../shared/searchIndex.js'
 
 const store = useDataStore()
 
 const searchCode = ref('')
 
-// 三字码模糊过滤（大小写不敏感）
+// 多维度模糊过滤：三字码 / 中文名(translations.zho) / 币种英文名 / 国家英文名 / 硬编码别名
 const filteredCurrencies = computed(() => {
   const kw = searchCode.value.trim().toLowerCase()
   if (!kw) return store.currencies_list
-  return store.currencies_list.filter(item =>
-    String(item.currencies.code || '').toLowerCase().includes(kw)
-  )
+  return store.currencies_list.filter(item => matchCurrencyByKeyword(item, kw))
 })
 
 // 当前活跃币种 code 集合（用于高亮已选中项）

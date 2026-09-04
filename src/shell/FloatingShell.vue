@@ -109,12 +109,41 @@ const snapHidden = ref(false)       // 吸附模式下是否处于"收入边框"
 const snapCandidate = ref(null)     // 拖动中的"边框反光"提示方向
 let snapStateDisposer = null
 // 吸附模式下的自动收回定时器（mouseleave 后 1s 触发 snapOut）
+// snapOut 主进程有 cursor 守卫，鼠标仍在窗口边缘（OS resize 把手区）会拒绝收回 → 轮询重试
 let snapAutoHideTimer = null
+let snapOutPollCount = 0
+const SNAP_OUT_POLL_INTERVAL = 200   // 被守卫拒后重试间隔
+const SNAP_OUT_POLL_MAX = 8          // 最大轮询次数（8×200ms≈1.6s 后放弃，视为用户停在边缘）
+
 function clearSnapAutoHide() {
   if (snapAutoHideTimer) {
     clearTimeout(snapAutoHideTimer)
     snapAutoHideTimer = null
   }
+  snapOutPollCount = 0
+}
+
+// 轮询 snapOut：调主进程，被守卫拒就重试，直到执行成功或达到最大轮询次数
+async function pollSnapOut() {
+  if (snapMode.value !== 'snapped' || snapHidden.value) {
+    snapAutoHideTimer = null
+    snapOutPollCount = 0
+    return
+  }
+  const executed = await api.floating.snapOut()
+  if (executed) {
+    snapAutoHideTimer = null
+    snapOutPollCount = 0
+    return
+  }
+  // 被守卫拒绝：鼠标仍在窗口边缘把手区。重试或放弃
+  snapOutPollCount++
+  if (snapOutPollCount > SNAP_OUT_POLL_MAX) {
+    snapAutoHideTimer = null
+    snapOutPollCount = 0
+    return
+  }
+  snapAutoHideTimer = setTimeout(pollSnapOut, SNAP_OUT_POLL_INTERVAL)
 }
 
 const OPACITY_KEY = 'floating:opacity'
@@ -166,12 +195,8 @@ function handleMouseLeave() {
   if (isDragging) return
   if (snapMode.value === 'snapped') {
     clearSnapAutoHide()
-    snapAutoHideTimer = setTimeout(() => {
-      snapAutoHideTimer = null
-      if (snapMode.value === 'snapped' && !snapHidden.value) {
-        api.floating.snapOut()
-      }
-    }, 1000)
+    // 1s 后第一次尝试 snapOut，被守卫拒（鼠标在边缘）就 200ms 轮询重试
+    snapAutoHideTimer = setTimeout(pollSnapOut, 1000)
     return
   }
   clearCollapseTimer()

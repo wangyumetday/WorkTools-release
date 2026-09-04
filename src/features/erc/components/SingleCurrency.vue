@@ -34,7 +34,7 @@
             {{ currency.currencies.rate.toFixed(2) }}
           </div>
           <div class="symbol">
-            {{ currency.currencies.code }}
+            <span class="symbol-glyph">{{ currency.currencies.symbol }}</span><span class="symbol-code">{{ currency.currencies.code }}</span>
           </div>
         </div>
       </div>
@@ -274,6 +274,15 @@ function setInitiativeCurrency() {
 }
 .scrt-right .symbol {
   font-size: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+.scrt-right .symbol .symbol-glyph {
+  color: rgba(99, 226, 183, 0.85);
+}
+.scrt-right .symbol .symbol-code {
+  color: rgba(255, 255, 255, 0.75);
 }
 .scr-bottom {
   padding: 0;

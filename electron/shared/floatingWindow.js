@@ -119,6 +119,12 @@ let mainWindowRef = null
 // 动画进行中标记（避免 hover 决策与动画冲突）
 let isAnimating = false
 
+// 用户正在拖边改大小标记（OS resize 进行中）
+// 期间 snapOut 一律拒绝，避免虚框跟鼠标走但窗口 bounds 未变时 cursor 守卫误判"已离开"
+// will-resize 触发时置 true；resize 触发后 debounce 500ms 无新事件置 false
+let isResizing = false
+let resizeEndTimer = null
+
 // ==================== 贴边吸附状态 ====================
 // mode: 'normal'（collapsed/expanded 双态）| 'snapped'（永远 expanded，子态 hidden/expanded）
 let mode = 'normal'
@@ -169,6 +175,12 @@ function openFloating() {
     snapHidden = false
     snapCandidate = null
     snapCandidateFrames = 0
+    // 重置拖边状态
+    isResizing = false
+    if (resizeEndTimer) {
+      clearTimeout(resizeEndTimer)
+      resizeEndTimer = null
+    }
     if (dragTimer) {
       clearInterval(dragTimer)
       dragTimer = null
@@ -181,9 +193,31 @@ function openFloating() {
     mainWindowRef?.webContents.send('floating:stateChange', { open: false })
   })
 
+  // ==================== OS resize 监听：拖边期间屏蔽 snapOut 自动收回 ====================
+  // 原因：Windows 拖边时显示虚框跟鼠标走，实际窗口 bounds 不变。鼠标已离开原 bounds
+  //       但 OS 在 resize 预览阶段，cursor 守卫用 getBounds() 判断会误判"已离开"→ snapOut 收回。
+  //       will-resize 在用户开始拖边时触发一次（设 isResizing=true）；
+  //       resize 在拖动过程中和松手时触发（debounce 500ms 无新事件视为结束，设 isResizing=false）。
+  floatingWindow.on('will-resize', (_event) => {
+    // 普通模式 collapsed 态也会触发（resizable: false 时不会，但 collapsed 时 resizable=true）
+    // 吸附模式 snapHidden 态 resizable=false 不会触发 will-resize
+    isResizing = true
+    if (resizeEndTimer) {
+      clearTimeout(resizeEndTimer)
+      resizeEndTimer = null
+    }
+  })
+
   // 用户拖边框改尺寸：非动画、展开态时防抖持久化到文件
   floatingWindow.on('resize', () => {
     if (!floatingWindow || floatingWindow.isDestroyed()) return
+    // resize 期间持续重置 debounce timer；500ms 无新 resize 视为拖边结束
+    isResizing = true
+    if (resizeEndTimer) clearTimeout(resizeEndTimer)
+    resizeEndTimer = setTimeout(() => {
+      isResizing = false
+      resizeEndTimer = null
+    }, 500)
     // 加 mode === 'snapped' 守卫：吸附模式下 setBounds 是程序化贴边，
     // 不应被当作用户拖改展开尺寸持久化（否则 12px 露出条尺寸会污染 expandedSize）
     if (isAnimating || !isExpanded || mode === 'snapped') return
@@ -384,6 +418,9 @@ function snapIn() {
   const to = snapExpandedBounds(snapDir, display)
   // 动画期间保持 snapHidden=true（空壳滑出，内容不显示）
   // 动画结束切 snapHidden=false（内容出现）
+  // 弹出态保持 resizable=true：让用户能拖边改大小。
+  //  副作用：窗口边缘 ~5px OS resize 把手会吞 mouseenter/mouseleave，
+  //   误触发 snapOut 自动收回——由 snapOut 内的 cursor 守卫拦截。
   animateBounds(from, to, () => {
     snapHidden = false
     pushSnapState()
@@ -391,10 +428,22 @@ function snapIn() {
 }
 
 // 渲染层 mouseleave 1s 后调用：从弹出来收回边框 + 动画
+// 返回 true 表示已开始收回动画；false 表示被 cursor 守卫拒绝（鼠标仍在窗口边缘把手区）
 function snapOut() {
-  if (mode !== 'snapped' || !snapDir || snapHidden) return
-  if (pinned) return  // pinned 不自动收回
-  if (isAnimating) return
+  if (mode !== 'snapped' || !snapDir || snapHidden) return false
+  if (pinned) return false  // pinned 不自动收回
+  if (isAnimating) return false
+  if (isResizing) return false  // 用户在拖边改大小，虚框跟鼠标走但 bounds 未变，一律拒绝
+  // cursor 守卫：鼠标仍在窗口 bounds（含 ~6px OS resize 把手外延）内时拒绝收回。
+  // 解决 frameless transparent 窗口 resizable:true 时 thickFrame 外扩把手吞 mouseleave
+  // 导致的误触发问题。鼠标真移出窗口外才执行 snapOut。
+  const PAD = 8  // OS resize 把手宽度（实测 ~5-6px，加安全边）
+  const cursor = screen.getCursorScreenPoint()
+  const b = floatingWindow.getBounds()
+  const stillInside =
+    cursor.x >= b.x - PAD && cursor.x <= b.x + b.width + PAD &&
+    cursor.y >= b.y - PAD && cursor.y <= b.y + b.height + PAD
+  if (stillInside) return false
   const from = floatingWindow.getBounds()
   const display = screen.getDisplayNearestPoint({ x: from.x, y: from.y })
   const to = snapHiddenBounds(snapDir, display)
@@ -405,6 +454,7 @@ function snapOut() {
     floatingWindow.setResizable(false)
     pushSnapState()
   })
+  return true
 }
 
 // ==================== 自定义拖拽（渲染层 mousedown 触发） ====================
@@ -583,6 +633,7 @@ function togglePin() {
     const display = screen.getDisplayNearestPoint({ x: from.x, y: from.y })
     const to = snapExpandedBounds(snapDir, display)
     // 动画期间保持 snapHidden=true，结束才切 false（与 snapIn 一致：空壳滑出，内容到位后出现）
+    // 弹出态保持 resizable=true（同 snapIn，让用户能拖边改大小；mouseleave 误触发由 snapOut 守卫拦截）
     animateBounds(from, to, () => {
       snapHidden = false
       pushSnapState()

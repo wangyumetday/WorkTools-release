@@ -94,7 +94,9 @@ const api = {
     // 拉取最新汇率（以 USD 为锚定）
     getExchangeRate:     ()                  => ipcRenderer.invoke('erc:exchange:getRate'),
     // 拉取所有国家信息（含币种代码）
-    getCountriesList:    ()                  => ipcRenderer.invoke('erc:exchange:getCountries')
+    getCountriesList:    ()                  => ipcRenderer.invoke('erc:exchange:getCountries'),
+    // 主进程 30 分钟定时刷新汇率后推送：监听后由 store.applyRateUpdate 应用
+    onRateUpdated:       (callback)         => ipcRenderer.on('erc:exchange:rateUpdated', (_event, data) => callback(data))
   },
 
   // ---------- ASS feature：统计代理（携程低价政策推荐批量查询） ----------
