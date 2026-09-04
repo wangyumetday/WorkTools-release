@@ -16,7 +16,7 @@
 <template>
   <div class="fh">
     <!-- ============ 换算成人民币 ============ -->
-    <section class="fh-sec">
+    <section class="fh-sec any-to-cny">
       <div class="fh-sec-title">任意币种转人民币</div>
       <div class="fh-rows">
         <!-- 上行：源币种输入（500krw 自动解析） -->
@@ -39,10 +39,9 @@
         </div>
       </div>
     </section>
-
     <!-- ============ 同步换算 ============ -->
-    <section class="fh-sec">
-      <div class="fh-sec-title duo-section">
+    <section class="fh-sec sync-to">
+      <div class="fh-sec-title">
         <span>多币种同步换算</span>
         <button class="fh-add" @click="showPicker = !showPicker">
           {{ showPicker ? '收起' : '加币种' }}
@@ -1871,12 +1870,25 @@ onMounted(async () => {
 <style scoped>
 /* 壳：纵向栈，紧凑间距 */
 .fh {
+  height: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 8px 10px 6px;
   color: #fff;
   font-size: 12px;
+}
+
+.any-to-cny {}
+
+.sync-to {
+  margin-top: 2px;
+  flex: 1;
+  /* flex column 子项默认 min-height: auto，会被内容撑开突破父容器，
+     导致内部 .fh-picker / .fh-sync-list 的 overflow 无法触发。
+     显式置 0 允许它收缩到内容以下，子项滚动才能生效。 */
+  min-height: 0;
 }
 
 /* 区块 */
@@ -1904,7 +1916,7 @@ onMounted(async () => {
 }
 
 .fh-add {
-  
+
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.85);
@@ -1923,23 +1935,28 @@ onMounted(async () => {
 .fh-rows,
 .fh-sync-list {
   border-left: 4px solid rgba(45, 117, 93, 0.85);
-
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-/* 同步换算列表：最多 5 行（每行 30px + gap 4px ≈ 166px），超出滚动 */
-.fh-sync-list {
-  max-height: 166px;
+/* fh-picker / fh-sync-list：占满 .sync-to 剩余高度，内容超出时内部滚动。
+   flex:1 拉伸填满；min-height:0 允许收缩到内容以下以触发 overflow；overflow-y:auto 出现滚动条。 */
+.fh-sync-list,
+.fh-picker {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
-/* 加币种选择面板：自身不滚动，交给 addCurrency 内部列表滚动（--currency-list-max-h 约束列表高度） */
+/* 加币种选择面板：保留视觉边框。
+   --currency-list-max-h: none 解除 addCurrency 内部 .currency-list 的 240px/150px 默认上限，
+   让列表按内容自然展开 → 撑出 .fh-picker 边界 → 由 .fh-picker 的 overflow-y:auto 统一滚动。
+   这样搜索框固定在顶部不动，列表整体在 .fh-picker 内滚（避免双滚动条）。 */
 .fh-picker {
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 6px;
-  --currency-list-max-h: 150px;
+  --currency-list-max-h: none;
 }
 
 /* 币种行：左删除 + 币种名 + 右对齐金额 + 三字码（单行紧凑） */
@@ -1948,10 +1965,17 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   height: 30px;
+  /* flex column 容器内子项默认 flex-shrink:1 会被压缩——
+     行多时高度被挤压变形。置 0 锁定 30px 不变，超出由 .fh-sync-list 滚动。 */
+  flex-shrink: 0;
   padding: 0 8px;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
+  border-left: 0px;
+  /* 设置左边没有圆角 */
+  border-top-left-radius: 0px;
+  border-bottom-left-radius: 0px;
   box-sizing: border-box;
   transition: background 0.12s, border-color 0.12s;
 }
@@ -1962,8 +1986,11 @@ onMounted(async () => {
    正在编辑哪一行由输入框 :focus 的青色呼吸闪烁表达，背景/边框维持默认灰白。 */
 .crow.is-init {
   /* border-left: 2px solid rgba(99, 226, 183, 0.85); */
-  border-left: 2px solid rgba(45, 117, 93, 0.85);
   padding-left: 7px;
+  background: transparent;
+  border: 1px solid rgba(45, 117, 93, 0.85);
+  border-left: 0px solid rgba(45, 117, 93, 0.95);
+
 }
 
 /* 删除按钮：默认半透明，hover 提亮变红 */
@@ -2074,16 +2101,19 @@ onMounted(async () => {
 }
 
 /* 滚动条暗色（4px 宽，半透明 thumb，透明 track——与 .currency-list / .floating-content 统一） */
-.fh-sync-list::-webkit-scrollbar {
+.fh-sync-list::-webkit-scrollbar,
+.fh-picker::-webkit-scrollbar {
   width: 4px;
 }
 
-.fh-sync-list::-webkit-scrollbar-thumb {
+.fh-sync-list::-webkit-scrollbar-thumb,
+.fh-picker::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 2px;
 }
 
-.fh-sync-list::-webkit-scrollbar-track {
+.fh-sync-list::-webkit-scrollbar-track,
+.fh-picker::-webkit-scrollbar-track {
   background: transparent;
 }
 </style>

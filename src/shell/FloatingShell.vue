@@ -21,7 +21,18 @@
      ============================================================ -->
 
 <template>
-  <div class="floating-shell" @mouseenter="handleMouseEnter" @mouseleave="handleMouseLeave">
+  <div
+    class="floating-shell"
+    :class="{
+      'is-collapsed': isCollapsed,
+      'is-snapped': snapMode === 'snapped',
+      'is-snap-hidden': snapMode === 'snapped' && snapHidden,
+      [`is-snap-${snapDir}`]: snapMode === 'snapped' && snapDir,
+      [`is-near-${snapCandidate}`]: snapCandidate
+    }"
+    @mouseenter="handleMouseEnter"
+    @mouseleave="handleMouseLeave"
+  >
     <!-- ============ 顶部 drag bar（mousedown 自定义拖拽，整条可拖） ============ -->
     <div class="drag-bar" @mousedown="handleDragStart">
       <div class="drag-left">
@@ -90,6 +101,22 @@ const opacity = ref(1.0)
 // 整窗缩放因子（setZoomFactor：CSS px 不变、视口按比例缩放）
 const zoom = ref(1.0)
 
+// ==================== 贴边吸附状态镜像 ====================
+// 主进程持有 mode/dir/hidden/candidate source of truth，本组件仅镜像用于 CSS 切换
+const snapMode = ref('normal')      // 'normal' | 'snapped'
+const snapDir = ref(null)           // null | 'top' | 'left' | 'right'
+const snapHidden = ref(false)       // 吸附模式下是否处于"收入边框"状态
+const snapCandidate = ref(null)     // 拖动中的"边框反光"提示方向
+let snapStateDisposer = null
+// 吸附模式下的自动收回定时器（mouseleave 后 1s 触发 snapOut）
+let snapAutoHideTimer = null
+function clearSnapAutoHide() {
+  if (snapAutoHideTimer) {
+    clearTimeout(snapAutoHideTimer)
+    snapAutoHideTimer = null
+  }
+}
+
 const OPACITY_KEY = 'floating:opacity'
 const OPACITY_MIN = 0.1
 const OPACITY_MAX = 1.0
@@ -120,17 +147,33 @@ function updateMode() {
 
 // mouseenter：立即展开（清掉待收缩定时器，避免重入抖动）。
 // isCollapsed 守卫避免已展开态重复发 IPC。
+// 吸附模式下：触发 snapIn 弹出来，不走 expand
 function handleMouseEnter() {
+  if (isDragging) return  // 守卫：拖拽中拒绝（避免拖拽起手触发 expand/snapIn 干扰）
   clearCollapseTimer()
+  clearSnapAutoHide()
+  if (snapMode.value === 'snapped') {
+    if (snapHidden.value) api.floating.snapIn()
+    return
+  }
   if (isCollapsed.value) {
     api.floating.expand()
   }
 }
 
-// mouseleave：3 秒后收缩（pinned / 拖拽中 跳过）。
-// 3 秒延迟容许鼠标短暂滑出又滑回（切窗口/误移）；mouseenter 会清掉待收缩定时器。
+// mouseleave：吸附模式下 1s 后收回边框；普通模式 1200ms 后 collapse（pinned / 拖拽中 跳过）。
 function handleMouseLeave() {
   if (isDragging) return
+  if (snapMode.value === 'snapped') {
+    clearSnapAutoHide()
+    snapAutoHideTimer = setTimeout(() => {
+      snapAutoHideTimer = null
+      if (snapMode.value === 'snapped' && !snapHidden.value) {
+        api.floating.snapOut()
+      }
+    }, 1000)
+    return
+  }
   clearCollapseTimer()
   collapseTimer = setTimeout(() => {
     collapseTimer = null
@@ -149,7 +192,8 @@ function handleDragStart(e) {
   if (e.target.closest('button, input, .crow-del')) return  // 交互元素放行
   isDragging = true
   clearCollapseTimer()                                // 起拖清掉待收缩，避免拖拽中收缩
-  api.floating.dragStart()
+  clearSnapAutoHide()                                 // 起拖清掉吸附自动收回，避免拖拽中收回
+  api.floating.dragStart()                            // 主进程 startDrag 内会处理吸附模式起拖硬切
   // mouseup 可能在 drag-bar 外松开，用 window 监听 + once 自动清理
   window.addEventListener('mouseup', handleDragEnd, { once: true })
 }
@@ -214,10 +258,19 @@ onMounted(() => {
   api.floating.setZoom(zoom.value)
   updateMode()
   window.addEventListener('resize', updateMode)
+  // 监听吸附状态推送（主进程持有 source of truth，本组件仅镜像）
+  snapStateDisposer = api.floating.onSnapState((s) => {
+    snapMode.value = s.mode
+    snapDir.value = s.dir
+    snapHidden.value = s.hidden
+    snapCandidate.value = s.candidate
+  })
 })
 
 onUnmounted(() => {
   clearCollapseTimer()
+  clearSnapAutoHide()
+  snapStateDisposer?.()
   window.removeEventListener('mouseup', handleDragEnd)
   if (isDragging) {
     isDragging = false
@@ -246,6 +299,54 @@ onUnmounted(() => {
   box-shadow:
     inset 0px 0px 2px 1px rgba(0, 255, 255, 0.3),
     inset 0px 0px 2px 2px rgba(0, 255, 255, 0.2);
+  /* 兜底硬切平滑感：主进程 setBounds 不动画，靠 CSS transition 兜底。
+     box-shadow 过渡：吸附态切换（snapHidden true↔false）和候选反光出现/消失时平滑过渡。 */
+  transition: width 0.15s ease, height 0.15s ease, box-shadow 0.18s ease;
+}
+
+/* ==================== 贴边吸附：边框反光高亮（拖动中靠近边框时） ==================== */
+/* 朝候选方向那一侧叠加加粗青色 inset 光带，模拟"边框反光"投射到窗口边缘。
+   保留原 .floating-shell 的两道青色内阴影作为底，再加方向光带。 */
+.floating-shell.is-near-top {
+  box-shadow:
+    inset 0px 0px 2px 1px rgba(0, 255, 255, 0.3),
+    inset 0px 0px 2px 2px rgba(0, 255, 255, 0.2),
+    inset 0 5px 14px -2px rgba(0, 255, 255, 0.75);  /* 朝顶边反光 */
+}
+.floating-shell.is-near-left {
+  box-shadow:
+    inset 0px 0px 2px 1px rgba(0, 255, 255, 0.3),
+    inset 0px 0px 2px 2px rgba(0, 255, 255, 0.2),
+    inset 5px 0 14px -2px rgba(0, 255, 255, 0.75);  /* 朝左边反光 */
+}
+.floating-shell.is-near-right {
+  box-shadow:
+    inset 0px 0px 2px 1px rgba(0, 255, 255, 0.3),
+    inset 0px 0px 2px 2px rgba(0, 255, 255, 0.2),
+    inset -5px 0 14px -2px rgba(0, 255, 255, 0.75);  /* 朝右边反光 */
+}
+
+/* ==================== 贴边吸附：收入态（窗口主体在屏外，只露 4px） ====================
+   4px 露出条很窄，光带 spread/blur 也要小，否则视觉突兀。 */
+.floating-shell.is-snapped.is-snap-hidden .drag-bar > * {
+  display: none;
+}
+.floating-shell.is-snapped.is-snap-hidden .drag-bar {
+  border-bottom: none;
+  background: transparent;
+}
+.floating-shell.is-snapped.is-snap-hidden .floating-body {
+  display: none;
+}
+/* 收入态露出 4px 一条加粗青色光带，让用户能看到"边框上有东西" */
+.floating-shell.is-snapped.is-snap-hidden.is-snap-top {
+  box-shadow: inset 0 -2px 3px 0 rgba(0, 255, 255, 0.75);
+}
+.floating-shell.is-snapped.is-snap-hidden.is-snap-left {
+  box-shadow: inset -2px 0 3px 0 rgba(0, 255, 255, 0.75);
+}
+.floating-shell.is-snapped.is-snap-hidden.is-snap-right {
+  box-shadow: inset 2px 0 3px 0 rgba(0, 255, 255, 0.75);
 }
 
 /* ==================== drag bar ==================== */

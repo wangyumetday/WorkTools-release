@@ -102,6 +102,15 @@ const OPACITY_DEFAULT = 1.0
 const ZOOM_MIN = 0.5
 const ZOOM_MAX = 1.5
 
+// ==================== 贴边吸附常量 ====================
+// 拖到屏幕边框 SNAP_THRESHOLD_ENTER 内 → 候选吸附；已候选后必须拉远到 SNAP_THRESHOLD_EXIT 才取消（滞回防边缘抖动）
+const SNAP_THRESHOLD_ENTER = 60
+const SNAP_THRESHOLD_EXIT = 120
+// 候选必须连续 SNAP_HYSTERESIS_FRAMES 帧才正式生效（防跨屏瞬间 workArea 跳变误触）
+const SNAP_HYSTERESIS_FRAMES = 2
+// 收入边框后露出的宽度（屏外主体 + 4px 露出条）：刚好够鼠标 hover 触发，不至于完全看不见
+const SNAP_REVEAL = 4
+
 // 悬浮窗实例引用
 let floatingWindow = null
 // 主窗口引用（用于 stateChange 推送）
@@ -109,6 +118,18 @@ let mainWindowRef = null
 
 // 动画进行中标记（避免 hover 决策与动画冲突）
 let isAnimating = false
+
+// ==================== 贴边吸附状态 ====================
+// mode: 'normal'（collapsed/expanded 双态）| 'snapped'（永远 expanded，子态 hidden/expanded）
+let mode = 'normal'
+// snapDir: null | 'top' | 'left' | 'right'（吸附模式下的方向）
+let snapDir = null
+// snapHidden: 吸附模式下是否处于"收入边框"状态（true=主体在屏外只露 12px，false=贴边框展开）
+let snapHidden = false
+// snapCandidate: 拖动中的临时候选方向（null | 'top'|'left'|'right'）
+let snapCandidate = null
+// snapCandidateFrames: 候选连续帧数（跨屏防误触）
+let snapCandidateFrames = 0
 
 // ==================== 创建窗口 ====================
 function openFloating() {
@@ -142,6 +163,12 @@ function openFloating() {
     isAnimating = false
     isExpanded = false
     pinned = false
+    // 重置吸附状态
+    mode = 'normal'
+    snapDir = null
+    snapHidden = false
+    snapCandidate = null
+    snapCandidateFrames = 0
     if (dragTimer) {
       clearInterval(dragTimer)
       dragTimer = null
@@ -157,7 +184,9 @@ function openFloating() {
   // 用户拖边框改尺寸：非动画、展开态时防抖持久化到文件
   floatingWindow.on('resize', () => {
     if (!floatingWindow || floatingWindow.isDestroyed()) return
-    if (isAnimating || !isExpanded) return
+    // 加 mode === 'snapped' 守卫：吸附模式下 setBounds 是程序化贴边，
+    // 不应被当作用户拖改展开尺寸持久化（否则 12px 露出条尺寸会污染 expandedSize）
+    if (isAnimating || !isExpanded || mode === 'snapped') return
     const [w, h] = floatingWindow.getSize()
     if (h <= COLLAPSED.height + 20) return  // 太矮不持久化（防误触）
     const exp = getExpandedSize()
@@ -187,7 +216,9 @@ function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3)
 }
 
-function animateResize(x, y, from, to, onComplete) {
+// 通用 bounds 动画：插值 x/y/w/h。from/to 都需含 x/y/width/height。
+// 用于：collapse/expand（位置不变仅尺寸变）+ snap 收入/弹出（位置+尺寸变）。
+function animateBounds(from, to, onComplete) {
   if (resizeAnimTimer) {
     clearInterval(resizeAnimTimer)
     resizeAnimTimer = null
@@ -199,6 +230,8 @@ function animateResize(x, y, from, to, onComplete) {
     i++
     const t = Math.min(1, i / steps)
     const e = easeOutCubic(t)
+    const x = Math.round(from.x + (to.x - from.x) * e)
+    const y = Math.round(from.y + (to.y - from.y) * e)
     const w = Math.round(from.width + (to.width - from.width) * e)
     const h = Math.round(from.height + (to.height - from.height) * e)
     if (floatingWindow && !floatingWindow.isDestroyed()) {
@@ -211,6 +244,15 @@ function animateResize(x, y, from, to, onComplete) {
       onComplete?.()
     }
   }, ANIM_FRAME)
+}
+
+// 旧 API 兼容：固定 x,y，仅动画 w,h（collapse/expand 用）
+function animateResize(x, y, from, to, onComplete) {
+  animateBounds(
+    { x, y, width: from.width, height: from.height },
+    { x, y, width: to.width, height: to.height },
+    onComplete
+  )
 }
 
 function expandFloating() {
@@ -229,6 +271,142 @@ function collapseFloating() {
   animateResize(x, y, { width: w, height: h }, COLLAPSED, () => { isExpanded = false })
 }
 
+// ==================== 贴边吸附 ====================
+// 吸附模式有两种子态：
+//   - hidden（收入边框）：窗口主体在屏外，只露 SNAP_REVEAL(4px) 一条
+//   - expanded（贴边展开）：窗口贴边框展开，主体在屏内
+// 进入吸附模式后永远 expanded 尺寸（不再 collapsed）；退出后按高度判 collapsed/expanded。
+// 单一推送通道 floating:snapState 整包传 mode/dir/hidden/candidate 给渲染层。
+
+// 计算吸附方向上的"贴边展开"位置（窗口主体在屏内，贴边框那侧紧贴边框）
+function snapExpandedBounds(dir, display) {
+  const wa = display.workArea
+  const exp = getExpandedSize()
+  const cur = floatingWindow ? floatingWindow.getBounds() : { x: wa.x, y: wa.y }
+  let x, y
+  if (dir === 'top') {
+    // 顶贴顶向下展开：保持横向位置，clamp 到屏内
+    x = cur.x
+    x = Math.max(wa.x, Math.min(x, wa.x + wa.width - exp.width))
+    y = wa.y
+  } else if (dir === 'left') {
+    x = wa.x
+    y = cur.y
+    y = Math.max(wa.y, Math.min(y, wa.y + wa.height - exp.height))
+  } else if (dir === 'right') {
+    x = wa.x + wa.width - exp.width
+    y = cur.y
+    y = Math.max(wa.y, Math.min(y, wa.y + wa.height - exp.height))
+  }
+  return { x, y, width: exp.width, height: exp.height }
+}
+
+// 计算吸附方向上的"收入边框"位置（窗口主体移到屏外，露 SNAP_REVEAL px）
+function snapHiddenBounds(dir, display) {
+  const wa = display.workArea
+  const exp = getExpandedSize()
+  const cur = floatingWindow ? floatingWindow.getBounds() : { x: wa.x, y: wa.y }
+  let x, y
+  if (dir === 'top') {
+    // 主体在屏上方外，底边露出 SNAP_REVEAL(4px)
+    x = cur.x
+    x = Math.max(wa.x - exp.width + SNAP_REVEAL, Math.min(x, wa.x + wa.width - SNAP_REVEAL))
+    y = wa.y - exp.height + SNAP_REVEAL
+  } else if (dir === 'left') {
+    x = wa.x - exp.width + SNAP_REVEAL
+    y = cur.y
+    y = Math.max(wa.y - exp.height + SNAP_REVEAL, Math.min(y, wa.y + wa.height - SNAP_REVEAL))
+  } else if (dir === 'right') {
+    x = wa.x + wa.width - SNAP_REVEAL
+    y = cur.y
+    y = Math.max(wa.y - exp.height + SNAP_REVEAL, Math.min(y, wa.y + wa.height - SNAP_REVEAL))
+  }
+  return { x, y, width: exp.width, height: exp.height }
+}
+
+// 主→渲染推送吸附状态整包
+function pushSnapState() {
+  if (floatingWindow && !floatingWindow.isDestroyed()) {
+    floatingWindow.webContents.send('floating:snapState', {
+      mode, dir: snapDir, hidden: snapHidden, candidate: snapCandidate
+    })
+  }
+}
+
+// 进入吸附模式（拖到边框 30px 内松手时调用）
+function enterSnapMode(dir) {
+  if (!floatingWindow || floatingWindow.isDestroyed()) return
+  if (isAnimating) return  // 防止动画中重入
+  // 若当前 collapsed，先硬切到 expanded（吸附模式永远 expanded）
+  if (!isExpanded) {
+    const exp = getExpandedSize()
+    const [x, y] = floatingWindow.getPosition()
+    floatingWindow.setBounds({ x, y, width: exp.width, height: exp.height })
+    isExpanded = true
+  }
+  mode = 'snapped'
+  snapDir = dir
+  // snapHidden 在动画结束后才设 true（动画期间内容跟滑出屏外，更自然）
+  const from = floatingWindow.getBounds()
+  const display = screen.getDisplayNearestPoint({ x: from.x, y: from.y })
+  const to = snapHiddenBounds(dir, display)
+  pushSnapState()  // 立即推送 mode/dir（snapHidden=false）
+  animateBounds(from, to, () => {
+    snapHidden = true
+    // 禁用 resizable：移除 Windows frame:false 窗口边缘 4-5px 不可见 OS resize 把手，
+    // 否则鼠标 hover 4px 露出条会被 OS resize 拦截 → renderer mouseenter 不触发 → 不弹出
+    floatingWindow.setResizable(false)
+    pushSnapState()
+  })
+}
+
+// 退出吸附模式（拖走时调用，恢复普通模式）
+function exitSnapMode() {
+  // 恢复 resizable：snapHidden 期间被禁用，需在拖拽/普通模式前恢复，否则 setBounds 被 clamp
+  floatingWindow.setResizable(true)
+  mode = 'normal'
+  snapDir = null
+  snapHidden = false
+  const [h] = floatingWindow.getSize()
+  isExpanded = h > COLLAPSED.height + 50  // 与渲染层 HEIGHT_THRESHOLD 对齐
+  pushSnapState()
+}
+
+// 渲染层 mouseenter 调用：从收入态弹出来（贴边展开）+ 动画
+function snapIn() {
+  if (mode !== 'snapped' || !snapDir || !snapHidden) return
+  if (isAnimating) return
+  // pinned 不阻止 snapIn（pinned 控制 snapOut 不控制 snapIn）
+  // 启用 resizable，否则动画中 setBounds 会被 Windows clamp
+  floatingWindow.setResizable(true)
+  const from = floatingWindow.getBounds()
+  const display = screen.getDisplayNearestPoint({ x: from.x, y: from.y })
+  const to = snapExpandedBounds(snapDir, display)
+  // 动画期间保持 snapHidden=true（空壳滑出，内容不显示）
+  // 动画结束切 snapHidden=false（内容出现）
+  animateBounds(from, to, () => {
+    snapHidden = false
+    pushSnapState()
+  })
+}
+
+// 渲染层 mouseleave 1s 后调用：从弹出来收回边框 + 动画
+function snapOut() {
+  if (mode !== 'snapped' || !snapDir || snapHidden) return
+  if (pinned) return  // pinned 不自动收回
+  if (isAnimating) return
+  const from = floatingWindow.getBounds()
+  const display = screen.getDisplayNearestPoint({ x: from.x, y: from.y })
+  const to = snapHiddenBounds(snapDir, display)
+  // 动画期间保持 snapHidden=false（内容跟滑出屏外）
+  // 动画结束切 snapHidden=true（内容隐藏）+ 禁用 resizable 防 OS resize 把手吞 hover
+  animateBounds(from, to, () => {
+    snapHidden = true
+    floatingWindow.setResizable(false)
+    pushSnapState()
+  })
+}
+
 // ==================== 自定义拖拽（渲染层 mousedown 触发） ====================
 // 渲染层 mousedown → floating:dragStart → 记录起始 cursor + 窗口 bounds，
 // setInterval 轮询当前 cursor 算 delta，setBounds 移动窗口；
@@ -241,9 +419,33 @@ const DRAG_FRAME = 16
 
 function startDrag() {
   if (!floatingWindow || floatingWindow.isDestroyed()) return
+  // 取消正在进行的动画（包括 snap 动画），让 drag 立即接管
+  // 不再用 isAnimating 拒绝起拖——用户拖拽应当能随时打断动画
+  if (resizeAnimTimer) {
+    clearInterval(resizeAnimTimer)
+    resizeAnimTimer = null
+    isAnimating = false
+  }
   if (dragTimer) {
     clearInterval(dragTimer)
     dragTimer = null
+  }
+  // 吸附模式下起拖：保持窗口当前位置不动，只确保处于展开态。
+  // 拖拽 interval 是 delta 增量式（dragStartBounds + 光标位移），按住窗口任意点都天然跟手，
+  // 绝不能把窗口中心对齐到光标——那会让按住顶栏拖动时窗口跳半身高。
+  if (mode === 'snapped') {
+    // 启用 resizable：snapHidden 期间被禁用，否则 setBounds 会被 Windows clamp
+    floatingWindow.setResizable(true)
+    if (snapHidden) {
+      // 竞态兜底：hover→snapIn 动画未完成时就按下了（极少数情况）。
+      // 立即硬切到贴边展开位置（不动画，drag 马上接管），光标处正好落在窗口拖把区域附近
+      const b = floatingWindow.getBounds()
+      const display = screen.getDisplayNearestPoint({ x: b.x, y: b.y })
+      floatingWindow.setBounds(snapExpandedBounds(snapDir, display))
+      snapHidden = false
+      pushSnapState()
+    }
+    // 临时退出吸附视觉（仍处 mode='snapped'，等松手时决定 exitSnap 还是重新吸附）
   }
   dragStartCursor = screen.getCursorScreenPoint()
   dragStartBounds = floatingWindow.getBounds()
@@ -262,14 +464,94 @@ function startDrag() {
       width: dragStartBounds.width,
       height: dragStartBounds.height
     })
+    // 贴边吸附候选检测：每帧检查窗口相对屏幕 workArea 的位置
+    const wb = floatingWindow.getBounds()
+    const display = screen.getDisplayNearestPoint({ x: wb.x + Math.round(wb.width / 2), y: wb.y + Math.round(wb.height / 2) })
+    const wa = display.workArea
+    let candidate = null
+    if (wb.y <= wa.y + SNAP_THRESHOLD_ENTER) candidate = 'top'
+    else if (wb.x <= wa.x + SNAP_THRESHOLD_ENTER) candidate = 'left'
+    else if (wb.x + wb.width >= wa.x + wa.width - SNAP_THRESHOLD_ENTER) candidate = 'right'
+    // 滞回：已进入候选后，必须拉远到 SNAP_THRESHOLD_EXIT 才取消
+    if (!candidate && snapCandidate) {
+      if (snapCandidate === 'top' && wb.y > wa.y + SNAP_THRESHOLD_EXIT) candidate = null
+      else if (snapCandidate === 'left' && wb.x > wa.x + SNAP_THRESHOLD_EXIT) candidate = null
+      else if (snapCandidate === 'right' && wb.x + wb.width < wa.x + wa.width - SNAP_THRESHOLD_EXIT) candidate = null
+      else candidate = snapCandidate  // 仍在滞回带内，保持
+    }
+    if (candidate === snapCandidate) {
+      snapCandidateFrames++
+    } else {
+      snapCandidate = candidate
+      snapCandidateFrames = 1
+    }
+    // 候选正式生效（≥2 帧）才推送给渲染层显示"边框反光"
+    const effective = snapCandidate && snapCandidateFrames >= SNAP_HYSTERESIS_FRAMES ? snapCandidate : null
+    // 只在 effective 变化时推送（避免 16ms 一次 IPC 风暴）
+    if (effective !== lastEffectiveCandidate) {
+      lastEffectiveCandidate = effective
+      // candidate 字段用 effective 推送，让渲染层只对正式生效的候选显示反光
+      const prevCandidate = snapCandidate
+      snapCandidate = effective
+      pushSnapState()
+      snapCandidate = prevCandidate
+    }
   }, DRAG_FRAME)
 }
+
+// 记录上一次推送的"正式生效候选"，避免每帧 IPC 风暴
+let lastEffectiveCandidate = null
 
 function stopDrag() {
   if (dragTimer) {
     clearInterval(dragTimer)
     dragTimer = null
   }
+  if (!floatingWindow || floatingWindow.isDestroyed()) {
+    dragStartCursor = null
+    dragStartBounds = null
+    snapCandidate = null
+    snapCandidateFrames = 0
+    return
+  }
+  const wb = floatingWindow.getBounds()
+  const display = screen.getDisplayNearestPoint({ x: wb.x + Math.round(wb.width / 2), y: wb.y + Math.round(wb.height / 2) })
+  const wa = display.workArea
+  // 松手时判断是否处于边框候选区（含跨屏 2 帧最小停留验证）
+  const inSnapZone = snapCandidate && snapCandidateFrames >= SNAP_HYSTERESIS_FRAMES
+  if (mode === 'snapped') {
+    // 吸附模式下松手：若拖离边框 SNAP_THRESHOLD_EXIT 外且不在新候选区 → 退出吸附模式
+    const draggedOut =
+      (snapDir === 'top' && wb.y > wa.y + SNAP_THRESHOLD_EXIT) ||
+      (snapDir === 'left' && wb.x > wa.x + SNAP_THRESHOLD_EXIT) ||
+      (snapDir === 'right' && wb.x + wb.width < wa.x + wa.width - SNAP_THRESHOLD_EXIT)
+    if (draggedOut && !inSnapZone) {
+      exitSnapMode()  // 恢复普通模式，按当前高度判断 collapsed/expanded
+    } else {
+      // 切到新方向吸附 或 回到原方向吸附：都动画滑到 snapHiddenBounds
+      // 动画期间保持 snapHidden=false（内容跟滑出屏外），动画结束才切 true + 禁用 resizable
+      if (inSnapZone && snapCandidate !== snapDir) {
+        snapDir = snapCandidate
+      }
+      const from = floatingWindow.getBounds()
+      const to = snapHiddenBounds(snapDir, display)
+      animateBounds(from, to, () => {
+        snapHidden = true
+        floatingWindow.setResizable(false)
+        pushSnapState()
+      })
+    }
+  } else {
+    // 普通模式下松手：若在边框候选区 → 进入吸附模式（带动画）
+    if (inSnapZone) {
+      enterSnapMode(snapCandidate)
+    }
+  }
+  // 清空候选（用 null 推送一次让渲染层取消反光）
+  snapCandidate = null
+  snapCandidateFrames = 0
+  lastEffectiveCandidate = null
+  pushSnapState()
   dragStartCursor = null
   dragStartBounds = null
 }
@@ -277,8 +559,35 @@ function stopDrag() {
 // ==================== 固定钉 ====================
 // 主进程持有 source of truth，renderer 通过 togglePin 镜像用于图标显示
 let pinned = false
+// togglePin 双模式语义：
+//   - 普通态：仅切换状态，副作用在 collapse 时生效（pinned 拒绝收缩）
+//   - 吸附态：切到钉住时若当前 snapHidden=true（收入态）立即 snapIn 弹出来，
+//     因为「钉住=留边框上」与 snapHidden=true 矛盾；
+//     切到未钉时不主动 snapOut（保留展开态，等下次 mouseleave 1s 后自动收回）
 function togglePin() {
   pinned = !pinned
+  // 吸附态副作用：钉住立即弹出来（带动画）
+  if (pinned && mode === 'snapped' && snapHidden) {
+    if (isAnimating) {
+      // 动画中：直接改目标——动画完成后会被新的 snapIn 推进
+      // 简单处理：清掉当前动画，让下面的 animateBounds 接管
+      if (resizeAnimTimer) {
+        clearInterval(resizeAnimTimer)
+        resizeAnimTimer = null
+        isAnimating = false
+      }
+    }
+    // 启用 resizable：snapHidden 期间被禁用，否则 setBounds 会被 Windows clamp
+    floatingWindow.setResizable(true)
+    const from = floatingWindow.getBounds()
+    const display = screen.getDisplayNearestPoint({ x: from.x, y: from.y })
+    const to = snapExpandedBounds(snapDir, display)
+    // 动画期间保持 snapHidden=true，结束才切 false（与 snapIn 一致：空壳滑出，内容到位后出现）
+    animateBounds(from, to, () => {
+      snapHidden = false
+      pushSnapState()
+    })
+  }
   return pinned
 }
 
@@ -328,6 +637,10 @@ export function registerFloatingController(mainWindow) {
   handle('floating:setZoom', (_e, value) => setZoomFloating(value))
   handle('floating:close', () => closeFloating())
   handle('floating:togglePin', () => togglePin())
+  // 贴边吸附：渲染层 mouseenter 调 snapIn 弹出，mouseleave 1s 后调 snapOut 收回
+  // 进入/退出吸附模式由 stopDrag 内部按落点自动触发，不暴露 invoke
+  handle('floating:snapIn', () => snapIn())
+  handle('floating:snapOut', () => snapOut())
 
   mainWindow.on('closed', () => {
     if (resizeAnimTimer) {
@@ -345,6 +658,13 @@ export function registerFloatingController(mainWindow) {
     isAnimating = false
     isExpanded = false
     pinned = false
+    // 重置吸附状态
+    mode = 'normal'
+    snapDir = null
+    snapHidden = false
+    snapCandidate = null
+    snapCandidateFrames = 0
+    lastEffectiveCandidate = null
     if (floatingWindow && !floatingWindow.isDestroyed()) {
       floatingWindow.destroy()
     }

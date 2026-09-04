@@ -136,7 +136,18 @@ const api = {
     // 切换固定钉（pinned 时永不收缩），返回新状态（true=已固定）
     togglePin:           ()                  => ipcRenderer.invoke('floating:togglePin'),
     // 监听悬浮窗状态变化（如被手动关闭、最小化），主窗口 UI 据此更新按钮态
-    onStateChange:       (callback)          => ipcRenderer.on('floating:stateChange', (_event, data) => callback(data))
+    onStateChange:       (callback)          => ipcRenderer.on('floating:stateChange', (_event, data) => callback(data)),
+    // 监听吸附状态变化（主→渲染推送），返回 disposer 防累积
+    // payload: { mode: 'normal'|'snapped', dir: null|'top'|'left'|'right', hidden: bool, candidate: null|'top'|'left'|'right' }
+    onSnapState:         (callback) => {
+      const handler = (_event, data) => callback(data)
+      ipcRenderer.on('floating:snapState', handler)
+      return () => ipcRenderer.removeListener('floating:snapState', handler)
+    },
+    // 渲染层 mouseenter 触发从收入态弹出来（贴边展开）
+    snapIn:              ()                  => ipcRenderer.invoke('floating:snapIn'),
+    // 渲染层 mouseleave 1s 后触发收回边框（pinned 时主进程内部 return）
+    snapOut:             ()                  => ipcRenderer.invoke('floating:snapOut')
   },
 
   // ---------- 自动更新（主进程原生对话框已处理；此处为后续做自定义「检查更新」UI 预留） ----------
