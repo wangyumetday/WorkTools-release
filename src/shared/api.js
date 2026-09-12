@@ -93,8 +93,10 @@ const mockApi = {
 
   // ---------- ERC feature：汇率转换 ----------
   erc: {
-    getExchangeRate:     () => { mockNotReady('erc.getExchangeRate');     return mockDelay({ result: 'error', conversion_rates: {}, time_last_update_unix: 0 }) },
-    getCountriesList:    () => { mockNotReady('erc.getCountriesList');    return mockDelay([]) }
+    getExchangeRate:     (provider) => { mockNotReady('erc.getExchangeRate');     return mockDelay({ result: 'error', provider: provider || 'allratestoday', conversion_rates: {}, time_last_update_unix: 0 }) },
+    getCountriesList:    () => { mockNotReady('erc.getCountriesList');    return mockDelay([]) },
+    configGet:           () => { mockNotReady('erc.configGet'); return mockDelay({ providers: { exchangerate: { baseUrl: '', key: '' }, allratestoday: { baseUrl: '', key: '' } }, refreshIntervalMin: 30 }) },
+    configSet:           () => { mockNotReady('erc.configSet'); return mockDelay({ ok: true }) }
   },
 
   // ---------- 悬浮窗 ----------

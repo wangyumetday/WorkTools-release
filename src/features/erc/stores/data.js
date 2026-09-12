@@ -20,6 +20,8 @@ export const useDataStore = defineStore('erc-data', () => {
   // ==================== 币种与汇率数据 ====================
   // 锚定货币（汇率以 USD 为基准拉取）
   const AnchorCurrency = ref('USD')
+  // 汇率数据源标识（exchangerate / allratestoday），持久化，默认 allratestoday
+  const rateProvider = ref('allratestoday')
   // 参与换算的币种列表（用户从全部币种里点选加入）
   const activeCurrency = ref([])
   // 全部国家信息（原始数据，含重复币种）
@@ -66,18 +68,42 @@ export const useDataStore = defineStore('erc-data', () => {
     }
   }
 
-  // 更新汇率：用 USD 锚定汇率刷新 currencies_list 各币种 rate
+  // 更新汇率：按当前数据源（rateProvider）用 USD 锚定汇率刷新各币种 rate
   async function updata_exchangeRates() {
     try {
-      const res = await api.erc.getExchangeRate()
+      const res = await api.erc.getExchangeRate(rateProvider.value)
       applyRateUpdate(res)
     } catch (error) {
       // 静默失败（原逻辑如此，避免网络抖动打断用户操作）
     }
   }
 
+  // 切换汇率数据源：先拉新源，成功才提交（失败保留旧源，不做兜底）
+  // 成功同时把选择同步给主进程调度器（getRate 内部记忆），后续广播用新源
+  async function changeRateProvider(provider) {
+    if (!provider || provider === rateProvider.value) return
+    const res = await api.erc.getExchangeRate(provider)
+    if (!res || res.result !== 'success' || !res.conversion_rates) {
+      throw new Error('新数据源返回异常')
+    }
+    rateProvider.value = provider
+    applyRateUpdate(res)
+  }
+
+  // 主进程定时广播的统一入口（Home / FloatingHome 共用）
+  // 广播源与当前选择一致 → 应用；不一致（典型：主进程重启后回落默认源）
+  //   → 丢弃该包，改为按本窗口持久化的源主动拉一次，自我纠正
+  function handleRateBroadcast(res) {
+    if (!res) return
+    if (res.provider && res.provider !== rateProvider.value) {
+      updata_exchangeRates()
+      return
+    }
+    applyRateUpdate(res)
+  }
+
   // 应用一次汇率更新（主进程定时刷新推送 / 渲染层主动拉取共用同一逻辑）
-  // 参数 res 为 fetchExchangeRate 返回的结构：{ result, conversion_rates, time_last_update_unix }
+  // 参数 res 为 fetchExchangeRate 返回的结构：{ result, provider, conversion_rates, time_last_update_unix }
   function applyRateUpdate(res) {
     if (!res || !res.conversion_rates) return
     currencies_list.value.map(item => {
@@ -165,15 +191,20 @@ export const useDataStore = defineStore('erc-data', () => {
 
   return {
     // state
-    AnchorCurrency, activeCurrency, all_countries_list, currencies_list,
+    AnchorCurrency, rateProvider, activeCurrency, all_countries_list, currencies_list,
     syncDate, nationalDetails, loading, duo,
     // getters
     initiativeCurrency, BASE_VALUE,
     // actions
-    load_all_countries_list, updata_exchangeRates, applyRateUpdate, updataActiveCurrency, removeCurrency,
+    load_all_countries_list, updata_exchangeRates, changeRateProvider, handleRateBroadcast,
+    applyRateUpdate, updataActiveCurrency, removeCurrency,
     syncPassiveValues, seedDefaultCurrencies
   }
 }, {
   // 持久化：汇率和币种列表写入 localStorage，避免每次启动都重新拉接口
-  persist: true
+  // key 带版本号：v2 默认汇率源改为 allratestoday，旧版（v1/erc-data）缓存不再复用，
+  // 首次启动按常规流程重新拉国家列表与汇率（无兜底数据）
+  persist: {
+    key: 'erc-data-v2'
+  }
 })

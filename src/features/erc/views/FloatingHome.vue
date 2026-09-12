@@ -540,7 +540,7 @@ onMounted(async () => {
   // 订阅主进程定时刷新推送（30 分钟一次）
   // 主进程单点调度，渲染层只接收，无需本地 setInterval
   api.erc.onRateUpdated((res) => {
-    store.applyRateUpdate(res)
+    store.handleRateBroadcast(res)
   })
 })
 </script>

@@ -8,6 +8,9 @@
        Electron 41.3+ frameless 透明窗口 thickFrame HWND 外扩导致的坐标偏移）
            * mouseenter → 立即 expand（清掉待收缩定时器）
            * mouseleave → 300ms 后 collapse（pinned / 拖拽中 跳过）
+       - 固定展开态闲置变淡（dim）：鼠标离开固定展开的窗口（pin 展开 / 吸附贴边
+         展开）时整窗立即平滑降到 10%，鼠标进入恢复滑块透明度；收入边框的 4px
+         露出条与 collapsed 小条不 dim（是找回窗口的视觉入口）；拖拽中不 dim
        - 拖拽移动：自定义 DOM 拖拽（mousedown 起拖 → IPC → 主进程轮询 cursor
          + setBounds）。不用 -webkit-app-region: drag——它会吞掉该区指针事件，
          鼠标滑过把手会触发 mouseleave 导致窗口误收缩。全条顶栏都是普通 DOM，
@@ -100,6 +103,8 @@ const pinned = ref(false)
 const opacity = ref(1.0)
 // 整窗缩放因子（setZoomFactor：CSS px 不变、视口按比例缩放）
 const zoom = ref(1.0)
+// 鼠标是否在悬浮窗内（mouseenter/mouseleave 维护，驱动固定展开态 dim）
+const isHovering = ref(false)
 
 // ==================== 贴边吸附状态镜像 ====================
 // 主进程持有 mode/dir/hidden/candidate source of truth，本组件仅镜像用于 CSS 切换
@@ -172,12 +177,16 @@ function clearCollapseTimer() {
 function updateMode() {
   const physicalHeight = window.innerHeight * zoom.value
   isCollapsed.value = physicalHeight <= HEIGHT_THRESHOLD
+  // 收起/展开态变化影响 dim 条件（如 mouseleave 延迟 collapse 完成后恢复透明度）
+  refreshWindowOpacity()
 }
 
 // mouseenter：立即展开（清掉待收缩定时器，避免重入抖动）。
 // isCollapsed 守卫避免已展开态重复发 IPC。
 // 吸附模式下：触发 snapIn 弹出来，不走 expand
 function handleMouseEnter() {
+  isHovering.value = true          // 先恢复透明度（拖拽中 dim 条件也因 isDragging 不激活）
+  refreshWindowOpacity()
   if (isDragging) return  // 守卫：拖拽中拒绝（避免拖拽起手触发 expand/snapIn 干扰）
   clearCollapseTimer()
   clearSnapAutoHide()
@@ -193,6 +202,8 @@ function handleMouseEnter() {
 // mouseleave：吸附模式下 1s 后收回边框；普通模式 1200ms 后 collapse（pinned / 拖拽中 跳过）。
 function handleMouseLeave() {
   if (isDragging) return
+  isHovering.value = false         // 固定展开态立即变淡（吸附未 pin 时 1s 后仍照常 snapOut）
+  refreshWindowOpacity()
   if (snapMode.value === 'snapped') {
     clearSnapAutoHide()
     // 1s 后第一次尝试 snapOut，被守卫拒（鼠标在边缘）就 200ms 轮询重试
@@ -226,11 +237,16 @@ function handleDragStart(e) {
 function handleDragEnd() {
   isDragging = false
   api.floating.dragStop()
+  // 拖拽守卫解除：若松手时鼠标已在窗外（且处于固定展开态）立即补淡
+  refreshWindowOpacity()
 }
 
 function togglePin() {
-  // 切换由主进程持有，返回新状态后镜像到本地 ref
-  api.floating.togglePin().then((v) => { pinned.value = !!v })
+  // 切换由主进程持有，返回新状态后镜像到本地 ref，并按新 pin 态重算 dim
+  api.floating.togglePin().then((v) => {
+    pinned.value = !!v
+    refreshWindowOpacity()
+  })
 }
 
 function handleClose() {
@@ -244,7 +260,8 @@ function handleOpacity(e) {
   const clamped = Math.min(OPACITY_MAX, Math.max(OPACITY_MIN, v))
   opacity.value = clamped
   localStorage.setItem(OPACITY_KEY, String(clamped))
-  api.floating.setOpacity(clamped)
+  // 滑块拖动直设不走过渡（鼠标在窗内，目标本就是滑块值，直设更跟手）
+  applyOpacityImmediate(clamped)
 }
 
 function loadOpacity() {
@@ -254,6 +271,75 @@ function loadOpacity() {
   if (Number.isFinite(n)) {
     opacity.value = Math.min(OPACITY_MAX, Math.max(OPACITY_MIN, n))
   }
+}
+
+// ==================== 固定展开态闲置变淡（dim） ====================
+// 鼠标离开"固定展开"窗口时整窗透明度降到 DIM_OPACITY，进入时恢复滑块值。
+// dim 激活 = 鼠标不在窗内 AND 非拖拽中 AND 窗口处于固定展开态：
+//   - 吸附模式贴边展开（snapMode='snapped' 且 snapHidden=false，pin/未 pin 皆算；
+//     未 pin 时离开 1s 后照常 snapOut，滑出完成露出 4px 条时恢复）
+//   - 普通模式展开中且已 pin（未 pin 的展开离开会 collapse，无需 dim）
+// snapHidden 露出条 / collapsed 小条不 dim：那是找回窗口的唯一视觉入口。
+// Windows 下 setOpacity 只改视觉不改命中区域，变淡后 mouseenter 仍可正常触发恢复。
+const DIM_OPACITY = 0.1
+const DIM_ANIM_MS = 200   // 立即触发 + 200ms 平滑过渡（easeOutCubic，与主进程位移动画一致）
+
+// 已应用到主进程的透明度（动画起点判断用）与 rAF 句柄
+let appliedOpacity = null
+let dimAnimRaf = null
+let dimAnimStart = 0
+let dimAnimFrom = 1
+let dimAnimTo = 1
+
+function cancelDimAnim() {
+  if (dimAnimRaf) {
+    cancelAnimationFrame(dimAnimRaf)
+    dimAnimRaf = null
+  }
+}
+
+function sendWindowOpacity(v) {
+  appliedOpacity = v
+  api.floating.setOpacity(v)
+}
+
+// 立即应用（取消过渡）：滑块拖动 / 窗口初始化用，保证跟手
+function applyOpacityImmediate(v) {
+  cancelDimAnim()
+  if (appliedOpacity !== v) sendWindowOpacity(v)
+}
+
+// 平滑过渡到 v：rAF 插值，每帧一次 setOpacity IPC（与拖拽每帧 setBounds 同量级）
+function animateOpacityTo(v) {
+  if (appliedOpacity === v) return
+  cancelDimAnim()
+  dimAnimFrom = appliedOpacity ?? v
+  dimAnimTo = v
+  dimAnimStart = 0
+  const step = (now) => {
+    if (!dimAnimStart) dimAnimStart = now
+    const t = Math.min(1, (now - dimAnimStart) / DIM_ANIM_MS)
+    const e = 1 - Math.pow(1 - t, 3)
+    sendWindowOpacity(dimAnimFrom + (dimAnimTo - dimAnimFrom) * e)
+    if (t >= 1) {
+      dimAnimRaf = null
+      return
+    }
+    dimAnimRaf = requestAnimationFrame(step)
+  }
+  dimAnimRaf = requestAnimationFrame(step)
+}
+
+// 唯一出口：按当前状态计算目标透明度并应用（animate=false 时立即硬切）
+function refreshWindowOpacity(animate = true) {
+  const dimActive =
+    !isHovering.value &&
+    !isDragging &&
+    ((snapMode.value === 'snapped' && !snapHidden.value) ||
+      (snapMode.value === 'normal' && !isCollapsed.value && pinned.value))
+  const target = dimActive ? DIM_OPACITY : opacity.value
+  if (animate) animateOpacityTo(target)
+  else applyOpacityImmediate(target)
 }
 
 // ==================== 缩放 ====================
@@ -279,8 +365,9 @@ function loadZoom() {
 onMounted(() => {
   loadOpacity()
   loadZoom()
-  api.floating.setOpacity(opacity.value)
   api.floating.setZoom(zoom.value)
+  // 初始透明度硬切（不开窗即播淡入动画）；updateMode 内也会重算，首次以 collapsed 为准
+  refreshWindowOpacity(false)
   updateMode()
   window.addEventListener('resize', updateMode)
   // 监听吸附状态推送（主进程持有 source of truth，本组件仅镜像）
@@ -289,12 +376,16 @@ onMounted(() => {
     snapDir.value = s.dir
     snapHidden.value = s.hidden
     snapCandidate.value = s.candidate
+    // snapOut 滑出完成（snapHidden=true，露出 4px 条）时恢复透明度；
+    // snapIn/enterSnap 等 hidden 翻转也经此统一重算
+    refreshWindowOpacity()
   })
 })
 
 onUnmounted(() => {
   clearCollapseTimer()
   clearSnapAutoHide()
+  cancelDimAnim()
   snapStateDisposer?.()
   window.removeEventListener('mouseup', handleDragEnd)
   if (isDragging) {

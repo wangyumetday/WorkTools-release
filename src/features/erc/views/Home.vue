@@ -1,7 +1,7 @@
 <!-- ============================================================
      ERC Home.vue - 汇率转换主页
      职责：
-       - 顶部 tabs 切换"汇率转换"和"全部币种"两个页面（替代原侧边栏导航）
+       - 顶部 tabs 切换"汇率转换 / 全部币种 / 设置"三个页面（替代原侧边栏导航）
        - 全局 loading modal（拉取汇率时显示）
        - onMounted 初始化币种和汇率数据（若今日已同步则跳过）
      主题：darkTheme（保留原 currencyExchangeTool 暗色风格）
@@ -14,7 +14,10 @@
       <n-layout class="erc-home">
         <n-layout-header class="erc-header">
           <h2>汇率转换</h2>
-          <n-button size="small" @click="api.floating.open()">打开悬浮窗</n-button>
+          <div class="header-actions">
+            <ProviderSelect />
+            <n-button size="small" @click="api.floating.open()">打开悬浮窗</n-button>
+          </div>
         </n-layout-header>
 
         <!-- 全局 loading：拉取汇率时显示 -->
@@ -36,6 +39,10 @@
             <n-tab-pane name="all" tab="全部币种">
               <addCurrency />
             </n-tab-pane>
+            <!-- 设置：汇率源地址/Key 与全局刷新频率 -->
+            <n-tab-pane name="settings" tab="设置">
+              <Settings />
+            </n-tab-pane>
           </n-tabs>
         </n-layout-content>
       </n-layout>
@@ -53,6 +60,8 @@ import { useDataStore } from '../stores/data.js'
 import api from '@/shared/api.js'
 import CurrencyConverter from './CurrencyConverter.vue'
 import addCurrency from '../components/addCurrency.vue'
+import ProviderSelect from '../components/ProviderSelect.vue'
+import Settings from './Settings.vue'
 
 const store = useDataStore()
 
@@ -72,10 +81,10 @@ onMounted(async () => {
   // 首次加载种入默认 CNY/USD（仅 activeCurrency 为空时生效）
   store.seedDefaultCurrencies()
   store.loading = false
-  // 订阅主进程定时刷新推送（30 分钟一次）
+  // 订阅主进程定时刷新推送（间隔在 ERC 设置页配置，默认 30 分钟）
   // 主进程单点调度，渲染层只接收，无需本地 setInterval
   api.erc.onRateUpdated((res) => {
-    store.applyRateUpdate(res)
+    store.handleRateBroadcast(res)
   })
 })
 </script>
@@ -93,6 +102,11 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .erc-content {
   padding: 16px 24px;

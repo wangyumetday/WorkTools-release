@@ -2,33 +2,102 @@
 // ERC Service - 汇率与国家列表数据获取
 // 职责：从外部 API 拉取汇率和国家信息，供 controller 调用
 //
-// 数据源：
-//   - exchangerate-api.com：以 USD 为锚的最新汇率
+// 汇率数据源（均为 USD 锚定，适配者统一归一化后下游零感知）：
+//   - exchangerate  : exchangerate-api.com（默认源）
+//   - allratestoday : allratestoday.com
 //   - restcountries.com：全部国家信息（含币种代码、国旗、时区）
 //
-// 说明：API 密钥硬编码在源码中（本地工具，无后端，密钥随发布包暴露可接受）
+// 统一输出结构（与 exchangerate-api 原生结构对齐）：
+//   { result: 'success', provider, conversion_rates: { CODE: rate }, time_last_update_unix }
+//   - conversion_rates 语义恒为「1 USD 兑 X 个该币种」，USD 自身恒为 1
+//
+// 说明：地址与 key 在 ERC 设置页配置，持久化于 userData/config/ercConfig.json，
+//       缺省时使用 configManager 内置默认值
 // ============================================================
 
-// exchangerate-api 密钥与地址（USD 锚定汇率）
-const ExchangeRate_KEY = '966d147f84377b39f732f221'
-const ExchangeRate_URL = `https://v6.exchangerate-api.com/v6/${ExchangeRate_KEY}/latest/USD`
+import { getErcConfig } from './configManager.js'
+
+// 支持的汇率源标识（渲染层 rateProvider / IPC 参数共用此枚举）
+export const RATE_PROVIDERS = ['exchangerate', 'allratestoday']
+export const DEFAULT_RATE_PROVIDER = 'allratestoday'
 
 /**
- * 拉取最新汇率（以 USD 为锚定）
- * 5 秒超时，返回 { result, conversion_rates, time_last_update_unix, ... }
+ * 带超时的 GET JSON 请求
+ * @param {string} url
+ * @param {object} opts { timeoutMs, headers }
  */
-export async function fetchExchangeRate() {
+async function getJson(url, { timeoutMs = 5000, headers } = {}) {
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 5000)
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const res = await fetch(ExchangeRate_URL, { method: 'GET', signal: controller.signal })
+    const res = await fetch(url, { method: 'GET', signal: controller.signal, headers })
     if (!res.ok) {
       throw new Error(`HTTP error! status: ${res.status}`)
     }
-    return res.json()
+    return await res.json()
   } finally {
     clearTimeout(timeoutId)
   }
+}
+
+/**
+ * 适配者：exchangerate-api
+ * 原生结构即 { result, conversion_rates, time_last_update_unix }，补 provider 字段即可
+ * 地址由配置拼装：${baseUrl}/${key}/latest/USD
+ */
+async function fetchExchangeRateIO() {
+  const { baseUrl, key } = getErcConfig().providers.exchangerate
+  const url = `${baseUrl.replace(/\/+$/, '')}/${encodeURIComponent(key)}/latest/USD`
+  const res = await getJson(url)
+  if (!res || res.result !== 'success' || !res.conversion_rates) {
+    throw new Error('exchangerate-api 返回异常')
+  }
+  return { ...res, provider: 'exchangerate' }
+}
+
+/**
+ * 适配者：allratestoday
+ * 原生结构为数组 [{ rate, source, target, time }]，归一化为统一结构：
+ *   - 数组拍平为 conversion_rates 映射表
+ *   - feed 不含锚币种自身，显式补 USD: 1
+ *   - ISO 时间（如 2026-09-12T02:07:23+0000）转 unix 秒
+ * 地址（含 source=USD）与 key（Bearer 请求头）均来自配置
+ */
+async function fetchAllRatesToday() {
+  const { baseUrl, key } = getErcConfig().providers.allratestoday
+  const arr = await getJson(baseUrl, {
+    timeoutMs: 8000,
+    headers: { Authorization: `Bearer ${key}` }
+  })
+  if (!Array.isArray(arr) || arr.length === 0) {
+    throw new Error('allratestoday 返回异常：空数据')
+  }
+  const conversion_rates = { USD: 1 }
+  let timeMs = 0
+  for (const item of arr) {
+    if (!item || !item.target || typeof item.rate !== 'number') continue
+    conversion_rates[item.target] = item.rate
+    if (!timeMs && item.time) {
+      const ms = Date.parse(item.time)
+      if (!Number.isNaN(ms)) timeMs = ms
+    }
+  }
+  return {
+    result: 'success',
+    provider: 'allratestoday',
+    conversion_rates,
+    time_last_update_unix: timeMs ? Math.floor(timeMs / 1000) : 0
+  }
+}
+
+/**
+ * 拉取最新汇率（以 USD 为锚定）
+ * @param {string} [provider] 数据源标识，非法值回落默认源
+ * 返回 { result, provider, conversion_rates, time_last_update_unix }
+ */
+export async function fetchExchangeRate(provider = DEFAULT_RATE_PROVIDER) {
+  if (provider === 'allratestoday') return fetchAllRatesToday()
+  return fetchExchangeRateIO()
 }
 
 // restcountries 密钥

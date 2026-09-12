@@ -91,12 +91,15 @@ const api = {
 
   // ---------- ERC feature：汇率转换 ----------
   erc: {
-    // 拉取最新汇率（以 USD 为锚定）
-    getExchangeRate:     ()                  => ipcRenderer.invoke('erc:exchange:getRate'),
+    // 拉取最新汇率（以 USD 为锚定），provider 指定数据源（exchangerate / allratestoday）
+    getExchangeRate:     (provider)          => ipcRenderer.invoke('erc:exchange:getRate', provider),
     // 拉取所有国家信息（含币种代码）
     getCountriesList:    ()                  => ipcRenderer.invoke('erc:exchange:getCountries'),
-    // 主进程 30 分钟定时刷新汇率后推送：监听后由 store.applyRateUpdate 应用
-    onRateUpdated:       (callback)         => ipcRenderer.on('erc:exchange:rateUpdated', (_event, data) => callback(data))
+    // 主进程按配置间隔定时刷新汇率后推送：监听后由 store.handleRateBroadcast 应用
+    onRateUpdated:       (callback)         => ipcRenderer.on('erc:exchange:rateUpdated', (_event, data) => callback(data)),
+    // ERC 配置：两个汇率源的地址/key + 全局刷新频率（分钟）
+    configGet:           ()                 => ipcRenderer.invoke('erc:config:get'),
+    configSet:           (patch)            => ipcRenderer.invoke('erc:config:set', patch)
   },
 
   // ---------- ASS feature：统计代理（携程低价政策推荐批量查询） ----------
