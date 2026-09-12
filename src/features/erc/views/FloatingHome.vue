@@ -26,6 +26,7 @@
             @keydown="onSrcKeydown" @focus="markFlash('src', $event)" placeholder="例：500krw" spellcheck="false" />
           <span v-if="srcPreview" class="crow-preview" :class="{ 'is-error': !srcPreview.valid }">{{ srcPreview.text
             }}</span>
+          <span v-if="srcSymbol" class="crow-symbol">{{ srcSymbol }}</span>
           <span class="crow-code">{{ srcCode }}</span>
         </div>
         <!-- 下行：CNY 结果（可反向输入） -->
@@ -35,6 +36,7 @@
             @keydown="onCnyKeydown" @focus="markFlash('cny', $event)" placeholder="0.00" spellcheck="false" />
           <span v-if="cnyPreview" class="crow-preview" :class="{ 'is-error': !cnyPreview.valid }">{{ cnyPreview.text
             }}</span>
+          <span v-if="cnySymbol" class="crow-symbol">{{ cnySymbol }}</span>
           <span class="crow-code">CNY</span>
         </div>
       </div>
@@ -72,6 +74,7 @@
             :class="{ 'is-error': !rowPreviews[cur.currencies.code].valid }">
             {{ rowPreviews[cur.currencies.code].text }}
           </span>
+          <span v-if="cur.currencies.symbol" class="crow-symbol">{{ cur.currencies.symbol }}</span>
           <span class="crow-code">{{ cur.currencies.code }}</span>
         </div>
       </div>
@@ -80,7 +83,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import Decimal from 'decimal.js'
 import { useDataStore } from '../stores/data.js'
 import api from '@/shared/api.js'
@@ -189,6 +192,13 @@ const srcRaw = ref('')
 // 上行币种名/三字码（解析后填充，未解析时占位）
 const srcName = ref('源币种')
 const srcCode = ref('---')
+// 上行币种符号（解析后填充，来自 restcountries 的 currencies[0].symbol）
+const srcSymbol = ref('')
+// 下行 CNY 符号：从币种列表查（无则空）
+const cnySymbol = computed(() => {
+  const cny = store.currencies_list.find(i => i.currencies.code === 'CNY')
+  return cny?.currencies.symbol || ''
+})
 // 上行币种是否已锁定（首次成功解析后置 true，锁定后仅"纯数字"输入；新币种代码出现才切换）
 const srcLocked = ref(false)
 // 下行：CNY 金额字符串
@@ -214,12 +224,13 @@ function refreshPreview(raw, targetRef) {
   }
 }
 
-// 把算式应用为结果（Enter/= 触发），返回 null 表示无法应用
+// 把算式应用为结果（Enter/= 触发），返回 null 表示无法应用。
+// 返回 Decimal 全精度值，由调用方决定：存储用 toNumber()，显示用 toFixed(2)
 function applyCalcResult(raw) {
   if (!hasOperator(raw)) return null
   const r = calcExpr(raw)
   if (!r.ok) return null
-  return r.value.toFixed(2) // 统一保留 2 位小数
+  return r.value
 }
 
 // 联动写值：一个框的换算结果"程序化覆盖"另一个框时，被覆盖框的算式预览必须清——
@@ -300,6 +311,7 @@ function applyParsedSrc(parsed, r) {
     srcLocked.value = true
     srcName.value = r.src.name
     srcCode.value = r.src.currencies.code
+    srcSymbol.value = r.src.currencies.symbol || ''
   }
   try {
     setCnyValue(new Decimal(parsed.amount).times(r.cnyRate).div(r.srcRate).toFixed(2))
@@ -381,12 +393,14 @@ function onSrcKeydown(e) {
   const raw = (e.target.value ?? '').trim()
   const result = applyCalcResult(raw)
   if (result == null) return
-  setSrcValue(result) // 写回上行 + 清上行预览
+  // ToCNY 区输入框即显示态，写入两位显示值（所见即所用）
+  const s = result.toFixed(2)
+  setSrcValue(s) // 写回上行 + 清上行预览
   // 应用后走正常 onSrcInput 链路（但 @input 不会自动触发，手动调一次）
   // 锁定态 + 纯数字（含负数结果）→ 直接换算 CNY；否则走完整解析
-  srcLocked.value && isPureNumber(result)
-    ? updateCnyWithAmount(result)
-    : onSrcInput({ target: { value: result } })
+  srcLocked.value && isPureNumber(s)
+    ? updateCnyWithAmount(s)
+    : onSrcInput({ target: { value: s } })
 }
 
 // 锁定态下纯数字输入时，用已锁定币种算 CNY
@@ -434,8 +448,9 @@ function onCnyKeydown(e) {
   const raw = (e.target.value ?? '').trim()
   const result = applyCalcResult(raw)
   if (result == null) return
-  setCnyValue(result) // 写回下行 + 清下行预览
-  onCnyInput({ target: { value: result } })
+  const s = result.toFixed(2) // 下行 CNY 输入框为显示态，写两位显示值
+  setCnyValue(s) // 写回下行 + 清下行预览
+  onCnyInput({ target: { value: s } })
 }
 
 // ==================== 同步换算 ====================
@@ -503,9 +518,9 @@ function onRowKeydown(cur, e) {
   const raw = (e.target.value ?? '').trim()
   const result = applyCalcResult(raw)
   if (result == null) return
-  const num = Number(result)
-  cur.currencies.value = num
-  editingBuffer.value[cur.currencies.code] = result // 让 getRowDisplay 显示结果
+  // 存储全精度 Decimal→Number，显示两位（getRowDisplay/editingBuffer 负责展示）
+  cur.currencies.value = result.toNumber()
+  editingBuffer.value[cur.currencies.code] = result.toFixed(2)
   delete rowPreviews[cur.currencies.code] // 应用结果后预览消失
   store.syncPassiveValues()
 }
@@ -733,6 +748,15 @@ onMounted(async () => {
   color: #39ff14;
   letter-spacing: 0.04em;
   user-select: none;
+}
+
+/* 币种符号：三字码前的货币符号（¥、$、€ 等），颜色稍浅以区分 code */
+.crow-symbol {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: rgba(57, 255, 20, 0.72);
+  user-select: none;
+  margin-right: 1px;
 }
 
 /* 算式计算预览：放在 input 和 crow-code 之间

@@ -110,7 +110,10 @@ const mockApi = {
     setZoom:             () => { mockNotReady('floating.setZoom');    return mockDelay(false) },
     close:               () => { mockNotReady('floating.close');      return mockDelay(false) },
     togglePin:           () => { mockNotReady('floating.togglePin');   return mockDelay(false) },
-    onStateChange:       () => { mockNotReady('floating.onStateChange') }
+    onStateChange:       () => { mockNotReady('floating.onStateChange') },
+    getConfig:           () => { mockNotReady('floating.getConfig');   return mockDelay({ opacity: 1, zoom: 1, dimOpacity: 0.1 }) },
+    saveConfig:          () => { mockNotReady('floating.saveConfig');  return mockDelay({ opacity: 1, zoom: 1, dimOpacity: 0.1 }) },
+    onConfigUpdated:     () => { mockNotReady('floating.onConfigUpdated') }
   },
 
   // ---------- 自动更新 ----------

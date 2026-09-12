@@ -2,9 +2,9 @@
      SingleCurrency.vue - 单币种换算卡片
      职责：
        - 输入框接收数字或四则运算表达式，实时计算结果
-       - 主动币种驱动其他被动币种同步换算（基于 BASE_VALUE）
+       - 主动币种驱动其他被动币种同步换算（store.syncPassiveValues）
        - 支持设为主动币种、删除该币种
-     精度：用 decimal.js 做四则运算，消除 JS 浮点误差（如 0.1+0.2）
+     精度：计算用 decimal.js（存储全精度），展示统一两位小数四舍五入
      ============================================================ -->
 
 <template>
@@ -19,7 +19,7 @@
         clearable
       >
         <template #suffix>
-          <span class="eq-result" v-if="showEquals">={{ displayResult }}</span>
+          <span class="eq-result" v-if="showEquals">={{ displayResult.toFixed(2) }}</span>
           <span class="currency-symbol">{{ currency.currencies.symbol }}</span>
         </template>
       </n-input>
@@ -74,11 +74,9 @@ const props = defineProps({
 const scRoot = ref(null)
 
 // 用户实际输入的原始字符串（仅含表达式或数字，不含 = 结果）
-// 被动币种初始展示 2 位小数；主动币种展示原值
+// 展示统一两位小数（四舍五入），存储保持全精度
 const initVal = props.currency.currencies.value ?? 0
-const rawExpression = ref(
-  props.currency.currencies.initiative ? String(initVal) : Number(initVal).toFixed(2)
-)
+const rawExpression = ref(Number(initVal).toFixed(2))
 
 // 实时计算的结果；null 表示当前无需显示 = 结果（纯数字或非法表达式）
 const displayResult = ref(null)
@@ -92,17 +90,13 @@ const showEquals = computed(
 
 // 当外部值变化（如被动币种被 syncPassiveValues 刷新），同步到输入框显示
 // 跳过用户正在编辑的输入框，避免覆盖未提交的输入
-// 被动币种展示固定 2 位小数；主动币种展示原值（无强制小数位）
+// 主动/被动统一展示两位小数（四舍五入），存储值不变
 watch(
   () => props.currency.currencies.value,
   (newVal) => {
     // 仅跳过用户正在编辑的本卡片，其他卡片被动刷新不受影响
     if (scRoot.value?.contains(document.activeElement)) return
-    if (props.currency.currencies.initiative) {
-      rawExpression.value = String(newVal ?? 0)
-    } else {
-      rawExpression.value = Number(newVal ?? 0).toFixed(2)
-    }
+    rawExpression.value = Number(newVal ?? 0).toFixed(2)
     displayResult.value = null
   }
 )
@@ -172,21 +166,19 @@ function handleInput(value) {
   store.syncPassiveValues()
 }
 
-// 失焦时整理：若当前显示的是表达式，把输入框折叠为结果数字，便于下次编辑
-// 仅在用户编辑过时恢复，避免点击提升后失焦把 2 位小数展示覆写为全精度浮点
+// 失焦时整理：若当前显示的是表达式，把输入框折叠为结果数字（两位显示），便于下次编辑
+// 存储值已是全精度（handleInput 时写入），此处仅整理展示
 function commitCalculation() {
   if (displayResult.value !== null) {
-    rawExpression.value = String(displayResult.value)
+    rawExpression.value = displayResult.value.toFixed(2)
     displayResult.value = null
     dirty.value = false
     return
   }
   if (!dirty.value) return
-  // 当前为非法或空，恢复为当前币种值
+  // 当前为非法或空，恢复为当前币种值的两位展示
   const v = props.currency.currencies.value ?? 0
-  rawExpression.value = props.currency.currencies.initiative
-    ? String(v)
-    : Number(v).toFixed(2)
+  rawExpression.value = Number(v).toFixed(2)
   dirty.value = false
 }
 

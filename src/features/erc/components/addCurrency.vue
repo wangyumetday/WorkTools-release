@@ -6,7 +6,10 @@
        2. Home.vue 的"全部币种"tab 页面
        3. FloatingHome 的内联"加币种"面板
      国旗图片来自 public/flags/<alpha2Code>.png（vite 静态资源，用绝对路径 /flags/）
-     列表项：国旗 | 三字码 | 汇率(2位) | 国家名(超出省略)
+     列表项：两列布局（左列 / 右列），每列上下两行：
+       左列：国旗（上） | 中文国家名（下），均靠左
+       右列：币种三字码 + 汇率（上） | 币种中文名（下）
+     已移除国家英文名，避免信息冗余
      滚动条：统一 4px 宽，半透明 thumb
      列表最大高度可由父级通过 --currency-list-max-h 覆盖（默认 240px）
      ============================================================ -->
@@ -30,12 +33,21 @@
         :key="index"
         @click="selectCurrency(item)"
       >
-        <div class="flag">
-          <img :src="`/flags/${item.alpha2Code}.png`" :alt="item.name">
+        <!-- 左列：国旗（上）/ 中文国家名（下） -->
+        <div class="col-left">
+          <div class="flag">
+            <img :src="`/flags/${item.alpha2Code}.png`" :alt="item.translations?.common || item.name">
+          </div>
+          <span class="country-zh">{{ item.translations?.common || item.name }}</span>
         </div>
-        <div class="code">{{ item.currencies.code }}</div>
-        <div class="rate">{{ formatRate(item.currencies.rate) }}</div>
-        <div class="country-name">{{ item.name }}</div>
+        <!-- 右列：币种+汇率（上）/ 币种中文名（下） -->
+        <div class="col-right">
+          <div class="rate-line">
+            <span class="code">{{ item.currencies.code }}</span>
+            <span class="rate">{{ formatRate(item.currencies.rate) }}</span>
+          </div>
+          <span class="currency-zh">{{ getCurrencyZhName(item.currencies.code) || item.currencies.name }}</span>
+        </div>
       </div>
       <div v-if="filteredCurrencies.length === 0" class="empty-tip">
         无匹配币种
@@ -47,13 +59,13 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useDataStore } from '../stores/data.js'
-import { matchCurrencyByKeyword } from '../shared/searchIndex.js'
+import { matchCurrencyByKeyword, getCurrencyZhName } from '../shared/searchIndex.js'
 
 const store = useDataStore()
 
 const searchCode = ref('')
 
-// 多维度模糊过滤：三字码 / 中文名(translations.zho) / 币种英文名 / 国家英文名 / 硬编码别名
+// 多维度模糊过滤：三字码 / 中文名(translations) / 币种英文名 / 国家英文名 / 硬编码别名
 const filteredCurrencies = computed(() => {
   const kw = searchCode.value.trim().toLowerCase()
   if (!kw) return store.currencies_list
@@ -122,12 +134,17 @@ function selectCurrency(currency) {
   overflow-y: auto;
 }
 
+/* ===== 列表项：两列布局 =====
+   左列固定宽度：国旗（上）+ 中文国家名（下），均靠左
+   右列自适应：币种+汇率（上）+ 币种中文名（下），靠左对齐
+   用 grid 两列，每列内 flex-col 实现上下两行 */
 .currency-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  column-gap: 12px;
   align-items: center;
-  gap: 8px;
-  height: 30px;
-  padding: 0 6px;
+  min-height: 48px;
+  padding: 6px 8px;
   border-radius: 4px;
   cursor: pointer;
   box-sizing: border-box;
@@ -139,7 +156,7 @@ function selectCurrency(currency) {
 .currency-item.is-selected {
   background: rgba(99, 226, 183, 0.14);
   border: 1px solid rgba(99, 226, 183, 0.35);
-  padding: 0 5px;
+  padding: 5px 7px;
 }
 .currency-item.is-selected .code {
   color: #63e2b7;
@@ -148,8 +165,16 @@ function selectCurrency(currency) {
   margin-top: 2px;
 }
 
+/* 左列：国旗 + 中文国家名，上下排列、靠左 */
+.col-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+}
 .flag {
-  flex: 0 0 auto;
   width: 24px;
   height: 16px;
   overflow: hidden;
@@ -161,33 +186,47 @@ function selectCurrency(currency) {
   object-fit: cover;
   display: block;
 }
+.country-zh {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
 
+/* 右列：币种+汇率（上）/ 币种中文名（下），靠左对齐 */
+.col-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+.rate-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
 .code {
-  flex: 0 0 auto;
-  width: 36px;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.92);
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
 }
-
 .rate {
-  flex: 0 0 auto;
-  width: 56px;
-  text-align: right;
   font-size: 12px;
   color: rgba(99, 226, 183, 0.85);
   font-variant-numeric: tabular-nums;
 }
-
-.country-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.62);
+.currency-zh {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .empty-tip {

@@ -1,11 +1,16 @@
 <!-- ============================================================
-     ERC Settings.vue - 汇率服务配置页
+     ERC Settings.vue - 汇率服务 + 悬浮窗外观配置页
      职责：
        - 配置两个汇率源（exchangerate / allratestoday）的请求地址与 Key
        - 配置 ERC 全局汇率自动刷新频率（分钟，不按源区分）
-     数据流：api.erc.configGet/configSet → 主进程 configManager
-       userData/config/ercConfig.json；保存后由主进程即时重置定时器
-       并立即拉取一次当前源做网络验证（失败不回滚配置）
+       - 配置悬浮窗缩放因子、透明度与固定展开态变暗透明度（原位于悬浮窗底部滑块，迁移至此统一管理）
+     数据流：
+       - 汇率源/频率：api.erc.configGet/configSet → 主进程 configManager
+         userData/config/ercConfig.json；保存后由主进程即时重置定时器
+         并立即拉取一次当前源做网络验证（失败不回滚配置）
+       - 悬浮窗缩放/透明度：拖动滑块实时 api.floating.setZoom/setOpacity 应用到
+         悬浮窗；防抖 500ms 调 api.floating.saveConfig 持久化，主进程广播
+         configUpdated 让悬浮窗更新 base 值。
      说明：本组件渲染于 Home.vue 的 <n-message-provider> 内，可直接 useMessage
      ============================================================ -->
 
@@ -54,6 +59,41 @@
         </div>
       </div>
 
+      <!-- 悬浮窗外观：缩放 + 透明度（拖动实时生效 + 防抖持久化） -->
+      <div class="provider-card">
+        <div class="card-title">悬浮窗外观</div>
+        <div class="form-row">
+          <label>缩放（{{ form.floating.zoom.toFixed(2) }}x）</label>
+          <n-slider
+            v-model:value="form.floating.zoom"
+            :min="ZOOM_MIN"
+            :max="ZOOM_MAX"
+            :step="0.05"
+            @update:value="onZoomChange"
+          />
+        </div>
+        <div class="form-row">
+          <label>透明度（{{ Math.round(form.floating.opacity * 100) }}%）</label>
+          <n-slider
+            v-model:value="form.floating.opacity"
+            :min="OPACITY_MIN"
+            :max="OPACITY_MAX"
+            :step="0.05"
+            @update:value="onOpacityChange"
+          />
+        </div>
+        <div class="form-row">
+          <label>固定展开后鼠标离开时透明度（{{ Math.round(form.floating.dimOpacity * 100) }}%，设为100%则不变暗）</label>
+          <n-slider
+            v-model:value="form.floating.dimOpacity"
+            :min="DIM_OPACITY_MIN"
+            :max="DIM_OPACITY_MAX"
+            :step="0.05"
+            @update:value="onDimOpacityChange"
+          />
+        </div>
+      </div>
+
       <div class="settings-actions">
         <n-button type="primary" size="small" :loading="saving" @click="onSave">保存</n-button>
       </div>
@@ -62,8 +102,8 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted } from 'vue'
-import { NInput, NInputNumber, NButton, useMessage } from 'naive-ui'
+import { reactive, ref, onMounted, onUnmounted } from 'vue'
+import { NInput, NInputNumber, NButton, NSlider, useMessage } from 'naive-ui'
 import api from '@/shared/api.js'
 
 const message = useMessage()
@@ -71,6 +111,15 @@ const message = useMessage()
 // 与主进程 configManager.js 的边界保持一致
 const INTERVAL_MIN = 1
 const INTERVAL_MAX = 1440
+const OPACITY_MIN = 0.1
+const OPACITY_MAX = 1.0
+// 固定展开态鼠标离开后的变暗透明度边界（与主进程 configManager 对齐）
+const DIM_OPACITY_MIN = 0.05
+const DIM_OPACITY_MAX = 1.0
+const ZOOM_MIN = 0.5
+const ZOOM_MAX = 1.5
+// 悬浮窗外观持久化防抖：拖动滑块实时应用，但写盘合并为最后一次后 500ms
+const FLOATING_SAVE_DEBOUNCE_MS = 500
 
 // 展示顺序与标签（值与 service.js RATE_PROVIDERS 对应）
 const providerDefs = [
@@ -86,7 +135,8 @@ const form = reactive({
     exchangerate: { baseUrl: '', key: '' },
     allratestoday: { baseUrl: '', key: '' }
   },
-  refreshIntervalMin: 30
+  refreshIntervalMin: 30,
+  floating: { opacity: 1.0, zoom: 1.0, dimOpacity: 0.1 }
 })
 
 onMounted(async () => {
@@ -97,10 +147,52 @@ onMounted(async () => {
       form.providers[p.id].key = cfg.providers[p.id].key
     }
     form.refreshIntervalMin = cfg.refreshIntervalMin
+    if (cfg.floating) {
+      form.floating.opacity = cfg.floating.opacity
+      form.floating.zoom = cfg.floating.zoom
+      if (Number.isFinite(cfg.floating.dimOpacity)) {
+        form.floating.dimOpacity = cfg.floating.dimOpacity
+      }
+    }
   } catch {
     message.error('配置读取失败')
   } finally {
     loading.value = false
+  }
+})
+
+// ==================== 悬浮窗外观：实时应用 + 防抖持久化 ====================
+let floatingSaveTimer = null
+function scheduleFloatingSave() {
+  if (floatingSaveTimer) clearTimeout(floatingSaveTimer)
+  floatingSaveTimer = setTimeout(() => {
+    floatingSaveTimer = null
+    api.floating.saveConfig({ opacity: form.floating.opacity, zoom: form.floating.zoom, dimOpacity: form.floating.dimOpacity }).catch(() => {
+      // 持久化失败不打断操作（实时应用已生效，下次拖动会重试）
+    })
+  }, FLOATING_SAVE_DEBOUNCE_MS)
+}
+function onZoomChange(v) {
+  form.floating.zoom = v
+  api.floating.setZoom(v)          // 实时应用到悬浮窗
+  scheduleFloatingSave()           // 防抖持久化
+}
+function onOpacityChange(v) {
+  form.floating.opacity = v
+  api.floating.setOpacity(v)       // 实时应用到悬浮窗
+  scheduleFloatingSave()           // 防抖持久化
+}
+function onDimOpacityChange(v) {
+  form.floating.dimOpacity = v
+  // 无独立实时 IPC：防抖 saveConfig 落盘后广播 configUpdated，
+  // 悬浮窗重算 dim 目标值（鼠标在窗外时最多延迟 500ms 生效）
+  scheduleFloatingSave()
+}
+
+onUnmounted(() => {
+  if (floatingSaveTimer) {
+    clearTimeout(floatingSaveTimer)
+    floatingSaveTimer = null
   }
 })
 

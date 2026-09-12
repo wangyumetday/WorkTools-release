@@ -1,6 +1,6 @@
 // ============================================================
-// ERC ConfigManager - 汇率源与刷新频率配置管理器
-// 职责：管理两个汇率源的请求地址/key 与全局自动刷新频率
+// ERC ConfigManager - 汇率源、刷新频率与悬浮窗外观配置管理器
+// 职责：管理两个汇率源的请求地址/key、全局自动刷新频率、悬浮窗缩放/透明度
 //
 // 持久化：userData/config/ercConfig.json
 //   - 加载时与默认配置深合并，兼容老用户配置缺字段（地址/key 变更时自动补默认）
@@ -18,10 +18,22 @@ import { app } from 'electron'
 export const REFRESH_INTERVAL_MIN = 1
 export const REFRESH_INTERVAL_MAX = 1440
 
+// 悬浮窗缩放/透明度边界（与 floatingWindow.js 的 OPACITY_MIN/MAX、ZOOM_MIN/MAX 对齐）
+export const FLOATING_OPACITY_MIN = 0.1
+export const FLOATING_OPACITY_MAX = 1.0
+export const FLOATING_ZOOM_MIN = 0.5
+export const FLOATING_ZOOM_MAX = 1.5
+// 固定展开态鼠标离开后的透明度（dim）边界。上限 1.0：设为 1.0 即不变暗
+// （实际生效值由渲染层取 min(dimOpacity, baseOpacity)，不会比原本更亮）
+export const FLOATING_DIM_OPACITY_MIN = 0.05
+export const FLOATING_DIM_OPACITY_MAX = 1.0
+
 // 默认配置（原硬编码在 service.js 的地址与 key 下沉至此）
 //   providers.<id>.baseUrl 语义：
 //     exchangerate : 不含 key 的基础地址，适配者拼 `${baseUrl}/${key}/latest/USD`
 //     allratestoday: 完整批量汇率地址（query 已带 source=USD），key 走 Bearer 请求头
+//   floating：悬浮窗外观（缩放/透明度），由 ERC 设置页统一配置，持久化在主进程
+//     （悬浮窗独立 session partition，localStorage 与主窗不共享，故放主进程配置）
 const DEFAULT_CONFIG = {
   providers: {
     exchangerate: {
@@ -33,7 +45,12 @@ const DEFAULT_CONFIG = {
       key: 'art_live_bNsDvm7rZLEI1lbrcrKeQuNkmlosaccV'
     }
   },
-  refreshIntervalMin: 30
+  refreshIntervalMin: 30,
+  floating: {
+    opacity: 1.0,
+    zoom: 1.0,
+    dimOpacity: 0.1
+  }
 }
 
 function getConfigFile() {
@@ -47,7 +64,8 @@ function cloneDefaults() {
       exchangerate: { ...DEFAULT_CONFIG.providers.exchangerate },
       allratestoday: { ...DEFAULT_CONFIG.providers.allratestoday }
     },
-    refreshIntervalMin: DEFAULT_CONFIG.refreshIntervalMin
+    refreshIntervalMin: DEFAULT_CONFIG.refreshIntervalMin,
+    floating: { ...DEFAULT_CONFIG.floating }
   }
 }
 
@@ -72,6 +90,17 @@ function mergeWithDefaults(saved) {
       merged.refreshIntervalMin = n
     }
   }
+  if (saved.floating && typeof saved.floating === 'object') {
+    if (Number.isFinite(saved.floating.opacity)) {
+      merged.floating.opacity = Math.min(FLOATING_OPACITY_MAX, Math.max(FLOATING_OPACITY_MIN, Number(saved.floating.opacity)))
+    }
+    if (Number.isFinite(saved.floating.zoom)) {
+      merged.floating.zoom = Math.min(FLOATING_ZOOM_MAX, Math.max(FLOATING_ZOOM_MIN, Number(saved.floating.zoom)))
+    }
+    if (Number.isFinite(saved.floating.dimOpacity)) {
+      merged.floating.dimOpacity = Math.min(FLOATING_DIM_OPACITY_MAX, Math.max(FLOATING_DIM_OPACITY_MIN, Number(saved.floating.dimOpacity)))
+    }
+  }
   return merged
 }
 
@@ -87,6 +116,12 @@ function load() {
     cache = mergeWithDefaults(null)
   }
   return cache
+}
+
+function persist() {
+  const file = getConfigFile()
+  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.writeFileSync(file, JSON.stringify(cache, null, 2), 'utf-8')
 }
 
 // 保存前格式校验；不通过抛 Error（controller 捕获后回传渲染层提示）
@@ -119,7 +154,8 @@ export function getErcConfig() {
       exchangerate: { ...c.providers.exchangerate },
       allratestoday: { ...c.providers.allratestoday }
     },
-    refreshIntervalMin: c.refreshIntervalMin
+    refreshIntervalMin: c.refreshIntervalMin,
+    floating: { ...c.floating }
   }
 }
 
@@ -127,9 +163,30 @@ export function getErcConfig() {
 export function setErcConfig(patch) {
   validate(patch)
   const next = mergeWithDefaults(patch)
-  const file = getConfigFile()
-  fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(file, JSON.stringify(next, null, 2), 'utf-8')
   cache = next
+  persist()
   return getErcConfig()
+}
+
+// 读取悬浮窗外观配置（深拷贝）
+export function getFloatingConfig() {
+  return { ...load().floating }
+}
+
+// 部分更新悬浮窗外观配置并落盘（仅接受 opacity / zoom / dimOpacity 字段，自动 clamp）。
+// 由 floatingWindow.js 的 IPC 调用，传入 { opacity?, zoom?, dimOpacity? }。
+export function updateFloatingConfig(patch) {
+  if (!patch || typeof patch !== 'object') return getFloatingConfig()
+  const c = load()
+  if (Number.isFinite(patch.opacity)) {
+    c.floating.opacity = Math.min(FLOATING_OPACITY_MAX, Math.max(FLOATING_OPACITY_MIN, Number(patch.opacity)))
+  }
+  if (Number.isFinite(patch.zoom)) {
+    c.floating.zoom = Math.min(FLOATING_ZOOM_MAX, Math.max(FLOATING_ZOOM_MIN, Number(patch.zoom)))
+  }
+  if (Number.isFinite(patch.dimOpacity)) {
+    c.floating.dimOpacity = Math.min(FLOATING_DIM_OPACITY_MAX, Math.max(FLOATING_DIM_OPACITY_MIN, Number(patch.dimOpacity)))
+  }
+  persist()
+  return getFloatingConfig()
 }

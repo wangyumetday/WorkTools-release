@@ -1318,7 +1318,7 @@ export function buildCodeIndex(currencies_list) {
     if (!code) continue
     idx[code] = code
     idx[code.toLowerCase()] = code
-    const zh = item.translations?.zho
+    const zh = item.translations
     if (zh) {
       if (zh.official) idx[zh.official] = code
       if (zh.common) idx[zh.common] = code
@@ -1344,8 +1344,8 @@ export function matchCurrencyByKeyword(item, kwLower) {
   // 1. 三字码包含匹配
   const code = String(item.currencies?.code || '').toLowerCase()
   if (code.includes(kwLower)) return true
-  // 2. 中文名包含匹配（translations.zho.official / common）
-  const zh = item.translations?.zho
+  // 2. 中文名包含匹配（translations 即 names.translations.zho 对象，含 common/official）
+  const zh = item.translations
   if (zh) {
     if (zh.official && String(zh.official).toLowerCase().includes(kwLower)) return true
     if (zh.common && String(zh.common).toLowerCase().includes(kwLower)) return true
@@ -1364,4 +1364,29 @@ export function matchCurrencyByKeyword(item, kwLower) {
     }
   }
   return false
+}
+
+// ==================== 币种中文名反向映射 ====================
+// restcountries 不提供币种中文名，CN_ALIASES 已收录大量"币种中文名 → code"。
+// 反向取每个 code 的第一个别名（插入顺序通常是币种正式中文名）作为显示用中文名。
+// 缓存避免每次渲染重复遍历。
+let _codeToZhNameCache = null
+function getCodeToZhNameMap() {
+  if (_codeToZhNameCache) return _codeToZhNameCache
+  const map = {}
+  for (const [alias, code] of Object.entries(CN_ALIASES)) {
+    if (!map[code]) map[code] = alias
+  }
+  _codeToZhNameCache = map
+  return map
+}
+
+/**
+ * 取币种的中文名称（来自 CN_ALIASES 反向映射，无则返回空串）
+ * @param {string} code - 币种三字码
+ * @returns {string}
+ */
+export function getCurrencyZhName(code) {
+  if (!code) return ''
+  return getCodeToZhNameMap()[String(code).toUpperCase()] || ''
 }

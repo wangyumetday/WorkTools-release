@@ -48,6 +48,7 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { getFloatingConfig, updateFloatingConfig } from '../features/erc/configManager.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -686,6 +687,20 @@ export function registerFloatingController(mainWindow) {
   handle('floating:dragStop', () => stopDrag())
   handle('floating:setOpacity', (_e, value) => setOpacityFloating(value))
   handle('floating:setZoom', (_e, value) => setZoomFloating(value))
+  // 悬浮窗外观配置（缩放/透明度）：主进程持久化（悬浮窗独立 partition，localStorage 不共享）
+  //   - getConfig：悬浮窗挂载时读取已保存的 opacity/zoom 并应用
+  //   - saveConfig：ERC 设置页拖动滑块后保存，落盘 + 广播 configUpdated 给悬浮窗，
+  //                 让其更新本地 base opacity/zoom（dim 逻辑据此恢复）。
+  //   注：setOpacity/setZoom 只"应用"不持久化（dim 动画每帧调用 setOpacity，
+  //       不能每帧写盘）；持久化只走 saveConfig。
+  handle('floating:getConfig', () => getFloatingConfig())
+  handle('floating:saveConfig', (_e, patch) => {
+    const next = updateFloatingConfig(patch || {})
+    if (floatingWindow && !floatingWindow.isDestroyed()) {
+      floatingWindow.webContents.send('floating:configUpdated', next)
+    }
+    return next
+  })
   handle('floating:close', () => closeFloating())
   handle('floating:togglePin', () => togglePin())
   // 贴边吸附：渲染层 mouseenter 调 snapIn 弹出，mouseleave 1s 后调 snapOut 收回

@@ -4,7 +4,6 @@
 //   - 维护全部国家列表（all_countries_list）与去重后的币种列表（currencies_list）
 //   - 维护参与换算的币种（activeCurrency）与锚定货币（AnchorCurrency=USD）
 //   - 维护汇率同步日期（syncDate）和加载态（loading）
-//   - 派生 getter：initiativeCurrency（主动币种）/ BASE_VALUE（基准货币值）
 //   - 提供数据加载与币种增删 action
 //
 // 与主进程交互：所有 IPC 通过 @/shared/api.js 调用，方法名前缀 erc.
@@ -30,6 +29,8 @@ export const useDataStore = defineStore('erc-data', () => {
   const currencies_list = ref([])
   // 汇率最后同步日期（YYYY-MM-DD），用于判断是否需要刷新
   const syncDate = ref('0000-00-00')
+  // 汇率最后同步时间（ISO 字符串，含时分秒），用于界面展示上次更新时间
+  const lastUpdateTime = ref('')
   // 国家详情数据（预留）
   const nationalDetails = ref([])
   // 是否正在拉取数据（驱动 loading modal）
@@ -42,14 +43,6 @@ export const useDataStore = defineStore('erc-data', () => {
   const initiativeCurrency = computed(() =>
     activeCurrency.value.filter(item => item.currencies.initiative)[0]
   )
-
-  // 基准货币值 = 主动币种的 value / rate
-  // 被动币种通过 rate * BASE_VALUE 同步换算
-  const BASE_VALUE = computed(() => {
-    const ic = initiativeCurrency.value
-    if (!ic) return 0
-    return ic.currencies.value / ic.currencies.rate
-  })
 
   // ==================== 数据加载 ====================
   // 加载全部国家信息，并按币种 code 去重生成 currencies_list
@@ -112,7 +105,9 @@ export const useDataStore = defineStore('erc-data', () => {
       }
     })
     if (res.time_last_update_unix) {
-      syncDate.value = new Date(res.time_last_update_unix * 1000).toISOString().slice(0, 10)
+      const d = new Date(res.time_last_update_unix * 1000)
+      syncDate.value = d.toISOString().slice(0, 10)
+      lastUpdateTime.value = d.toISOString()
     }
     // 汇率更新后联动重算被动币种，确保显示同步
     syncPassiveValues()
@@ -149,25 +144,26 @@ export const useDataStore = defineStore('erc-data', () => {
 
   // ==================== 同步换算 ====================
   // 以当前主动币种为锚点，重算所有被动币种值（交叉汇率经 USD）
-  // 内部存全精度 Number，展示层由组件自行四舍五入到 4 位小数
+  // 精度：全程 decimal.js（除法也走 Decimal，杜绝 JS 浮点误差），
+  //   内部存 toNumber() 全精度 Number，展示层由组件统一四舍五入到 2 位小数
   function syncPassiveValues() {
     const ic = initiativeCurrency.value
     if (!ic) return
     const rate = ic.currencies.rate
     if (!rate) return
-    // base = 主动币种值 / 其 rate = USD 等价额
-    const base = ic.currencies.value / rate
-    activeCurrency.value.forEach(item => {
-      if (item.currencies.initiative) return
-      const r = item.currencies.rate
-      if (!r) return
-      try {
+    try {
+      // base = 主动币种值 / 其 rate = USD 等价额（Decimal 除法，全精度）
+      const base = new Decimal(ic.currencies.value).div(rate)
+      activeCurrency.value.forEach(item => {
+        if (item.currencies.initiative) return
+        const r = item.currencies.rate
+        if (!r) return
         // 被动币种值 = r × base = 值 × (R被动 / R主)
         item.currencies.value = new Decimal(r).times(base).toNumber()
-      } catch (e) {
-        // 静默跳过
-      }
-    })
+      })
+    } catch (e) {
+      // 静默跳过
+    }
   }
 
   // 首次加载种入默认币种：CNY(主动,值=100) + USD，并联动算一次
@@ -192,9 +188,9 @@ export const useDataStore = defineStore('erc-data', () => {
   return {
     // state
     AnchorCurrency, rateProvider, activeCurrency, all_countries_list, currencies_list,
-    syncDate, nationalDetails, loading, duo,
+    syncDate, lastUpdateTime, nationalDetails, loading, duo,
     // getters
-    initiativeCurrency, BASE_VALUE,
+    initiativeCurrency,
     // actions
     load_all_countries_list, updata_exchangeRates, changeRateProvider, handleRateBroadcast,
     applyRateUpdate, updataActiveCurrency, removeCurrency,

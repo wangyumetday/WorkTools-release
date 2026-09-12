@@ -2,14 +2,15 @@
      FloatingShell.vue - 悬浮窗壳
      职责：
        - 顶部 drag bar（标题 + pin + close），收起/展开两态共用
-       - 底部控制条：缩放滑块（api.floating.setZoom，0.5~1.5）+ 透明度滑块
-         （api.floating.setOpacity），均 localStorage 持久化
+       - 缩放/透明度：UI 已迁移到 ERC 设置页（主窗），本组件仅在挂载时从主进程
+         配置读取并应用；设置页改动时经 configUpdated 推送更新本地 base 值。
+         持久化在主进程（悬浮窗独立 partition，localStorage 与主窗不共享）。
        - hover 展开/收缩：渲染层 mouseenter/mouseleave（DOM 坐标恒正确，绕开
        Electron 41.3+ frameless 透明窗口 thickFrame HWND 外扩导致的坐标偏移）
            * mouseenter → 立即 expand（清掉待收缩定时器）
            * mouseleave → 300ms 后 collapse（pinned / 拖拽中 跳过）
        - 固定展开态闲置变淡（dim）：鼠标离开固定展开的窗口（pin 展开 / 吸附贴边
-         展开）时整窗立即平滑降到 10%，鼠标进入恢复滑块透明度；收入边框的 4px
+         展开）时整窗立即平滑降到 10%，鼠标进入恢复 base 透明度；收入边框的 4px
          露出条与 collapsed 小条不 dim（是找回窗口的视觉入口）；拖拽中不 dim
        - 拖拽移动：自定义 DOM 拖拽（mousedown 起拖 → IPC → 主进程轮询 cursor
          + setBounds）。不用 -webkit-app-region: drag——它会吞掉该区指针事件，
@@ -47,16 +48,17 @@
           <circle cx="9" cy="18" r="1.6" />
           <circle cx="15" cy="18" r="1.6" />
         </svg>
-        <span class="drag-title">ERC 汇率换算</span>
+        <span class="drag-title">ERC</span>
       </div>
       <div class="drag-right">
-        <button class="icon-btn" :class="{ 'is-pinned': pinned }" :title="pinned ? '已固定，点击解除' : '点击固定，悬浮窗不再收起'"
+        <button class="icon-btn" :class="{ 'is-pinned': pinned }" :title="pinned ? '已固定，点击解除固定' : '点击固定，悬浮窗不再自动收起'"
           @click="togglePin">
-          <svg class="ico" viewBox="0 0 24 24" :fill="pinned ? 'currentColor' : 'none'" stroke="currentColor"
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 17v5" />
-            <path
-              d="M9 10.76a2 2 0 0 1 .99-1.74l7.79-4.42a.5.5 0 0 1 .72.66l-3.62 5.15a2 2 0 0 0-.31 1.07V16a2 2 0 0 1-2 2h-3.06a2 2 0 0 1-2-2v-2.42a2 2 0 0 0-.31-1.07L3.15 7.48a.5.5 0 0 1 .72-.66l7.79 4.42A2 2 0 0 1 12 10.76" />
+            <!-- 固定时：闭合锁；未固定时：开启锁。两态均为线框，靠颜色区分锁定态 -->
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path v-if="pinned" d="M7 11V7a5 5 0 0 1 10 0v4" />
+            <path v-else d="M7 11V7a5 5 0 0 1 9.9-1" />
           </svg>
         </button>
         <button class="icon-btn" title="关闭悬浮窗" @click="handleClose">
@@ -69,23 +71,12 @@
       </div>
     </div>
 
-    <!-- ============ 展开态：内容 + 控制条。
+    <!-- ============ 展开态：内容。
        始终渲染 DOM，v-if 会 destroy/re-create router-view 导致 FloatingHome
        状态被重置（srcRaw/cnyVal 等）。改为始终存在 + overflow:hidden 裁掉超出。 -->
     <div class="floating-body" :class="{ 'is-collapsed': isCollapsed }">
       <div class="floating-content">
         <router-view />
-      </div>
-      <div class="zoom-bar">
-        <span class="zoom-label">缩放</span>
-        <input class="zoom-slider" type="range" :min="0.5" :max="1.5" :step="0.05" :value="zoom" @input="handleZoom" />
-        <span class="zoom-value">{{ zoom.toFixed(2) }}x</span>
-      </div>
-      <div class="opacity-bar">
-        <span class="opacity-label">透明度</span>
-        <input class="opacity-slider" type="range" :min="0.1" :max="1" :step="0.05" :value="opacity"
-          @input="handleOpacity" />
-        <span class="opacity-value">{{ Math.round(opacity * 100) }}%</span>
       </div>
     </div>
   </div>
@@ -101,6 +92,8 @@ const isCollapsed = ref(true)
 const pinned = ref(false)
 // 整窗透明度
 const opacity = ref(1.0)
+// 固定展开态鼠标离开后的变暗透明度（dim，配置驱动，见 ERC 设置页）
+const dimOpacity = ref(0.1)
 // 整窗缩放因子（setZoomFactor：CSS px 不变、视口按比例缩放）
 const zoom = ref(1.0)
 // 鼠标是否在悬浮窗内（mouseenter/mouseleave 维护，驱动固定展开态 dim）
@@ -151,11 +144,11 @@ async function pollSnapOut() {
   snapAutoHideTimer = setTimeout(pollSnapOut, SNAP_OUT_POLL_INTERVAL)
 }
 
-const OPACITY_KEY = 'floating:opacity'
+// 缩放/透明度边界（与主进程 configManager 的 FLOATING_* 边界对齐）
 const OPACITY_MIN = 0.1
 const OPACITY_MAX = 1.0
-
-const ZOOM_KEY = 'floating:zoom'
+const DIM_OPACITY_MIN = 0.05
+const DIM_OPACITY_MAX = 1.0
 const ZOOM_MIN = 0.5
 const ZOOM_MAX = 1.5
 
@@ -253,35 +246,33 @@ function handleClose() {
   api.floating.close()
 }
 
-// ==================== 透明度 ====================
-function handleOpacity(e) {
-  const v = parseFloat(e.target.value)
-  if (!Number.isFinite(v)) return
-  const clamped = Math.min(OPACITY_MAX, Math.max(OPACITY_MIN, v))
-  opacity.value = clamped
-  localStorage.setItem(OPACITY_KEY, String(clamped))
-  // 滑块拖动直设不走过渡（鼠标在窗内，目标本就是滑块值，直设更跟手）
-  applyOpacityImmediate(clamped)
-}
-
-function loadOpacity() {
-  const saved = localStorage.getItem(OPACITY_KEY)
-  if (!saved) return
-  const n = parseFloat(saved)
-  if (Number.isFinite(n)) {
-    opacity.value = Math.min(OPACITY_MAX, Math.max(OPACITY_MIN, n))
+// ==================== 缩放 / 透明度（配置驱动，UI 在 ERC 设置页） ====================
+// 从主进程配置读取 base 值（悬浮窗独立 partition，localStorage 不共享主窗）。
+// 设置页拖动滑块时主进程 saveConfig → 广播 configUpdated → 此处更新本地 base
+// ref 并重算（dim 恢复用 opacity.value，缩放用 zoom.value）。
+// clamp 与主进程 configManager 的 FLOATING_* 边界保持一致。
+function applyConfig(cfg) {
+  if (!cfg) return
+  if (Number.isFinite(cfg.opacity)) {
+    opacity.value = Math.min(OPACITY_MAX, Math.max(OPACITY_MIN, Number(cfg.opacity)))
+  }
+  if (Number.isFinite(cfg.dimOpacity)) {
+    dimOpacity.value = Math.min(DIM_OPACITY_MAX, Math.max(DIM_OPACITY_MIN, Number(cfg.dimOpacity)))
+  }
+  if (Number.isFinite(cfg.zoom)) {
+    zoom.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number(cfg.zoom)))
   }
 }
 
 // ==================== 固定展开态闲置变淡（dim） ====================
-// 鼠标离开"固定展开"窗口时整窗透明度降到 DIM_OPACITY，进入时恢复滑块值。
+// 鼠标离开"固定展开"窗口时整窗透明度降到 dimOpacity（ERC 设置页可配，默认 0.1），
+// 进入时恢复 base 透明度。
 // dim 激活 = 鼠标不在窗内 AND 非拖拽中 AND 窗口处于固定展开态：
 //   - 吸附模式贴边展开（snapMode='snapped' 且 snapHidden=false，pin/未 pin 皆算；
 //     未 pin 时离开 1s 后照常 snapOut，滑出完成露出 4px 条时恢复）
 //   - 普通模式展开中且已 pin（未 pin 的展开离开会 collapse，无需 dim）
 // snapHidden 露出条 / collapsed 小条不 dim：那是找回窗口的唯一视觉入口。
 // Windows 下 setOpacity 只改视觉不改命中区域，变淡后 mouseenter 仍可正常触发恢复。
-const DIM_OPACITY = 0.1
 const DIM_ANIM_MS = 200   // 立即触发 + 200ms 平滑过渡（easeOutCubic，与主进程位移动画一致）
 
 // 已应用到主进程的透明度（动画起点判断用）与 rAF 句柄
@@ -303,7 +294,7 @@ function sendWindowOpacity(v) {
   api.floating.setOpacity(v)
 }
 
-// 立即应用（取消过渡）：滑块拖动 / 窗口初始化用，保证跟手
+// 立即应用（取消过渡）：窗口初始化 / 配置变更用，保证跟手
 function applyOpacityImmediate(v) {
   cancelDimAnim()
   if (appliedOpacity !== v) sendWindowOpacity(v)
@@ -337,39 +328,41 @@ function refreshWindowOpacity(animate = true) {
     !isDragging &&
     ((snapMode.value === 'snapped' && !snapHidden.value) ||
       (snapMode.value === 'normal' && !isCollapsed.value && pinned.value))
-  const target = dimActive ? DIM_OPACITY : opacity.value
+  // 变暗目标取 min(dimOpacity, baseOpacity)：变暗不会比原本更亮；
+  // 设为 1.0（或 ≥ baseOpacity）即等于不变暗
+  const target = dimActive ? Math.min(dimOpacity.value, opacity.value) : opacity.value
   if (animate) animateOpacityTo(target)
   else applyOpacityImmediate(target)
 }
 
-// ==================== 缩放 ====================
-function handleZoom(e) {
-  const v = parseFloat(e.target.value)
-  if (!Number.isFinite(v)) return
-  const clamped = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, v))
-  zoom.value = clamped
-  localStorage.setItem(ZOOM_KEY, String(clamped))
-  api.floating.setZoom(clamped)
+// ==================== 缩放应用 ====================
+function applyZoom(v) {
+  zoom.value = v
+  api.floating.setZoom(v)
   updateMode()  // setZoomFactor 改变 CSS 视口，若不重算会误判收起/展开
 }
 
-function loadZoom() {
-  const saved = localStorage.getItem(ZOOM_KEY)
-  if (!saved) return
-  const n = parseFloat(saved)
-  if (Number.isFinite(n)) {
-    zoom.value = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, n))
-  }
-}
+let configUpdatedDisposer = null
 
-onMounted(() => {
-  loadOpacity()
-  loadZoom()
-  api.floating.setZoom(zoom.value)
+onMounted(async () => {
+  // 从主进程配置读取缩放/透明度（不再用本窗 localStorage）
+  try {
+    const cfg = await api.floating.getConfig()
+    applyConfig(cfg)
+  } catch {
+    // 读取失败保持默认 1.0
+  }
+  applyZoom(zoom.value)
   // 初始透明度硬切（不开窗即播淡入动画）；updateMode 内也会重算，首次以 collapsed 为准
   refreshWindowOpacity(false)
   updateMode()
   window.addEventListener('resize', updateMode)
+  // 监听设置页推送的配置变更：更新 base 值并重算（dim 恢复用新 opacity）
+  configUpdatedDisposer = api.floating.onConfigUpdated((cfg) => {
+    applyConfig(cfg)
+    applyZoom(zoom.value)
+    refreshWindowOpacity()
+  })
   // 监听吸附状态推送（主进程持有 source of truth，本组件仅镜像）
   snapStateDisposer = api.floating.onSnapState((s) => {
     snapMode.value = s.mode
@@ -387,6 +380,7 @@ onUnmounted(() => {
   clearSnapAutoHide()
   cancelDimAnim()
   snapStateDisposer?.()
+  configUpdatedDisposer?.()
   window.removeEventListener('mouseup', handleDragEnd)
   if (isDragging) {
     isDragging = false
@@ -485,8 +479,11 @@ onUnmounted(() => {
   cursor: grab;
 }
 
-/* grip 图标：纯装饰（拖拽由 .drag-bar 的 mousedown 统一处理） */
+/* grip 图标：纯装饰（拖拽由 .drag-bar 的 mousedown 统一处理）。
+   尺寸比 .ico（14px，pin/close 用）大，与 ERC 标题字号匹配 */
 .ico-grip {
+  width: 18px;
+  height: 18px;
   pointer-events: none;
 }
 
@@ -498,9 +495,18 @@ onUnmounted(() => {
 
 .drag-title {
   /* min-width:100px; */
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  /* 功能名 branding：加粗 + 宽字距 + 白→青渐变文字（与青色边框光带呼应）。
+     渐变文字用 background-clip:text + text-fill-color:transparent 实现，
+     color 仅作不支持时的回退。 */
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;   /* 抵消末字母右侧字距，与右侧按钮视觉对齐 */
+  background: linear-gradient(90deg, #ffffff 0%, #00ffff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: #00ffff;
   user-select: none;
   /* 字体不可换行，超出部分用省略号 */
   overflow: hidden;
@@ -520,8 +526,8 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 26px;
   border: none;
   background: transparent;
   color: rgba(255, 255, 255, 0.55);
@@ -535,12 +541,15 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* 锁定态：薄荷绿高亮，一目了然；线框不变 */
 .icon-btn.is-pinned {
-  color: rgba(255, 255, 255, 0.95);
+  color: #63e2b7;
+  background: rgba(99, 226, 183, 0.12);
 }
 
 .icon-btn.is-pinned:hover {
-  background: rgba(255, 255, 255, 0.12);
+  color: #63e2b7;
+  background: rgba(99, 226, 183, 0.22);
 }
 
 .ico {
@@ -574,20 +583,6 @@ onUnmounted(() => {
   overflow: auto;
 }
 
-/* ==================== 缩放 / 透明度滑块条 ==================== */
-.opacity-bar,
-.zoom-bar {
-  -webkit-app-region: no-drag;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.25);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  box-sizing: border-box;
-}
-
 /* ==================== 渐显过渡 ==================== */
 .fade-enter-active,
 .fade-leave-active {
@@ -613,59 +608,6 @@ onUnmounted(() => {
 
 .floating-content::-webkit-scrollbar-track {
   background: transparent;
-}
-
-.opacity-label,
-.zoom-label {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.6);
-  user-select: none;
-  flex: 0 0 auto;
-}
-
-.opacity-value,
-.zoom-value {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.78);
-  font-variant-numeric: tabular-nums;
-  flex: 0 0 36px;
-  text-align: right;
-  user-select: none;
-}
-
-.opacity-slider,
-.zoom-slider {
-  flex: 1 1 auto;
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
-}
-
-.opacity-slider::-webkit-slider-thumb,
-.zoom-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
-  cursor: pointer;
-  border: none;
-}
-
-.opacity-slider::-moz-range-thumb,
-.zoom-slider::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
-  cursor: pointer;
-  border: none;
 }
 </style>
 

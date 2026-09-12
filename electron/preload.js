@@ -152,7 +152,17 @@ const api = {
     // 渲染层 mouseenter 触发从收入态弹出来（贴边展开）
     snapIn:              ()                  => ipcRenderer.invoke('floating:snapIn'),
     // 渲染层 mouseleave 1s 后触发收回边框（pinned 时主进程内部 return）
-    snapOut:             ()                  => ipcRenderer.invoke('floating:snapOut')
+    snapOut:             ()                  => ipcRenderer.invoke('floating:snapOut'),
+    // 悬浮窗外观配置（缩放/透明度）：主进程持久化，悬浮窗挂载时读取
+    getConfig:           ()                  => ipcRenderer.invoke('floating:getConfig'),
+    // 保存悬浮窗外观配置（落盘 + 广播 configUpdated 给悬浮窗）
+    saveConfig:          (patch)             => ipcRenderer.invoke('floating:saveConfig', patch),
+    // 监听悬浮窗外观配置变化（主进程 saveConfig 后推送，payload: { opacity, zoom }）
+    onConfigUpdated:     (callback) => {
+      const handler = (_event, data) => callback(data)
+      ipcRenderer.on('floating:configUpdated', handler)
+      return () => ipcRenderer.removeListener('floating:configUpdated', handler)
+    }
   },
 
   // ---------- 自动更新（主进程原生对话框已处理；此处为后续做自定义「检查更新」UI 预留） ----------
