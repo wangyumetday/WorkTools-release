@@ -33,6 +33,13 @@ export const configSchema = {
     required: true,
     help: '区间底价列表，每行 [左界, 右界, 公式]。与底价公式二选一：区间优先，配置了任意区间行就忽略底价公式；票价未命中任何区间时回落到底价公式（变量 cost = 成人总票价 CNY）'
   },
+  minSeats: {
+    type: 'number',
+    label: '查询座位数下限',
+    default: 3,
+    required: true,
+    help: '航班座位数小于该值时淘汰，不参与比价。取剩余座位数，无剩余座位数时取首套餐座位数。数据源座位数普遍偏低导致全部淘汰时，可调低此值'
+  },
 
 }
 
@@ -40,6 +47,7 @@ export const defaults = {
   enabled: true,
   floorPriceFormula: 'cost',
   rangePriceList: [],
+  minSeats: 3,
   markupPercent: 0
 }
 

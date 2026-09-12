@@ -65,6 +65,8 @@ export async function request(query) {
  */
 export function mergeResult(rawResponse, a1Item, compiledConfig = {}) {
   const { floorPriceFormula } = compiledConfig
+  // 座位数下限（锦绣配置页可调，默认 3；数据源座位数普遍偏低时可调低避免全部淘汰）
+  const minSeats = Number(compiledConfig.minSeats ?? 3)
 
   function geshihua(findItem) {
     // 显示用整数（ceil 到元）
@@ -97,7 +99,7 @@ export function mergeResult(rawResponse, a1Item, compiledConfig = {}) {
 
   a2Item[A2_FIELDS.cangwei_arr] = []
   for (const cw_item of cwstr) {
-    const findItem = GW_data.find(item => findItemByCwItem(item, cw_item))
+    const findItem = GW_data.find(item => findItemByCwItem(item, cw_item, minSeats))
 
     if (findItem) {
       // ★ 业务模式重构：舱位级数据不拆套餐。
@@ -194,15 +196,16 @@ function setTuoYunXingLi(findItem) {
 }
 
 /**
- * 在 List 中按舱位查询项（含座位数≥3、日期≥3天后两道过滤）
+ * 在 List 中按舱位查询项（含座位数下限、日期≥3天后两道过滤）
+ * 座位数下限由锦绣配置页 minSeats 控制（默认 3）
  * 注意：此处精确匹配 C舱位，舱位大类 vs 子舱 的匹配策略待统一方案（问题3）
  */
-function findItemByCwItem(item, cw_item) {
+function findItemByCwItem(item, cw_item, minSeats = 3) {
   if (item[A3_FIELDS.C舱位] !== cw_item) return false
-  // 座位数
+  // 座位数（阈值由锦绣配置页 minSeats 控制，默认 3）
   let ZWS = item.S剩余座位数
   if (item.套餐信息?.length > 0) ZWS = item.套餐信息[0].座位数
-  if (ZWS < 3) return false
+  if (ZWS < minSeats) return false
   // 日期≥3天后
   const riqiStr = item[JXGJ_RESPONSE_FIELDS.C出发时间_Date]
   if (!riqiStr) return false

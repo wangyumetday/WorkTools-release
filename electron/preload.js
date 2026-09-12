@@ -46,7 +46,8 @@ const api = {
     onTaskState:         (callback)          => ipcRenderer.on('pcp:task:state', (_event, data) => callback(data)),
 
     // File：Excel 上传/读取 a1/a2/a3/下载结果
-    fileUploadXlsx:      ()                  => ipcRenderer.invoke('pcp:file:uploadXlsx'),
+    fileUploadXlsx:      (routeFields)       => ipcRenderer.invoke('pcp:file:uploadXlsx', routeFields),
+    fileApplyRouteFields: (routeFields)      => ipcRenderer.invoke('pcp:file:applyRouteFields', routeFields),
     fileGetA1:           ()                  => ipcRenderer.invoke('pcp:file:getA1'),
     fileGetA2:           ()                  => ipcRenderer.invoke('pcp:file:getA2'),
     fileGetA3:           ()                  => ipcRenderer.invoke('pcp:file:getA3'),
@@ -70,6 +71,9 @@ const api = {
     configGet:           ()                  => ipcRenderer.invoke('pcp:config:get'),
     configGetSchema:     ()                  => ipcRenderer.invoke('pcp:config:getSchema'),
     configSet:           (config)            => ipcRenderer.invoke('pcp:config:set', config),
+    // 政策字段配置（新格式政策导入文件的 10 个锦绣配置字段，含 ${变量} 拼接）
+    policyFieldsGet:     ()                  => ipcRenderer.invoke('pcp:config:getPolicyFields'),
+    policyFieldsSet:     (fields)            => ipcRenderer.invoke('pcp:config:setPolicyFields', fields),
 
     // Pipeline：步骤流编排（阶段3：auto/dev 模式 + 前置门禁 + 步骤触发）
     pipelineStart:        ()                 => ipcRenderer.invoke('pcp:pipeline:start'),

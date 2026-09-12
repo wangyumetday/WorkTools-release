@@ -104,8 +104,8 @@ import { NInput, NButton } from 'naive-ui'
 // =============== 常量（一次性构造，永不变）===============
 const STEP = 100
 const L_MIN = 100
-const L_MAX = 2900
-// 左列：整百 100..2900（29 项）；右列：99 结尾 199..2999（29 项）
+const L_MAX = 9900
+// 左列：整百 100..9900（99 项）；右列：99 结尾 199..9999（99 项）
 // 同一索引即自然配对 [L, L+99]：相邻区间 [100,199]/[200,299] 边界不重合，闭开区间无需纠结
 const LEFT_LIST = Object.freeze(
   Array.from({ length: Math.floor((L_MAX - L_MIN) / STEP) + 1 }, (_, k) => L_MIN + k * STEP)

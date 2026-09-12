@@ -413,15 +413,20 @@ export class Pipeline {
 
   // ========== 内部：门禁检查 ==========
   /**
-   * 前置门禁：选文件 → JXGJ 配置启用 → 至少一个 O 配置启用
-   * 返回 { success, missing: ['file'|'jxgj_config'|'jxgj_credential'|'o_config'|'o_credential'] }
+   * 前置门禁：选文件 → 航司/舱位已填 → JXGJ 配置启用 → 至少一个 O 配置启用
+   * 返回 { success, missing: ['file'|'hangsi'|'cangwei'|'jxgj_config'|'jxgj_credential'|'o_config'|'o_credential'] }
    */
   checkGate() {
     const missing = []
 
     // 1. 选文件
-    const a1Count = this.fileManager?.getA1()?.count || 0
-    if (a1Count === 0) missing.push('file')
+    const a1 = this.fileManager?.getA1()?.data || []
+    if (a1.length === 0) missing.push('file')
+
+    // 1.5 航司/舱位必填（新格式：文件只含航线两列，这两项来自 TopToolbar 用户输入）
+    const first = a1[0] || {}
+    if (!String(first.hangsi || '').trim()) missing.push('hangsi')
+    if (!String(first.cangwei_str || '').trim()) missing.push('cangwei')
 
     // 2. JXGJ 配置启用 + 账号选中
     // ★ 从运行时配置栈（taskManager.compiledConfigs）取，统一"一条路径"

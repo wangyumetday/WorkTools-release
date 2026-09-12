@@ -27,6 +27,12 @@ export const useTaskStore = defineStore('pcp-task', () => {
   const a2Count = ref(0)
   const a3Count = ref(0)
 
+  // ==================== 航司/舱位（用户输入，必填）====================
+  // 新格式：上传的航线文件只有 出发机场/到达机场 两列，航司/舱位在此输入，
+  //   选文件时随 routeFields 传给主进程注入所有 a1 行；已解析后修改则 blur 时重应用
+  const hangsi = ref('')
+  const cangwei = ref('')
+
   // ==================== 任务监控数据 ====================
   const tasks = ref([])
   const isRunning = ref(false)
@@ -51,7 +57,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
   const BUSINESS_MODE_LABELS = { policy: '政策导入', floorCheck: '底价检查' }
 
   // ==================== 闪烁引导（阶段3）====================
-  // blinkTarget: 'file'|'jxgj_config'|'jxgj_credential'|'o_config'|'o_credential' | null
+  // blinkTarget: 'file'|'hangsi'|'cangwei'|'jxgj_config'|'jxgj_credential'|'o_config'|'o_credential' | null
   //   收到 pipeline:gateFail 时设为 missing[0]，各组件监听匹配自己的 key 启动抖动动画
   //   3.5s 后自动清空（避免用户没补全就一直闪；用户补全后重新点"开始"会再次触发）
   const blinkTarget = ref(null)
@@ -164,11 +170,17 @@ export const useTaskStore = defineStore('pcp-task', () => {
 
   // ==================== 步骤1：上传 xlsx ====================
   async function handleUploadXlsx() {
+    // 航司/舱位必填（新格式文件不含这两列，解析时注入所有行）
+    if (!hangsi.value.trim() || !cangwei.value.trim()) {
+      message.warning('请先填写航司和舱位（必填信息）')
+      return
+    }
     // 先重置 Pipeline：清空旧 a1/a2/a3 + 状态回到 idle/upload + 清空任务队列
     //   防止上一个流程的 a2/a3 残留导致 StepFlow 误判步骤为「已完成」
     await api.pcp.pipelineReset()
 
-    const result = await api.pcp.fileUploadXlsx()
+    const routeFields = { hangsi: hangsi.value.trim(), cangwei: cangwei.value.trim() }
+    const result = await api.pcp.fileUploadXlsx(routeFields)
     if (result && result.success) {
       selectedFile.value = result.fileName
       a1Data.value = result.data
@@ -179,6 +191,22 @@ export const useTaskStore = defineStore('pcp-task', () => {
       message.success(`成功解析 ${result.count} 条数据`)
     } else if (result && !result.success) {
       message.error(result.error || '上传失败')
+    }
+  }
+
+  /**
+   * 重应用航司/舱位到已解析的 a1（TopToolbar 输入框 blur 时调用）
+   *   两值都非空才生效（与后端 applyRouteFields 守卫一致）；
+   *   流程进行中跳过（a1 已被消费，改了也不生效）
+   */
+  async function applyRouteFields() {
+    if (!hangsi.value.trim() || !cangwei.value.trim()) return
+    if (a1Count.value === 0 || pipelineInProgress.value) return
+    const result = await api.pcp.fileApplyRouteFields({
+      hangsi: hangsi.value.trim(), cangwei: cangwei.value.trim()
+    })
+    if (result && result.success) {
+      a1Data.value = result.count > 0 ? (await api.pcp.fileGetA1()).data.slice(0, 100) : a1Data.value
     }
   }
 
@@ -568,6 +596,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
   return {
     // state
     selectedFile, a1Data, a1Count, a2Count, a3Count,
+    hangsi, cangwei,
     tasks, isRunning, isPaused, currentStage,
     concurrency, activeCount,
     pipelineState, blinkTarget,
@@ -577,7 +606,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
     // actions
     getStageName,
     refreshTasks, refreshDataCounts, refreshAll, refreshPipelineState,
-    handleUploadXlsx, handleDownloadResult,
+    handleUploadXlsx, applyRouteFields, handleDownloadResult,
     handleSelectDownloadDir, handleOpenDownloadDir, refreshDownloadDir,
     handleDeleteTask, handleClearTasks, handlePause, handleAbort, handleSetConcurrency,
     handleStartExecution, pipelineTriggerStep, setMode, setBusinessMode,

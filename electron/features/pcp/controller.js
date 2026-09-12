@@ -41,10 +41,11 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
   // ========== File IPC ==========
 
   // 弹文件选择对话框，选 xlsx 后解析为 a1 数据
+  //   - 新格式：文件只有 出发机场/到达机场 两列，航司/舱位由前端透传用户输入（routeFields）
   //   - defaultPath 用 lastDirectory：上次选过文件的话，直接打开同文件夹
   //   - 没记录时不传 defaultPath，Electron 用 OS 默认路径（一般也是桌面/文档）
   //   - 选完后更新 lastDirectory，下次延续
-  ipcMain.handle('pcp:file:uploadXlsx', async () => {
+  ipcMain.handle('pcp:file:uploadXlsx', async (_event, routeFields = {}) => {
     const lastDir = fileManager.getLastDirectory()
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile'],
@@ -56,7 +57,12 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
     }
     // 选完后更新 lastDirectory，下次打开默认定位到该文件夹
     fileManager.setLastDirectory(path.dirname(result.filePaths[0]))
-    return fileManager.parseXlsx(result.filePaths[0])
+    return fileManager.parseXlsx(result.filePaths[0], routeFields)
+  })
+
+  // 重应用航司/舱位全局值到已解析的 a1（用户在 TopToolbar 改输入框后 blur 触发）
+  ipcMain.handle('pcp:file:applyRouteFields', (_event, routeFields = {}) => {
+    return fileManager.applyRouteFields(routeFields)
   })
 
   ipcMain.handle('pcp:file:getA1', () => fileManager.getA1())
@@ -177,6 +183,21 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
     const runtimeInfo = taskManager.reloadRuntimeConfigs('save')
     // console.log(`[pcp:config:set] saved + runtime refreshed: revision=${runtimeInfo.revision}`)
     return { merged, runtimeInfo }
+  })
+
+  // ========== 锦绣政策字段配置 IPC（新格式政策导入文件的 10 个配置字段）==========
+  //   - get：返回 { fields, schema }，渲染层据此列出输入框 + 默认值
+  //   - set：运行中禁止保存（与平台配置同源 failIfInProgress，避免 saveA3 读到前后不一致值）
+  //   - 持久化在 userData/config/policyFields.json（独立于平台配置）
+  //   - saveA3FromOTasks 从 configManager.getPolicyFields() 取值，注入 exportTemplate.from(item, ctx)
+  ipcMain.handle('pcp:config:getPolicyFields', () => configManager.getPolicyFields())
+  ipcMain.handle('pcp:config:setPolicyFields', (_event, fields) => {
+    failIfInProgress('保存政策字段配置')
+    const saved = configManager.setPolicyFields(fields)
+    // 政策字段配置不走 compiledConfigs 编译栈（saveA3 直接读 configManager 内存），
+    //   但仍 reload 一次保持运行时栈版本号单调递增，与平台配置保存行为对齐
+    taskManager.reloadRuntimeConfigs('savePolicyFields')
+    return { fields: saved }
   })
 
   // ========== Pipeline IPC（阶段3：步骤流编排，收回主进程）==========

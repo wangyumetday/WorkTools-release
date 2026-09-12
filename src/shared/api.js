@@ -47,7 +47,8 @@ const mockApi = {
     onTaskError:         () => { mockNotReady('pcp.onTaskError') },
     onTaskState:         () => { mockNotReady('pcp.onTaskState') },
 
-    fileUploadXlsx:      () => { mockNotReady('pcp.fileUploadXlsx');      return mockDelay(null) },
+    fileUploadXlsx:      (routeFields) => { mockNotReady('pcp.fileUploadXlsx');      return mockDelay(null) },
+    fileApplyRouteFields: (routeFields) => { mockNotReady('pcp.fileApplyRouteFields'); return mockDelay({ success: false }) },
     fileGetA1:           () => { mockNotReady('pcp.fileGetA1');           return mockDelay({ data: [], count: 0 }) },
     fileGetA2:           () => { mockNotReady('pcp.fileGetA2');           return mockDelay({ data: [], count: 0 }) },
     fileGetA3:           () => { mockNotReady('pcp.fileGetA3');           return mockDelay({ data: [], count: 0 }) },
@@ -77,6 +78,8 @@ const mockApi = {
     },
     configGetSchema:     () => { mockNotReady('pcp.configGetSchema'); return mockDelay({}) },
     configSet:           () => { mockNotReady('pcp.configSet'); return mockDelay({ success: false }) },
+    policyFieldsGet:     () => { mockNotReady('pcp.policyFieldsGet'); return mockDelay({ fields: {}, schema: [] }) },
+    policyFieldsSet:     () => { mockNotReady('pcp.policyFieldsSet'); return mockDelay({ fields: {} }) },
 
     // Pipeline：步骤流编排（auto/dev 模式 + 门禁 + 步骤触发）
     pipelineStart:        () => { mockNotReady('pcp.pipelineStart');        return mockDelay({ success: false, message: '未连接主进程' }) },

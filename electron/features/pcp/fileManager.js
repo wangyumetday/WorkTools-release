@@ -24,14 +24,14 @@ import { ExcelExporter, HR_FIELDS } from './ExcelExporter.js'
 
 /**
  * @typedef {Object} A1Item - Excel 解析后的原始行数据（parseXlsx 产出，持久化于 a1.json）
- * 新格式说明：表头固定为 出发机场 / 到达机场 / 舱位 / 航司；舱位、航司按行读取，可为空
+ * 新格式说明：文件表头只有 出发机场 / 到达机场 两列；航司/舱位由用户在 TopToolbar 输入，全局应用到所有行
  * @property {string} id - 唯一标识（形如 row_0）
- * @property {string} hangsi - 航司二字码（来自"航司"列，如 FA，可为空）
+ * @property {string} hangsi - 航司二字码（来自用户输入，如 FA）
  * @property {string} CF_jichang - 出发机场三字码（如 JNB）
  * @property {string} DD_jichang - 到达机场三字码（如 DUR）
  * @property {string} CH_city - 出发城市（新格式无此列，恒为空）
  * @property {string} DD_city - 到达城市（新格式无此列，恒为空）
- * @property {string} cangwei_str - 舱位序列（来自"舱位"列，逗号分隔，如 "Y,J,F"，可为空）
+ * @property {string} cangwei_str - 舱位序列（来自用户输入，逗号分隔，如 "Y,J,F"）
  */
 
 /**
@@ -162,11 +162,14 @@ export class FileManager {
 
   /**
    * 解析 xlsx 文件，生成 a1（原始数据数组）
-   * 解析规则（死字段严格匹配 + 首行舱位/航司全局兜底）：
-   *   第 1 行为固定中文表头：出发机场 / 到达机场 / 舱位 / 航司（严格相等，不模糊匹配）
-   *   之后每行一条航线：出发机场、到达机场必填；舱位、航司取首行值全局兜底给空单元格行
+   * 解析规则（新格式：文件只有航线两列，航司/舱位由用户在 TopToolbar 输入）：
+   *   第 1 行为固定中文表头：出发机场 / 到达机场（严格相等，不模糊匹配）
+   *   之后每行一条航线：出发机场、到达机场必填
+   *   hangsi/cangwei_str 取 routeFields 用户输入值，全局应用到所有行
+   * @param {string} filePath xlsx 文件路径
+   * @param {{hangsi?: string, cangwei?: string}} routeFields 用户输入的航司/舱位（必填，调用方已校验）
    */
-  parseXlsx(filePath) {
+  parseXlsx(filePath, routeFields = {}) {
     try {
       const workbook = XLSX.readFile(filePath)
       const firstSheetName = workbook.SheetNames[0]
@@ -176,16 +179,14 @@ export class FileManager {
         return { success: false, error: 'Excel 内容为空或只有标题行，请用标准模板' }
       }
 
-      // ------- 新格式：第 1 行 = 标题行（固定中文表头）-------
+      // ------- 新格式：第 1 行 = 标题行（出发机场/到达机场），之后每行一条航线 -------
       const titles = (aoa[0] || []).map(c => (c == null ? '' : String(c).trim()))
       const dataRows = aoa.slice(1).filter(r => r && r.some(c => c != null && String(c).trim() !== ''))
 
-      // ------- 列名映射：仅中文表头 -------
+      // ------- 列名映射：仅中文表头（新格式只有航线两列）-------
       const colMap = {
         CF_jichang: ['出发机场'],
-        DD_jichang: ['到达机场'],
-        hangsi: ['航司'],
-        cangwei_str: ['舱位']
+        DD_jichang: ['到达机场']
       }
       function pickField(row, keys) {
         for (const k of keys) {
@@ -201,20 +202,10 @@ export class FileManager {
       if (!titles.includes('出发机场') || !titles.includes('到达机场')) {
         console.warn('[parseXlsx] 表头缺少 出发机场/到达机场 列，航线数据可能解析为空')
       }
-      if (!titles.includes('舱位')) {
-        console.warn('[parseXlsx] 未找到"舱位"列，cangwei_str 将为空')
-      }
-      if (!titles.includes('航司')) {
-        console.warn('[parseXlsx] 未找到"航司"列，hangsi 将为空')
-      }
 
-      // ------- 首行数据的 舱位/航司 列值提取为全局值，兜底给空单元格行 -------
-      // 与旧版行为一致：首行填的舱位/航司应用到所有行，保证空舱位行也能匹配航班
-      const cwIdx = titles.findIndex(t => t.replace(/\s+/g, '') === '舱位')
-      const hsIdx = titles.findIndex(t => t.replace(/\s+/g, '') === '航司')
-      const row0 = dataRows[0] || []
-      const globalCangwei = (cwIdx >= 0 && row0[cwIdx] != null) ? String(row0[cwIdx]).trim() : ''
-      const globalHangsi = (hsIdx >= 0 && row0[hsIdx] != null) ? String(row0[hsIdx]).trim() : ''
+      // ------- 航司/舱位：用户输入全局值，应用到所有行（新格式文件不再含这两列）-------
+      const hangsi = String(routeFields.hangsi || '').trim()
+      const cangwei = String(routeFields.cangwei || '').trim()
 
       // 遍历每条航线，每条航线生成一个任务进队列
       this.a1 = dataRows.map((row, index) => ({
@@ -223,13 +214,13 @@ export class FileManager {
         DD_jichang: pickField(row, colMap.DD_jichang),
         CH_city: '',
         DD_city: '',
-        hangsi: globalHangsi || pickField(row, colMap.hangsi),           // 全局兜底：首行航司值
-        cangwei_str: globalCangwei || pickField(row, colMap.cangwei_str) // 全局兜底：首行舱位值
+        hangsi,
+        cangwei_str: cangwei
       }))
 
       this.saveData('a1.json', this.a1)
 
-      // console.log(`[parseXlsx] FA-3.xlsx 解析完成：行数=${this.a1.length}，hangsi=${this.a1[0]?.hangsi || '(空)'}，cangwei_str 长度=${(this.a1[0]?.cangwei_str || '').length}`)
+      // console.log(`[parseXlsx] 解析完成：行数=${this.a1.length}，hangsi=${hangsi}，cangwei_str=${cangwei}`)
       return {
         success: true,
         fileName: path.basename(filePath),
@@ -242,6 +233,25 @@ export class FileManager {
         error: error.message
       }
     }
+  }
+
+  /**
+   * 重应用航司/舱位全局值到已解析的 a1（用户在 TopToolbar 修改输入框后调用）
+   *   两值都非空才生效（航司/舱位必填，避免把已解析数据改坏）
+   * @param {{hangsi?: string, cangwei?: string}} routeFields 用户输入的航司/舱位
+   */
+  applyRouteFields(routeFields = {}) {
+    const hangsi = String(routeFields.hangsi || '').trim()
+    const cangwei = String(routeFields.cangwei || '').trim()
+    if (!hangsi || !cangwei || !Array.isArray(this.a1) || this.a1.length === 0) {
+      return { success: false, error: '航司/舱位为空或无已解析数据' }
+    }
+    for (const row of this.a1) {
+      row.hangsi = hangsi
+      row.cangwei_str = cangwei
+    }
+    this.saveData('a1.json', this.a1)
+    return { success: true, count: this.a1.length }
   }
 
   // 获取 a1 数据
@@ -352,13 +362,18 @@ export class FileManager {
     const stats = {}
     O_PLATFORMS.forEach(p => { stats[p] = { okTasks: 0, failedTasks: 0, processedSum: 0 } })
 
-    // 预取各平台配置 + exportTemplate（cfg 注入 exportTemplate.from(item, cfg)）
+    // 预取各平台配置 + exportTemplate + 锦绣政策字段配置
+    //   from(item, ctx) 的 ctx = { ...平台配置, policyFields }：
+    //     - 平台配置（cfg）：adapter 内部用（如 trip 无）
+    //     - policyFields：锦绣政策字段配置（新格式 Name/航司名 等 10 字段的用户填写值）
+    //       导出模板里 pf(key) 列经 resolvePolicyField 解析 ${变量} 拼接
+    const policyFields = this.configManager?.getPolicyFields().fields || {}
     const platformCtx = {}
     for (const p of O_PLATFORMS) {
       let template = null
       try { template = registry.get(p)?.exportTemplate || null } catch { template = null }
       const cfg = this.configManager?.getPlatformConfig(p) || {}
-      platformCtx[p] = { template, cfg }
+      platformCtx[p] = { template, ctx: { ...cfg, policyFields } }
     }
 
     tasks.forEach(task => {
@@ -377,15 +392,16 @@ export class FileManager {
       stats[p].processedSum += processedData.length
 
       // 2. 没配 exportTemplate（如 O2/O3 未实现）→ 跳过，不产出政策行
-      const { template, cfg } = platformCtx[p]
+      const { template, ctx } = platformCtx[p]
       if (!template || !Array.isArray(template.columns)) return
 
       // 3. 按 template.columns 生成每行（保持列顺序，xlsx 标题行由此决定）
+      //    from(item, ctx)：ctx 含平台配置 + policyFields，新格式锦绣字段在此解析 ${变量}
       for (const item of processedData) {
         const row = { _platform: p }
         for (const col of template.columns) {
           if (typeof col.from === 'function') {
-            row[col.key] = col.from(item, cfg)
+            row[col.key] = col.from(item, ctx)
           } else {
             row[col.key] = col.value
           }

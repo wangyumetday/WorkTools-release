@@ -32,6 +32,9 @@
       <n-tab-pane name="platform" tab="平台配置">
         <PlatformConfig :disabled="pipelineInProgress" />
       </n-tab-pane>
+      <n-tab-pane name="policyFields" tab="政策字段配置">
+        <PolicyFieldsConfig :disabled="pipelineInProgress" />
+      </n-tab-pane>
       <template #suffix>
         <n-button
           v-show="activeTab === 'credential'"
@@ -53,6 +56,7 @@ import { ref, watch } from 'vue'
 import { NTabs, NTabPane } from 'naive-ui'
 import CredentialManager from './CredentialManager.vue'
 import PlatformConfig from './PlatformConfig.vue'
+import PolicyFieldsConfig from './PolicyFieldsConfig.vue'
 import { useTaskStore } from '../stores/task.js'
 
 const activeTab = ref('credential')

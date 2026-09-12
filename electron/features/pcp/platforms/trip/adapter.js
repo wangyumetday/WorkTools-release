@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto'
 import Decimal from 'decimal.js'
 import { configSchema, defaults } from './config.js'
 import { A2_FIELDS, A3_FIELDS, TRIP_RESPONSE_FIELDS, JXGJ_RESPONSE_FIELDS } from '../../fieldNames.js'
+import { resolvePolicyField } from '../../policyFieldResolver.js'
 
 export const key = 'trip'
 // 平台中文名：用于导出文件名（携程导入政策{日期}.xlsx / 携程底价检查{日期}.xlsx）和底价列名（携程底价）
@@ -366,15 +367,19 @@ function priceComparisonPolicy(originalData, resData) {
       resArr.push(item)
     } else if (hasXcPrice && dijia > sortIndicator) {
       lostByPrice++
-      // 比输不再丢弃：打「无法胜出」标记并入队，供底价检查文件全量展示
+      // 比输不丢弃：打「无法胜出」标记并入队，调价改用我方最低底价（见下方 CUT_VALUE 计算）
       item[A3_FIELDS.XC_dijia] = sortIndicator
       item[A3_FIELDS._outcome] = 'lost'
       resArr.push(item)
     }
-    // ★ 底价检查文件「预计减价」列：won/lost 都算（携程底价 - 官网价取整 - 1）
-    //   导入政策文件「调价固定加减钱」列也引用它（保持原公式不变，只从仅 won 扩展到 won+lost）
+    // ★ 调价固定加减钱（政策导入文件「调价固定加减钱」列 + 底价检查文件「预计减价」列，同源）：
+    //   won（可以胜出）：携程底价 - 官网价取整 - 1 → 政策生效后价格 = 携程底价 - 1
+    //   lost（无法胜出）：我方底价 - 官网价取整 → 政策生效后价格 = 我方底价（能给出的最低底价，不再丢弃该行）
+    //     （若仍按 won 公式打到携程底价-1 会击穿我方底价，故比输行改为贴底价销售）
     if (hasXcPrice) {
-      item[A3_FIELDS.CUT_VALUE] = new Decimal(sortIndicator).minus(totalCNY || 0).minus(1).toNumber()
+      item[A3_FIELDS.CUT_VALUE] = item[A3_FIELDS._outcome] === 'lost'
+        ? new Decimal(dijia).minus(totalCNY || 0).toNumber()
+        : new Decimal(sortIndicator).minus(totalCNY || 0).minus(1).toNumber()
     }
   })
 
@@ -485,74 +490,111 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
 
 // ============================================================
 // 导出模板（阶段4）：每 O 平台一份异构 xlsx 列模板
-//   columns 定义 xlsx 的列顺序 + 每列值如何从比价结果 item 算出
-//   - value: 静态字面量（优先级/是否启用/OTAType 等）
-//   - from(item): 动态从比价结果 item 取值
+//   新格式 142 列（对齐 政策导入文件转新格式示例说明.xlsx 的「直连机票政策」表头）
+//   列值来源分三类（其余全留空 value:null）：
+//     A. 锦绣政策字段配置传入：from(item, ctx) 经 resolvePolicyField 解析 ${变量} 拼接
+//        （10 个：Name/Remark/Y优先级/OTAConfigID/航程类型/数据有效期End/航司名/销售天数/座位数/爬虫名）
+//     B. 对接旧格式字段：from(item) 取 a3 行字段
+//        （7 个：机场航线匹配=出发机场-到达机场 / 舱位 / 调价固定加减钱=CUT_VALUE /
+//         调价增加百分比=0 / 儿童调价增加百分比=0 / 儿童调价固定加减钱=0 / ID=0）
+//     C. 固定值：value 写死
+//        （3 个：部分退票标识=未设置 / nationalityType=2 / nationality=TR）
 // ============================================================
+
+// 锦绣配置列：ctx.policyFields[key] 用户配置值（含 ${变量}），导出时逐行解析
+const pf = (key) => ({ from: (item, ctx) => resolvePolicyField(ctx?.policyFields?.[key], item) })
+// 留空列：新格式标注为空 → 不填
+const e = (key) => ({ key, value: null })
+
 export const exportTemplate = {
   platform: 'trip',
   columns: [
-    { key: 'Name', from: (item) => `王宇_${item[A3_FIELDS.H航司名]}_携程/${item[A3_FIELDS.C出发机场]}-${item[A3_FIELDS.D到达机场]}` },
-    { key: 'Remark', value: '王宇_出官网' },
-    { key: '优先级', value: '90' },
-    { key: '是否启用', value: 'TRUE' },
-    { key: '航程类型', value: null },
-    { key: '航司匹配', from: (item) => item[A3_FIELDS.H航司名] },
-    { key: '出发机场', from: (item) => item[A3_FIELDS.C出发机场] },
-    { key: '到达机场', from: (item) => item[A3_FIELDS.D到达机场] },
-    { key: '航班号', value: null },
+    // 1-2：锦绣配置
+    { key: 'Name', ...pf('Name') },
+    { key: 'Remark', ...pf('Remark') },
+    // 3：留空
+    e('是否启用'),
+    // 4,7,8：锦绣配置
+    { key: 'Y优先级', ...pf('Y优先级') },
+    e('去程班期'), e('返程班期'),
+    { key: 'OTAConfigID', ...pf('OTAConfigID') },
+    { key: '航程类型', ...pf('航程类型') },
+    // 9-21：留空
+    e('最长停留时间'), e('最短停留时间'),
+    e('儿童人数最小'), e('儿童人数最大'),
+    e('成人人数最小'), e('成人人数最大'),
+    e('乘客人数最小'), e('乘客人数最大'),
+    e('去程日期'), e('去程日期排除'), e('返程日期'), e('返程日期排除'),
+    e('数据有效期Start'),
+    // 22,23：锦绣配置
+    { key: '数据有效期End', ...pf('数据有效期End') },
+    { key: '航司名', ...pf('航司名') },
+    // 24：对接旧字段（出发机场-到达机场 拼接）
+    { key: '机场航线匹配', from: (item) => `${item[A3_FIELDS.C出发机场]}-${item[A3_FIELDS.D到达机场]}` },
+    // 25-33：留空
+    e('机场航线排除'), e('城市航线匹配'), e('城市航线排除'),
+    e('国家航线匹配'), e('国家航线排除'),
+    e('去程航班号'), e('去程航班号排除'), e('返程航班号'), e('返程航班号排除'),
+    // 34：对接旧字段（舱位）
     { key: '舱位', from: (item) => item[A3_FIELDS.C舱位] },
-    { key: '起飞时间Start', value: null },
-    { key: '起飞时间End', value: null },
-    { key: '去程时间匹配排除', value: null },
-    { key: '返程时间匹配排除', value: null },
-    { key: '班期', value: null },
-    { key: '销售时间Start', value: null },
-    { key: '销售时间End', value: null },
-    { key: '时间段匹配', value: null },
-    { key: '提前销售天数', value: null },
-    { key: '出票时长匹配', value: null },
-    { key: '儿童人数最小', value: 0 },
-    { key: '儿童人数最大', value: 0 },
-    { key: '成人人数最小', value: 0 },
-    { key: '成人人数最大', value: 0 },
-    { key: '乘客人数最小', value: null },
-    { key: '乘客人数最大', value: null },
-    { key: '数据有效期Start', value: null },
-    { key: '数据有效期End', value: null },
-    { key: '出发城市', value: null },
-    { key: '到达城市', value: null },
-    { key: '出发国家', value: null },
-    { key: '到达国家', value: null },
-    { key: '最低票面价', value: null },
-    { key: '最高票面价', value: null },
-    { key: '销售天数', value: null },
-    { key: '套餐索引v2', value: null },
-    { key: '座位数', value: null },
-    { key: '是否中转', value: null },
-    { key: '是否国内', value: null },
-    { key: 'OTAType', value: '携程' },
-    { key: 'OTAConfigID', value: '11' },
-    { key: '行程索引', value: null },
-    { key: '数据来源', value: '爬虫' },
-    { key: '政策代码', value: null },
-    { key: '爬虫名', value: null },
-    { key: '去程时间匹配', value: null },
-    { key: '返程时间匹配', value: null },
-    { key: '搜索出发城市', value: null },
-    { key: '搜索到达城市', value: null },
-    { key: '最长停留时间', value: null },
-    { key: '最短停留时间', value: null },
-    { key: '去程班期', value: null },
-    { key: '返程班期', value: null },
-    { key: '调价阶段', value: '搜索' },
+    // 35-48：留空
+    e('舱等'), e('舱位排除'), e('舱等排除'),
+    e('返程舱位'), e('返程舱等'), e('返程舱位排除'), e('返程舱等排除'),
+    e('价格区间币种'), e('最低票面价'), e('最高票面价'),
+    e('最低总价'), e('最高总价'), e('最低税价'), e('最高税价'),
+    // 49,50：锦绣配置
+    { key: '销售天数', ...pf('销售天数') },
+    { key: '座位数', ...pf('座位数') },
+    // 51-61：留空（市场渠道也留空）
+    e('是否中转'), e('是否国内'), e('是否共享'),
+    e('适用共享航班号'), e('不适用共享航班号'),
+    e('适用共享航司'), e('不适用共享航司'),
+    e('去程套餐索引v2'), e('返程套餐索引v2'),
+    e('政策代码'), e('市场渠道'),
+    // 62：锦绣配置
+    { key: '爬虫名', ...pf('爬虫名') },
+    // 63-76：留空
+    e('去程起飞时间'), e('返程起飞时间'),
+    e('销售日期'), e('销售日期排除'), e('销售班期'), e('销售时间'),
+    e('退改模式'), e('币种'), e('退票标识'), e('退票规定'),
+    e('退税标识'), e('不可退税金额'), e('退票备注'), e('可退税金额规定'),
+    // 77：固定值 未设置
+    { key: '部分退票标识', value: '未设置' },
+    // 78-91：留空
+    e('部分退票规定'), e('部分可退税金额规定'), e('部分未使用退票费收费方式'),
+    e('改期标识'), e('改期备注'), e('改期规定'),
+    e('部分改期标识'), e('部分改期规定'), e('改期费'), e('退票费'),
+    e('退票增加百分比'), e('退票固定加减钱'),
+    e('改签增加百分比'), e('改签固定加减钱'),
+    // 92-95：对接旧字段（调价）
     { key: '调价增加百分比', value: 0 },
     { key: '调价固定加减钱', from: (item) => item[A3_FIELDS.CUT_VALUE] },
     { key: '儿童调价增加百分比', value: 0 },
     { key: '儿童调价固定加减钱', value: 0 },
-    { key: '价格基础类型', value: '总价' },
-    { key: '市场', value: null },
-    { key: 'ID', value: 0 }
+    // 96-134：留空
+    e('指定占比'), e('指定金额'), e('指定价格类型'),
+    e('价格基础类型'),
+    e('上浮百分比'), e('上浮人民币'), e('下浮百分比'), e('下浮人民币'),
+    e('竞价价格基础类型'), e('竞价类型'), e('fareBasis'),
+    e('旅客资质'), e('团体资质'),
+    e('最小适用人数'), e('最大适用人数'), e('最小年龄'), e('最大年龄'),
+    e('报销凭证'), e('是否包机产品'), e('出票时限'), e('运价类型'),
+    e('UpdateTime'), e('同程resouceCategory'), e('同程是否需要证件'),
+    e('去哪gdsType'), e('去哪posArea'), e('同程brandCode'),
+    e('去哪产品类型'), e('去哪strategyProduct'), e('去哪是否官网出票'),
+    e('同程visaLimitType'), e('同程visaLimit'),
+    e('同程voidSupported'), e('同程voidRule'), e('同程platformAllow'),
+    e('同程supportNations'), e('同程notSupportNations'),
+    e('飞猪availableMarket'), e('飞猪nameLanguage'),
+    // 135,136：固定值
+    { key: '去哪飞猪携程nationalityType', value: 2 },
+    { key: '去哪飞猪携程nationality', value: 'TR' },
+    // 137-140：留空
+    e('飞猪gvChildRule'), e('携程planCategory'), e('同程offsiteBid'), e('创建人id'),
+    // 141：对接旧字段 ID=0
+    { key: 'ID', value: 0 },
+    // 142：留空
+    e('CreateTime')
   ]
 }
 

@@ -198,7 +198,7 @@ export class ExcelExporter {
   /**
    * 导出 a3 最终数据（阶段4：每 O 平台一个系统导入 xlsx + 每个有数据的平台一份「底价检查」人看 xlsx）
    *   - a3 每行带 _platform 标签 → 按 _platform 分组
-   *   - 系统导入文件只导出比价胜出的行（_outcome !== 'lost'）；底价检查文件全量导出（主行 + 套餐子行）
+   *   - 系统导入文件导出全部比价行（won 调价打到携程底价-1；lost 不丢弃、调价应用我方底价）；底价检查文件全量导出（主行 + 套餐子行）
    *   - 每组用该平台 adapter.exportTemplate.columns 决定列顺序
    *     （_platform 与 HR_FIELDS 附加列不写入系统导入文件）
    *   - 嵌套对象扁平化为 JSON 字符串，避免 Excel 显示成 [object Object]
@@ -251,9 +251,10 @@ export class ExcelExporter {
       const files = []
       for (let i = 0; i < platformKeys.length; i++) {
         const p = platformKeys[i]
-        // 导入政策文件只导出「可以胜出」的行（比输行仅进底价检查文件）
+        // 导入政策文件导出全部行（won + lost）：won 行调价打到携程底价-1；
+        //   lost 行不再丢弃，调价固定加减钱 = 我方底价 - 官网价（trip adapter 已按 _outcome 算好）
         //   老 a3 无 _outcome 标记的数据视为胜出，兼容已持久化数据
-        const rows = groups[p].filter(r => r[A3_FIELDS._outcome] !== 'lost')
+        const rows = groups[p]
 
         // 取该平台 exportTemplate.columns 决定列顺序；无模板则用行自身键序
         let template = null

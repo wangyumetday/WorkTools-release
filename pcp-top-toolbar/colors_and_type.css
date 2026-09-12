@@ -1,0 +1,107 @@
+/* PCP TopToolbar — 品牌变量（贴合 PCP 现有 naive-ui 风格） */
+
+:root {
+  --brand-background: #ffffff;
+  --brand-foreground: #333333;
+  --brand-card: #ffffff;
+  --brand-card-foreground: #333333;
+  --brand-popover: #ffffff;
+  --brand-popover-foreground: #333333;
+  --brand-primary: #18a058;
+  --brand-primary-foreground: #ffffff;
+  --brand-muted: #f5f5f5;
+  --brand-muted-foreground: #999999;
+  --brand-border: #e8e8e8;
+  --brand-input: #e8e8e8;
+  --brand-ring: #36ad6a;
+
+  --brand-radius-sm: 3px;
+  --brand-radius-md: 8px;
+  --brand-radius-lg: 12px;
+
+  --brand-error: #d03050;
+  --brand-error-foreground: #ffffff;
+  --brand-error-bg: #fff2f4;
+  --brand-info: #2080f0;
+  --brand-warning: #f0a020;
+
+  --pcp-green: #18a058;
+  --pcp-green-hover: #36ad6a;
+  --pcp-red: #d03050;
+  --pcp-red-light: #fff2f4;
+  --pcp-border: #e8e8e8;
+  --pcp-text: #333333;
+  --pcp-text-secondary: #999999;
+
+  --pcp-toolbar-bg: #ffffff;
+  --pcp-toolbar-border: #e8e8e8;
+  --pcp-toolbar-radius: 8px;
+  --pcp-toolbar-padding: 16px 20px;
+
+  --pcp-card-bg: #ffffff;
+  --pcp-card-border: #e8e8e8;
+  --pcp-card-radius: 8px;
+  --pcp-card-padding: 16px;
+
+  --pcp-btn-height: 34px;
+  --pcp-btn-padding: 0 16px;
+  --pcp-btn-font-size: 14px;
+  --pcp-btn-radius: 3px;
+  --pcp-btn-primary-bg: #18a058;
+  --pcp-btn-primary-border: #18a058;
+  --pcp-btn-primary-text: #ffffff;
+  --pcp-btn-primary-hover-bg: #36ad6a;
+  --pcp-btn-primary-hover-border: #36ad6a;
+  --pcp-btn-default-bg: #ffffff;
+  --pcp-btn-default-border: #e8e8e8;
+  --pcp-btn-default-text: #333333;
+  --pcp-btn-default-hover-border: #36ad6a;
+  --pcp-btn-default-hover-text: #36ad6a;
+  --pcp-btn-error-bg: #ffffff;
+  --pcp-btn-error-border: #d03050;
+  --pcp-btn-error-text: #d03050;
+  --pcp-btn-error-hover-bg: #fff2f4;
+
+  --pcp-input-height: 34px;
+  --pcp-input-padding: 0 10px;
+  --pcp-input-border: #e8e8e8;
+  --pcp-input-bg: #ffffff;
+  --pcp-input-text: #333333;
+  --pcp-input-focus-border: #36ad6a;
+  --pcp-input-focus-shadow: rgba(24, 160, 88, 0.05);
+
+  --pcp-progress-track: #f0f0f0;
+  --pcp-progress-fill: #18a058;
+}
+
+.dark {
+  --brand-background: #111827;
+  --brand-foreground: #f9fafb;
+  --brand-card: #1f2937;
+  --brand-card-foreground: #f9fafb;
+  --brand-popover: #1f2937;
+  --brand-popover-foreground: #f9fafb;
+  --brand-primary: #36ad6a;
+  --brand-primary-foreground: #ffffff;
+  --brand-muted: #374151;
+  --brand-muted-foreground: #9ca3af;
+  --brand-border: #374151;
+  --brand-input: #374151;
+  --brand-ring: #36ad6a;
+
+  --pcp-toolbar-bg: #1f2937;
+  --pcp-toolbar-border: #374151;
+  --pcp-card-bg: #1f2937;
+  --pcp-card-border: #374151;
+  --pcp-btn-default-bg: #1f2937;
+  --pcp-btn-default-border: #374151;
+  --pcp-btn-default-text: #f9fafb;
+  --pcp-input-bg: #1f2937;
+  --pcp-input-border: #374151;
+  --pcp-input-text: #f9fafb;
+  --pcp-progress-track: #374151;
+}
+
+html {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}

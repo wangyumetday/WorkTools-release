@@ -1,0 +1,49 @@
+{
+  "name": "pcp-top-toolbar",
+  "version": 1,
+  "description": "PCP TopToolbar 组件布局变体探索",
+  "data": [
+    {
+      "id": "page-toolbar-classic",
+      "title": "方案一 · 经典三栏布局",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789200960000,
+      "devMetadata": {
+        "htmlSrc": "pages/toolbar-classic.html",
+        "interactions": []
+      },
+      "canvasData": { "x": 0, "y": 0, "group": 0 }
+    },
+    {
+      "id": "page-toolbar-compact",
+      "title": "方案二 · 紧凑单行布局",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789200960000,
+      "devMetadata": {
+        "htmlSrc": "pages/toolbar-compact.html",
+        "interactions": []
+      },
+      "canvasData": { "x": 0, "y": 0, "group": 0 }
+    },
+    {
+      "id": "page-toolbar-cards",
+      "title": "方案三 · 卡片分组布局",
+      "type": "page",
+      "version": 1,
+      "createdAt": 1789200960000,
+      "devMetadata": {
+        "htmlSrc": "pages/toolbar-cards.html",
+        "interactions": []
+      },
+      "canvasData": { "x": 0, "y": 0, "group": 0 }
+    }
+  ],
+  "config": {
+    "autoLayout": true,
+    "deviceType": "desktop",
+    "projectName": "PCP TopToolbar 布局探索",
+    "designLibrary": null
+  }
+}
