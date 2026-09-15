@@ -9,6 +9,43 @@
 // 不关心配置：compiledConfigs 由 facade 持有
 // ============================================================
 
+// ★ 请求项状态机：task.stage 的合法取值与转换
+//   idle       已入队，预请求已配置，等待调度器拉起
+//   credential 取账密中（progress=5）
+//   login      登录中（progress=15）
+//   prepare    已组请求参数（progress=30）
+//   request    请求已发起，等返回（progress=60）
+//   merge      已返回，交叉处理中（progress=90）
+//   done       完成（progress=100，由 scheduler 在 status='completed' 时设）
+//   failed     失败（带 error，由 scheduler 在 catch 时设）
+//   skipped    跳过（带 reason，保留给将来"跳过请求"场景，当前 runner 不主动报）
+const REQUEST_STAGES = ['idle', 'credential', 'login', 'prepare', 'request', 'merge', 'done', 'failed', 'skipped']
+
+// 合法转换表：from → Set<to>
+//   非法转换（如 done→request）打 warn 并拒绝，防调度器 bug 导致 UI 状态错乱
+const TRANSITIONS = {
+  idle:       new Set(['credential', 'skipped', 'failed']),
+  credential: new Set(['login', 'failed']),
+  login:      new Set(['prepare', 'failed', 'skipped']),
+  prepare:    new Set(['request', 'failed']),
+  request:    new Set(['merge', 'failed']),
+  merge:      new Set(['done', 'failed']),
+  done:       new Set(),
+  failed:     new Set(),
+  skipped:    new Set()
+}
+
+/**
+ * 校验 stage 转换合法性
+ * @returns {boolean} true=合法，false=非法（调用方应打 warn 并拒绝）
+ */
+export function transition(current, next) {
+  if (!REQUEST_STAGES.includes(next)) return false
+  if (current === next) return true // 同 stage 重复推送（如 creep 多次报 request）合法
+  const allowed = TRANSITIONS[current]
+  return allowed ? allowed.has(next) : false
+}
+
 export class TaskScheduler {
   /**
    * @param {object} deps
@@ -56,6 +93,10 @@ export class TaskScheduler {
       type: t.type,
       status: t.status,
       progress: t.progress ?? 0,
+      // ★ 状态机字段：stage/preRequest/error 透传给前端 RequestItem 渲染
+      stage: t.stage ?? 'idle',
+      preRequest: t.preRequest ?? null,
+      error: t.error ?? null,
       startedAt: t.startedAt ?? null,
       finishedAt: t.finishedAt ?? null,
       createdAt: t.createdAt ?? null,
@@ -69,6 +110,12 @@ export class TaskScheduler {
       type: task.type || 'jxgj',
       status: 'pending',
       progress: 0,
+      // ★ 状态机：stage 从 idle 起步，随 platformRunner report(p, stage) 推进
+      //   preRequest 由调用方（pipeline._invokeAddBatchByStage）入队时挂上（adapter.prepareRequest 算出的参数）
+      //   error 在 failed 终态时填充失败原因
+      stage: 'idle',
+      preRequest: task.preRequest ?? null,
+      error: null,
       data: task.data || {},
       result: null,
       createdAt: Date.now(),
@@ -98,9 +145,13 @@ export class TaskScheduler {
     return true
   }
 
+  /**
+   * 清空已结束的任务（completed/failed/aborted），保留 pending/paused/running
+   *   任务列表跨阶段累积，不再自动清除；用户点「清空」按钮按需清理
+   */
   clearAll() {
-    const runningTasks = this.tasks.filter(t => t.status === 'running')
-    this.tasks = runningTasks
+    const keepStatus = new Set(['pending', 'paused', 'running'])
+    this.tasks = this.tasks.filter(t => keepStatus.has(t.status))
     this.currentTaskIndex = -1
     return true
   }
@@ -170,14 +221,52 @@ export class TaskScheduler {
   /**
    * 外部（platformRunner）每完成一个业务步骤时调用，更新 task.progress 并推送
    * 进度只增不减（避免回退）；运行外任务的状态变化被忽略
-   * @param {object} task   任务对象引用（scheduler.tasks 中的元素）
-   * @param {number} progress  0-100
+   *
+   * ★ 状态机升级：payload 支持两种形式
+   *   - 旧形式（数字）：reportTaskProgress(task, 30) → 仅更新 progress
+   *   - 新形式（对象）：reportTaskProgress(task, {progress, stage, error?, reason?})
+   *     → transition() 校验 stage 合法性后更新 task.stage（非法转换打 warn 拒绝）
+   *   两种形式都更新 progress，并触发 onProgress 推送
+   *
+   * @param {object} task       任务对象引用（scheduler.tasks 中的元素）
+   * @param {number|object} payload  0-100 数字 或 {progress, stage, error?, reason?}
    */
-  reportTaskProgress(task, progress) {
+  reportTaskProgress(task, payload) {
     if (!task || task.status !== 'running') return
-    const next = Math.max(0, Math.min(100, progress))
-    if (next <= task.progress) return
-    task.progress = next
+
+    // 解析 payload：数字或对象
+    let nextProgress
+    let nextStage = null
+    let errMsg = null
+    if (typeof payload === 'object' && payload !== null) {
+      nextProgress = payload.progress
+      nextStage = payload.stage ?? null
+      errMsg = payload.error ?? null
+    } else {
+      nextProgress = payload
+    }
+
+    const next = Math.max(0, Math.min(100, nextProgress))
+    // 进度只增不减：但 stage 转换仍要尝试（同 progress 不同 stage 合法，如 30→30 但 stage=prepare→request 不合法）
+
+    // ★ 状态机转换校验：非法转换打 warn 拒绝（防调度器 bug 导致 UI 状态错乱）
+    if (nextStage !== null && nextStage !== task.stage) {
+      if (!transition(task.stage, nextStage)) {
+        console.warn(`[TaskScheduler] 非法 stage 转换: ${task.stage} → ${nextStage} (task=${task.id})`)
+        // 仍更新 progress，但不更新 stage
+      } else {
+        task.stage = nextStage
+      }
+    }
+
+    // failed 终态由 catch 分支处理，这里不覆盖
+    if (errMsg && task.stage !== 'failed') {
+      task.error = errMsg
+    }
+
+    if (next > task.progress) {
+      task.progress = next
+    }
     this.onProgress(this.serializeProgress(task))
   }
 
@@ -250,6 +339,11 @@ export class TaskScheduler {
       if (task.status === 'aborted') return
       task.status = 'completed'
       task.progress = 100
+      // ★ 状态机终态：completed → stage='done'（transition('merge','done') 或 ('request','done') 合法性不校验，因为这是终态强制）
+      //   防御性：如果 stage 已经是 failed/skipped（异常路径），不覆盖
+      if (task.stage !== 'failed' && task.stage !== 'skipped') {
+        task.stage = 'done'
+      }
       task.result = result
       task.finishedAt = Date.now()
       this.onProgress(this.serializeProgress(task))
@@ -258,6 +352,9 @@ export class TaskScheduler {
       if (task.status === 'aborted') return
       task.status = 'failed'
       task.progress = 0
+      // ★ 状态机终态：failed → stage='failed' + error 填充原因
+      task.stage = 'failed'
+      task.error = error.message
       task.result = { error: error.message }
       task.finishedAt = Date.now()
       this.onProgress(this.serializeProgress(task))

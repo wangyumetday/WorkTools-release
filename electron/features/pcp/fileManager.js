@@ -162,61 +162,48 @@ export class FileManager {
 
   /**
    * 解析 xlsx 文件，生成 a1（原始数据数组）
-   * 解析规则（新格式：文件只有航线两列，航司/舱位由用户在 TopToolbar 输入）：
-   *   第 1 行为固定中文表头：出发机场 / 到达机场（严格相等，不模糊匹配）
-   *   之后每行一条航线：出发机场、到达机场必填
-   *   hangsi/cangwei_str 取 routeFields 用户输入值，全局应用到所有行
+   * 解析规则（新格式：航司/舱位/航线都在文件内）：
+   *   第 1 行：["航司", "<航司二字码>"]        全局航司，应用到所有航线
+   *   第 2 行：["舱位", "<舱位序列逗号分隔>"]  全局舱位，应用到所有航线
+   *   第 3 行：["航线", null]                  表头（仅占位，内容不校验）
+   *   第 4 行起：每行一条航线 [出发机场, 到达机场]
    * @param {string} filePath xlsx 文件路径
-   * @param {{hangsi?: string, cangwei?: string}} routeFields 用户输入的航司/舱位（必填，调用方已校验）
    */
-  parseXlsx(filePath, routeFields = {}) {
+  parseXlsx(filePath) {
     try {
       const workbook = XLSX.readFile(filePath)
       const firstSheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[firstSheetName]
       const aoa = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null })
-      if (!Array.isArray(aoa) || aoa.length < 2) {
-        return { success: false, error: 'Excel 内容为空或只有标题行，请用标准模板' }
+      if (!Array.isArray(aoa) || aoa.length < 4) {
+        return { success: false, error: 'Excel 内容不足 4 行（航司/舱位/表头/航线至少各 1 行），请用标准模板' }
       }
 
-      // ------- 新格式：第 1 行 = 标题行（出发机场/到达机场），之后每行一条航线 -------
-      const titles = (aoa[0] || []).map(c => (c == null ? '' : String(c).trim()))
-      const dataRows = aoa.slice(1).filter(r => r && r.some(c => c != null && String(c).trim() !== ''))
+      // ------- R1 航司 / R2 舱位：全局值，应用到所有航线 -------
+      const hangsi = String(aoa[0]?.[1] ?? '').trim()
+      const cangwei = String(aoa[1]?.[1] ?? '').trim()
+      if (!hangsi) return { success: false, error: '第 1 行缺少航司（B 列）' }
+      if (!cangwei) return { success: false, error: '第 2 行缺少舱位（B 列）' }
 
-      // ------- 列名映射：仅中文表头（新格式只有航线两列）-------
-      const colMap = {
-        CF_jichang: ['出发机场'],
-        DD_jichang: ['到达机场']
-      }
-      function pickField(row, keys) {
-        for (const k of keys) {
-          const idx = titles.findIndex(t => t.replace(/\s+/g, '') === k)
-          if (idx >= 0 && row[idx] != null) {
-            const v = String(row[idx]).trim()
-            if (v) return v
-          }
-        }
-        return ''
-      }
-
-      if (!titles.includes('出发机场') || !titles.includes('到达机场')) {
-        console.warn('[parseXlsx] 表头缺少 出发机场/到达机场 列，航线数据可能解析为空')
-      }
-
-      // ------- 航司/舱位：用户输入全局值，应用到所有行（新格式文件不再含这两列）-------
-      const hangsi = String(routeFields.hangsi || '').trim()
-      const cangwei = String(routeFields.cangwei || '').trim()
+      // ------- R3 表头 / R4+ 航线数据 -------
+      const dataRows = aoa.slice(3).filter(r => r && r.some(c => c != null && String(c).trim() !== ''))
 
       // 遍历每条航线，每条航线生成一个任务进队列
       this.a1 = dataRows.map((row, index) => ({
         id: `row_${index}`,
-        CF_jichang: pickField(row, colMap.CF_jichang),
-        DD_jichang: pickField(row, colMap.DD_jichang),
+        CF_jichang: String(row[0] ?? '').trim(),
+        DD_jichang: String(row[1] ?? '').trim(),
         CH_city: '',
         DD_city: '',
         hangsi,
         cangwei_str: cangwei
       }))
+
+      // 校验航线完整性
+      const incomplete = this.a1.filter(r => !r.CF_jichang || !r.DD_jichang)
+      if (incomplete.length > 0) {
+        return { success: false, error: `第 ${incomplete.length} 条航线缺少出发机场或到达机场` }
+      }
 
       this.saveData('a1.json', this.a1)
 
@@ -225,6 +212,8 @@ export class FileManager {
         success: true,
         fileName: path.basename(filePath),
         count: this.a1.length,
+        hangsi,
+        cangwei,
         data: this.a1.slice(0, 100)
       }
     } catch (error) {
@@ -233,25 +222,6 @@ export class FileManager {
         error: error.message
       }
     }
-  }
-
-  /**
-   * 重应用航司/舱位全局值到已解析的 a1（用户在 TopToolbar 修改输入框后调用）
-   *   两值都非空才生效（航司/舱位必填，避免把已解析数据改坏）
-   * @param {{hangsi?: string, cangwei?: string}} routeFields 用户输入的航司/舱位
-   */
-  applyRouteFields(routeFields = {}) {
-    const hangsi = String(routeFields.hangsi || '').trim()
-    const cangwei = String(routeFields.cangwei || '').trim()
-    if (!hangsi || !cangwei || !Array.isArray(this.a1) || this.a1.length === 0) {
-      return { success: false, error: '航司/舱位为空或无已解析数据' }
-    }
-    for (const row of this.a1) {
-      row.hangsi = hangsi
-      row.cangwei_str = cangwei
-    }
-    this.saveData('a1.json', this.a1)
-    return { success: true, count: this.a1.length }
   }
 
   // 获取 a1 数据

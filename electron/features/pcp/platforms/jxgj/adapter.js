@@ -97,30 +97,27 @@ export function mergeResult(rawResponse, a1Item, compiledConfig = {}) {
   const cwstr = a2Item[A1_FIELDS.cangwei_str].split(',').map(s => s.trim()).filter(Boolean)
   const GW_data = rawResponse.Content.List || []
 
+  // ★ 贪心集合覆盖选航班：在"覆盖全部匹配舱位"前提下最小化日期数
+  //   每个日期后续会拆成一个携程请求，日期数 = 携程请求数（越少越省限流额度）
+  //   返回结果按用户舱位串顺序排列（每舱位至多一条原始航班项）
+  const selectedItems = selectFlightsByGreedyCover(GW_data, cwstr, minSeats)
+
   a2Item[A2_FIELDS.cangwei_arr] = []
-  for (const cw_item of cwstr) {
-    const findItem = GW_data.find(item => findItemByCwItem(item, cw_item, minSeats))
+  a2Item[A2_FIELDS.date_obj] = {}
+  for (const rawItem of selectedItems) {
+    // ★ 业务模式重构：舱位级数据不拆套餐（同原逻辑）。
+    enrichTaocanFloorPrice(rawItem, floorPriceFormula)
 
-    if (findItem) {
-      // ★ 业务模式重构：舱位级数据不拆套餐。
-      //   舱位级主数据体本身也是一种"套餐"（JGJ 返回里 A 舱一行 = A 舱的整舱报价），
-      //   它外层携带有 套餐信息[套餐1,套餐2...]（舱位/舱等/座位数/套餐价格/行李信息）。
-      //   我们把每个内部套餐的"我方底价"算出来挂回套餐项，整行一起流向下游：
-      //   trip 比价时给每个套餐富化「携程底价 / 差值」，导入政策文件只用舱位级主数据（不使用套餐信息）。
-      enrichTaocanFloorPrice(findItem, floorPriceFormula)
+    // 行级行李拼接（主数据体自己的托运行李汇总）
+    setTuoYunXingLi(rawItem)
 
-      // 行级行李拼接（主数据体自己的托运行李汇总）
-      setTuoYunXingLi(findItem)
-      a2Item[A2_FIELDS.cangwei_arr].push(geshihua(findItem))
-    }
+    const findItem = geshihua(rawItem)
+    a2Item[A2_FIELDS.cangwei_arr].push(findItem)
 
-    // 按日期分组
-    a2Item[A2_FIELDS.date_obj] = {}
-    a2Item[A2_FIELDS.cangwei_arr].forEach(item => {
-      const date = item[JXGJ_RESPONSE_FIELDS.C出发日期]
-      if (!a2Item[A2_FIELDS.date_obj][date]) a2Item[A2_FIELDS.date_obj][date] = []
-      a2Item[A2_FIELDS.date_obj][date].push(item)
-    })
+    // 按日期分组（只做一次；键为 C出发日期 "YYYY-MM-DD"）
+    const date = findItem[JXGJ_RESPONSE_FIELDS.C出发日期]
+    if (!a2Item[A2_FIELDS.date_obj][date]) a2Item[A2_FIELDS.date_obj][date] = []
+    a2Item[A2_FIELDS.date_obj][date].push(findItem)
   }
 
   return {
@@ -196,26 +193,101 @@ function setTuoYunXingLi(findItem) {
 }
 
 /**
- * 在 List 中按舱位查询项（含座位数下限、日期≥3天后两道过滤）
- * 座位数下限由锦绣配置页 minSeats 控制（默认 3）
- * 注意：此处精确匹配 C舱位，舱位大类 vs 子舱 的匹配策略待统一方案（问题3）
+ * 航班项资格过滤（与舱位无关的两道门槛）：
+ *   1. 座位数 ≥ minSeats（S剩余座位数；有套餐信息时取套餐信息[0].座位数）
+ *   2. 出发日期 ≥ 3 天后（按 C出发时间_Date 解析）
+ * @returns {string|null} 合格返回 "YYYY-MM-DD" 日期键，不合格返回 null
  */
-function findItemByCwItem(item, cw_item, minSeats = 3) {
-  if (item[A3_FIELDS.C舱位] !== cw_item) return false
+function eligibleDate(item, minSeats = 3) {
   // 座位数（阈值由锦绣配置页 minSeats 控制，默认 3）
   let ZWS = item.S剩余座位数
   if (item.套餐信息?.length > 0) ZWS = item.套餐信息[0].座位数
-  if (ZWS < minSeats) return false
+  if (ZWS < minSeats) return null
   // 日期≥3天后
   const riqiStr = item[JXGJ_RESPONSE_FIELDS.C出发时间_Date]
-  if (!riqiStr) return false
+  if (!riqiStr) return null
   const riqi = new Date(riqiStr)
-  if (isNaN(riqi.getTime())) return false
+  if (isNaN(riqi.getTime())) return null
   riqi.setHours(0, 0, 0, 0)
   const threeDaysLater = new Date()
   threeDaysLater.setHours(0, 0, 0, 0)
   threeDaysLater.setDate(threeDaysLater.getDate() + 3)
-  return riqi >= threeDaysLater
+  if (riqi < threeDaysLater) return null
+  // 日期键与 geshihua() 中 C出发日期 = C出发时间_Date.split(' ')[0] 保持一致
+  return riqiStr.split(' ')[0]
+}
+
+/**
+ * ★ 贪心集合覆盖选航班
+ *
+ * 目标：为用户舱位串中的每个舱位选一条锦绣航班，使所用的出发日期数最少
+ *   —— 每个日期后续会拆成一个携程请求，日期数 = 携程请求数。
+ *
+ * 建模（加权集合覆盖的贪心近似，多项式时间内覆盖数最优近似）：
+ *   - 每个舱位 c 有一个"候选日期集合"（该舱位在 GW_data 中所有合格航班所在的日期）
+ *   - 每个日期 d 能覆盖"候选日期含 d"的全部未覆盖舱位
+ *   - 每轮选择覆盖未覆盖舱位数最多的日期；平局取日期最早（YYYY-MM-DD 字典序=时间序）
+ *   - 提交该日期覆盖的舱位，直到无舱位可覆盖
+ *
+ * 同一舱位在同一日期有多条合格航班时，取 GW_data 中最先出现的一条（稳定、与原 find() 首条语义一致）
+ * 无任何合格航班的舱位自然缺席结果（与原逻辑 find 返回 undefined 跳过一致）
+ *
+ * @param {Object[]} GW_data  锦绣返回的 Content.List 原始航班数组
+ * @param {string[]} cwstr    用户舱位串（已 trim/去空，顺序即输出顺序）
+ * @param {number} minSeats   座位数下限
+ * @returns {Object[]} 每舱位至多一条的原始航班项数组，顺序与 cwstr 对齐
+ */
+function selectFlightsByGreedyCover(GW_data, cwstr, minSeats = 3) {
+  // 1. 建立每舱位候选：Map<date, rawItem>（同日期取列表首条）
+  //    用 Map 索引舱位，后续贪心轮次 O(1) 取用，避免每轮 find
+  const candidatesByCw = new Map()
+  for (const cw of cwstr) {
+    const byDate = new Map()
+    for (const item of GW_data) {
+      if (item[A3_FIELDS.C舱位] !== cw) continue
+      const date = eligibleDate(item, minSeats)
+      if (date === null) continue
+      if (!byDate.has(date)) byDate.set(date, item)
+    }
+    candidatesByCw.set(cw, byDate)
+  }
+
+  // 2. 贪心：每轮挑覆盖最多未覆盖舱位的日期（平局日期最早）
+  const uncovered = new Set(cwstr)
+  const selected = new Map() // cw → rawItem
+  while (uncovered.size > 0) {
+    // date → 本轮可新覆盖的舱位列表
+    const dateCovers = new Map()
+    for (const cw of uncovered) {
+      const byDate = candidatesByCw.get(cw)
+      for (const date of byDate.keys()) {
+        let cws = dateCovers.get(date)
+        if (!cws) { cws = []; dateCovers.set(date, cws) }
+        cws.push(cw)
+      }
+    }
+    if (dateCovers.size === 0) break // 剩余舱位均无候选，缺席输出（同原逻辑）
+
+    let bestDate = null
+    let bestCws = null
+    for (const [date, cws] of dateCovers) {
+      if (bestCws === null
+        || cws.length > bestCws.length
+        || (cws.length === bestCws.length && date < bestDate)) {
+        bestDate = date
+        bestCws = cws
+      }
+    }
+
+    // 提交覆盖：每舱位取该日期下的首条航班
+    for (const cw of bestCws) {
+      selected.set(cw, candidatesByCw.get(cw).get(bestDate))
+      uncovered.delete(cw)
+    }
+  }
+
+  // 3. 按用户舱位串顺序输出
+  return cwstr.filter(cw => selected.has(cw)).map(cw => selected.get(cw))
 }
 
 export default {

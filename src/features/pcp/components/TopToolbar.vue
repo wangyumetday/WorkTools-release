@@ -1,10 +1,8 @@
 <!-- ============================================================
-     PCP TopToolbar.vue - 顶部工具栏组件（按截图三栏布局重实现）
+     PCP TopToolbar.vue - 顶部工具栏组件
      职责：
-       左栏「必填信息」：航司输入 / 航线选择文件 / 舱位输入
-         新格式：上传文件只有 出发机场/到达机场 两列，
-         航司/舱位在此输入，选文件时注入所有 a1 行；
-         已解析后修改 → blur 时重应用到 a1
+       左栏「必填信息」：选择航线文件
+         新格式：文件内含航司(R1)/舱位(R2)/航线(R4+)，无需 UI 输入
        中栏「任务总进度」：任务进度条 + 开始/终止
        右栏：设置下载目录 / 打开下载目录 / 下载文件
      数据流：全部来自 useTaskStore
@@ -12,8 +10,12 @@
 <style scoped>
 .top-toolbar {
   width: 100%;
+  max-height: 400px;
+  overflow: auto;
   display: flex;
-  flex-flow: row nowrap;
+  /* ★ wrap：窗口较窄（右栏加宽后左栏被压缩）时三组按钮自动换行，
+     避免溢出浮到右栏下方造成重叠；宽屏下仍是同一行三栏 */
+  flex-flow: row wrap;
   justify-content: space-between;
   align-items: stretch;
   gap: 16px;
@@ -28,7 +30,13 @@
   }
 
   .tt-left {
-    flex: 0 0 auto;
+    /* ★ 固定宽度：航司/舱位/航线内容再长也只在框内换行，不得反推撑宽左栏破坏布局
+       宽度 = label 42 + gap 8 + 按钮 160 + 左右内边距 32 + 余量 */
+    flex: 0 0 248px;
+    width: 248px;
+    min-width: 0;
+    box-sizing: border-box;
+    justify-content: center;
 
     .ttb-title {
       font-size: 14px;
@@ -49,8 +57,40 @@
       white-space: nowrap;
     }
 
-    .ttb-input {
+    .ttb-btn {
       width: 160px;
+    }
+
+    /* 文件解析信息（航司/舱位/航线）：虚线与按钮行分隔，常驻三行 */
+    .ttb-fileinfo {
+      display: flex;
+      flex-flow: column nowrap;
+      gap: 6px;
+      width: 100%;
+      padding-top: 8px;
+      border-top: 1px dashed #e0e0e0;
+    }
+
+    .ttb-fi-row {
+      display: flex;
+      flex-flow: row nowrap;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+
+    .ttb-fi-value {
+      flex: 1 1 auto;
+      min-width: 0;
+      color: #333;
+      word-break: break-all;
+    }
+
+    /* 航线多条逗号连接，等宽字体便于辨识机场码 */
+    .ttb-fi-routes {
+      font-family: 'Consolas', 'Menlo', monospace;
+      font-size: 12px;
     }
   }
 
@@ -134,25 +174,30 @@
 </style>
 <template>
   <div class="top-toolbar">
-    <!-- 左栏：必填信息（航司/航线/舱位） -->
+    <!-- 左栏：必填信息（选择航线文件） -->
     <div class="tt-box tt-left">
       <div class="ttb-title">必填信息</div>
       <div class="ttb-row">
-        <span class="ttb-label">航司:</span>
-        <n-input v-model:value="store.hangsi" class="ttb-input" :class="{ 'pcp-blink-shake': store.blinkTarget === 'hangsi' }"
-          placeholder="如 FA" :disabled="store.pipelineInProgress" @blur="store.applyRouteFields()" />
-      </div>
-      <div class="ttb-row">
         <span class="ttb-label">航线:</span>
-        <n-button type="default" class="ttb-input" :class="{ 'pcp-blink-shake': store.blinkTarget === 'file' }"
-          :disabled="routeSelectDisabled" @click="store.handleUploadXlsx">
+        <n-button type="default" class="ttb-btn" :class="{ 'pcp-blink-shake': store.blinkTarget === 'file' }"
+          :disabled="store.pipelineInProgress" @click="store.handleUploadXlsx">
           选择文件
         </n-button>
       </div>
-      <div class="ttb-row">
-        <span class="ttb-label">舱位:</span>
-        <n-input v-model:value="store.cangwei" class="ttb-input" :class="{ 'pcp-blink-shake': store.blinkTarget === 'cangwei' }"
-          placeholder="如 Y,B（逗号分隔）" :disabled="store.pipelineInProgress" @blur="store.applyRouteFields()" />
+      <!-- 文件解析信息：航司 / 舱位 / 航线（原右栏「舱位航线组配」折叠面板移入，常驻不折叠） -->
+      <div v-if="store.routesInfo.hangsi" class="ttb-fileinfo">
+        <div class="ttb-fi-row">
+          <span class="ttb-label">航司</span>
+          <span class="ttb-fi-value">{{ store.routesInfo.hangsi }}</span>
+        </div>
+        <div class="ttb-fi-row">
+          <span class="ttb-label">舱位</span>
+          <span class="ttb-fi-value">{{ store.routesInfo.cangwei }}</span>
+        </div>
+        <div class="ttb-fi-row">
+          <span class="ttb-label">航线</span>
+          <span class="ttb-fi-value ttb-fi-routes">{{ store.routesInfo.routes.join('，') }}</span>
+        </div>
       </div>
     </div>
 
@@ -190,16 +235,10 @@
 
 <script setup>
 import { computed } from 'vue'
-import { NButton, NInput, NProgress } from 'naive-ui'
+import { NButton, NProgress } from 'naive-ui'
 import { useTaskStore } from '../stores/task.js'
 
 const store = useTaskStore()
-
-// ==================== 左栏：必填信息 ====================
-// 选择文件前置：航司/舱位已填（新格式文件不含这两列）+ 流程不在进行中
-const routeSelectDisabled = computed(() =>
-  store.pipelineInProgress || !store.hangsi.trim() || !store.cangwei.trim()
-)
 
 // ==================== 中栏：任务总进度 ====================
 // 总进度 = 已完成任务数 / 总任务数（无任务时 0）
@@ -209,11 +248,9 @@ const overallProgress = computed(() => {
   return Math.round((store.completedCount / total) * 100)
 })
 
-// 开始前置：a1 有数据 + 航司/舱位已填 + 真实步骤流不在进行中
+// 开始前置：a1 有数据 + 真实步骤流不在进行中
 //   （只有 idle/done 可点；running/waiting_next/paused 必须先完成或终止）
-const canStart = computed(() =>
-  store.a1Count > 0 && !!store.hangsi.trim() && !!store.cangwei.trim() && !store.pipelineInProgress
-)
+const canStart = computed(() => store.a1Count > 0 && !store.pipelineInProgress)
 
 // 终止按钮：真实步骤流进行中都可点（running/waiting_next/paused）；idle/done 禁用
 const canAbort = computed(() => !!store.pipelineInProgress)

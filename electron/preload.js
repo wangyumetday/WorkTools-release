@@ -46,8 +46,7 @@ const api = {
     onTaskState:         (callback)          => ipcRenderer.on('pcp:task:state', (_event, data) => callback(data)),
 
     // File：Excel 上传/读取 a1/a2/a3/下载结果
-    fileUploadXlsx:      (routeFields)       => ipcRenderer.invoke('pcp:file:uploadXlsx', routeFields),
-    fileApplyRouteFields: (routeFields)      => ipcRenderer.invoke('pcp:file:applyRouteFields', routeFields),
+    fileUploadXlsx:      ()                  => ipcRenderer.invoke('pcp:file:uploadXlsx'),
     fileGetA1:           ()                  => ipcRenderer.invoke('pcp:file:getA1'),
     fileGetA2:           ()                  => ipcRenderer.invoke('pcp:file:getA2'),
     fileGetA3:           ()                  => ipcRenderer.invoke('pcp:file:getA3'),

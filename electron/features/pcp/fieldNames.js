@@ -67,7 +67,10 @@ export const TRIP_RESPONSE_FIELDS = {
   seatClass:'seatClass',
   showState: 'showState',
   isOwn: 'isOwn',
-  sortIndicator: 'sortIndicator'
+  sortIndicator: 'sortIndicator',
+  // OTA 航班卡选中标记：值形如 'NEW_QUANTIFY_COMPARE:initSelected'（选中）/
+  //   'NEW_QUANTIFY_COMPARE:skipAllBeat' / '...beatAllSelected'；可能挂在 price 上或其父 lowPrices 上
+  quantifyFlagRemark: 'quantifyFlagRemark'
 }
 
 // jxgj（锦绣国际）响应字段：Content.List[] 航班项里的字段

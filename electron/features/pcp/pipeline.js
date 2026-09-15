@@ -413,7 +413,7 @@ export class Pipeline {
 
   // ========== 内部：门禁检查 ==========
   /**
-   * 前置门禁：选文件 → 航司/舱位已填 → JXGJ 配置启用 → 至少一个 O 配置启用
+   * 前置门禁：选文件 → 航司/舱位已读（来自文件 R1/R2）→ JXGJ 配置启用 → 至少一个 O 配置启用
    * 返回 { success, missing: ['file'|'hangsi'|'cangwei'|'jxgj_config'|'jxgj_credential'|'o_config'|'o_credential'] }
    */
   checkGate() {
@@ -423,7 +423,7 @@ export class Pipeline {
     const a1 = this.fileManager?.getA1()?.data || []
     if (a1.length === 0) missing.push('file')
 
-    // 1.5 航司/舱位必填（新格式：文件只含航线两列，这两项来自 TopToolbar 用户输入）
+    // 1.5 航司/舱位必填（新格式：文件 R1/R2 提供，parseXlsx 已校验非空；此处双保险）
     const first = a1[0] || {}
     if (!String(first.hangsi || '').trim()) missing.push('hangsi')
     if (!String(first.cangwei_str || '').trim()) missing.push('cangwei')
@@ -540,7 +540,7 @@ export class Pipeline {
       }
     }
 
-    this.taskManager.clearAll()
+    // 任务列表不自动清除：跨阶段累积，便于用户回看历史；如需清理手动点「清空」按钮（仅清已结束任务）
 
     let tasks
     if (stage === 'o_combo') {
@@ -548,24 +548,59 @@ export class Pipeline {
         this.taskManager?.isRuntimeEnabled(p)   // ★ 从运行时配置栈取
         && this.credentialManager?.getSelected(p))
       tasks = []
+      // ★ 入队时挂 preRequest（与 jxgj 同一设计）：
+      //   用平台 adapter.prepareRequest(taskData, dateKey, compiledConfig) 预算请求参数，
+      //   前端 RequestItem 直接读 task.preRequest 渲染「请求参数」，零计算。
+      //   trip：{segments, validatingCarrier, cfg}；o2/o3 未实现（prepareRequest 抛错）→ null
+      //   dateValue=null（无日期分支）→ null（runner 也会直接跳过请求）
+      const buildOTask = (p, taskData) => {
+        let preRequest = null
+        if (taskData.dateValue && taskData.dateKey) {
+          try {
+            const adapter = registry.get(p)
+            const compiledConfig = this.taskManager?.compiledConfigs?.[p] || {}
+            preRequest = adapter.prepareRequest(taskData, taskData.dateKey, compiledConfig)
+          } catch (e) {
+            // 未实现/组参失败不阻塞入队（如 o2/o3 stub），运行时 runner 会按原逻辑报错
+          }
+        }
+        return { type: p, data: taskData, preRequest }
+      }
       for (const item of sourceData) {
         const dateObj = item && typeof item.date_obj === 'object' && item.date_obj !== null ? item.date_obj : null
         if (!dateObj) {
           for (const p of enabledO) {
-            tasks.push({ type: p, data: { id: `${item.id}__${p}`, source: item, dateKey: null, dateValue: null } })
+            tasks.push(buildOTask(p, { id: `${item.id}__${p}`, source: item, dateKey: null, dateValue: null }))
           }
           continue
         }
         for (const [dateKey, dateValue] of Object.entries(dateObj)) {
           for (const p of enabledO) {
-            tasks.push({ type: p, data: { id: `${item.id}__${dateKey}__${p}`, source: item, dateKey, dateValue } })
+            tasks.push(buildOTask(p, { id: `${item.id}__${dateKey}__${p}`, source: item, dateKey, dateValue }))
           }
         }
       }
     } else {
-      tasks = sourceData.map(item => ({ type: config.type, data: item }))
+      // ★ 入队时挂 preRequest：让 task.preRequest 在 addTask 时透传到 newTask
+      //   jxgj：prepareRequest(a1Item) → {depAirPort, arrAirPort, carrier}
+      //   失败时降级 preRequest=null，不阻塞入队
+      if (stage === 'jxgj') {
+        const jxgjAdapter = registry.get('jxgj')
+        tasks = sourceData.map(item => {
+          let preRequest = null
+          try {
+            preRequest = jxgjAdapter.prepareRequest(item)
+          } catch (e) {
+            console.warn('[pipeline] jxgj 预请求组合失败:', e.message)
+          }
+          return { type: config.type, data: item, preRequest }
+        })
+      } else {
+        tasks = sourceData.map(item => ({ type: config.type, data: item }))
+      }
     }
     const added = this.taskManager.addBatch(tasks)
+
     return Promise.resolve({ success: true, count: added.length, tasks: added })
   }
 

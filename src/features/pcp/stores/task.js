@@ -27,13 +27,15 @@ export const useTaskStore = defineStore('pcp-task', () => {
   const a2Count = ref(0)
   const a3Count = ref(0)
 
-  // ==================== 航司/舱位（用户输入，必填）====================
-  // 新格式：上传的航线文件只有 出发机场/到达机场 两列，航司/舱位在此输入，
-  //   选文件时随 routeFields 传给主进程注入所有 a1 行；已解析后修改则 blur 时重应用
-  const hangsi = ref('')
-  const cangwei = ref('')
+  // ==================== 舱位航线组配（手风琴面板1 数据源）====================
+  //   parseXlsx 返回的航司/舱位/航线三项，handleUploadXlsx 成功后填充
+  //   TaskList.vue「舱位航线组配」面板直接读 store.routesInfo 渲染
+  const routesInfo = ref({ hangsi: '', cangwei: '', routes: [] })
 
   // ==================== 任务监控数据 ====================
+  //   ★ 单一数据源：所有 task（jxgj + trip + o2 + o3）都在这里
+  //   ★ RequestItem 直接读 task.stage / task.preRequest / task.progress / task.error
+  //   ★ 列表项 id = task.id（task_1、task_2...），与 panel1 航线通过 task.data.id 关联
   const tasks = ref([])
   const isRunning = ref(false)
   const isPaused = ref(false)
@@ -79,6 +81,12 @@ export const useTaskStore = defineStore('pcp-task', () => {
   const completedCount = computed(() => tasks.value.filter(t => t.status === 'completed').length)
   const failedCount = computed(() => tasks.value.filter(t => t.status === 'failed').length)
   const pendingCount = computed(() => tasks.value.filter(t => t.status === 'pending' || t.status === 'paused').length)
+
+  // ★ RequestItem 列表：按 type 过滤 tasks，单一数据源分化
+  //   jxgjTasks → 面板2「锦绣请求」/ tripTasks → 面板3「携程请求」
+  //   task 自带 stage/preRequest/result/error，RequestItem 直接读
+  const jxgjTasks = computed(() => tasks.value.filter(t => t.type === 'jxgj'))
+  const tripTasks = computed(() => tasks.value.filter(t => t.type === 'trip' || t.type === 'o2' || t.type === 'o3'))
 
   /**
    * 真实步骤流是否进行中（前端统一判定，与后端 Pipeline.isInProgress 规则一致）
@@ -170,43 +178,28 @@ export const useTaskStore = defineStore('pcp-task', () => {
 
   // ==================== 步骤1：上传 xlsx ====================
   async function handleUploadXlsx() {
-    // 航司/舱位必填（新格式文件不含这两列，解析时注入所有行）
-    if (!hangsi.value.trim() || !cangwei.value.trim()) {
-      message.warning('请先填写航司和舱位（必填信息）')
-      return
-    }
     // 先重置 Pipeline：清空旧 a1/a2/a3 + 状态回到 idle/upload + 清空任务队列
     //   防止上一个流程的 a2/a3 残留导致 StepFlow 误判步骤为「已完成」
+    //   ★ tasks 清空后 jxgjTasks/tripTasks computed 自动变空，面板2/3 自动清空
     await api.pcp.pipelineReset()
 
-    const routeFields = { hangsi: hangsi.value.trim(), cangwei: cangwei.value.trim() }
-    const result = await api.pcp.fileUploadXlsx(routeFields)
+    const result = await api.pcp.fileUploadXlsx()
     if (result && result.success) {
       selectedFile.value = result.fileName
       a1Data.value = result.data
       a1Count.value = result.count
+      // 填充舱位航线组配面板数据源：航司/舱位/航线列表（a1 每条 → "CF→DD"）
+      routesInfo.value = {
+        hangsi: result.hangsi || '',
+        cangwei: result.cangwei || '',
+        routes: (result.data || []).map(r => `${r.CF_jichang || ''}→${r.DD_jichang || ''}`)
+      }
       // 刷新所有计数和状态（a2/a3 应为 0，pipelineState 应为 idle/upload）
       await refreshAll()
       await refreshPipelineState()
       message.success(`成功解析 ${result.count} 条数据`)
     } else if (result && !result.success) {
       message.error(result.error || '上传失败')
-    }
-  }
-
-  /**
-   * 重应用航司/舱位到已解析的 a1（TopToolbar 输入框 blur 时调用）
-   *   两值都非空才生效（与后端 applyRouteFields 守卫一致）；
-   *   流程进行中跳过（a1 已被消费，改了也不生效）
-   */
-  async function applyRouteFields() {
-    if (!hangsi.value.trim() || !cangwei.value.trim()) return
-    if (a1Count.value === 0 || pipelineInProgress.value) return
-    const result = await api.pcp.fileApplyRouteFields({
-      hangsi: hangsi.value.trim(), cangwei: cangwei.value.trim()
-    })
-    if (result && result.success) {
-      a1Data.value = result.count > 0 ? (await api.pcp.fileGetA1()).data.slice(0, 100) : a1Data.value
     }
   }
 
@@ -380,7 +373,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
   async function handleClearTasks() {
     await api.pcp.taskClear()
     await refreshTasks()
-    message.info('已清空任务队列')
+    message.info('已清理已结束任务')
   }
 
   async function handleSetConcurrency(value) {
@@ -580,6 +573,9 @@ export const useTaskStore = defineStore('pcp-task', () => {
       api.pcp.onFileDownloadProgress(handleFileDownloadProgress)
       api.pcp.onPipelineState(handlePipelineState)
       api.pcp.onPipelineGateFail(handlePipelineGateFail)
+      // ★ 锦绣请求/携程请求 可视化：直接复用 pcp:task:state 推送
+      //   task 自带 stage/preRequest/result/error，前端按 type 过滤分化
+      //   不再需要单独的 pcp:vis:jxgj-prepared 事件
       listenersRegistered = true
     } catch (e) {
       console.warn('[taskStore] 注册事件监听器失败', e)
@@ -596,7 +592,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
   return {
     // state
     selectedFile, a1Data, a1Count, a2Count, a3Count,
-    hangsi, cangwei,
+    routesInfo, jxgjTasks, tripTasks,
     tasks, isRunning, isPaused, currentStage,
     concurrency, activeCount,
     pipelineState, blinkTarget,
@@ -606,7 +602,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
     // actions
     getStageName,
     refreshTasks, refreshDataCounts, refreshAll, refreshPipelineState,
-    handleUploadXlsx, applyRouteFields, handleDownloadResult,
+    handleUploadXlsx, handleDownloadResult,
     handleSelectDownloadDir, handleOpenDownloadDir, refreshDownloadDir,
     handleDeleteTask, handleClearTasks, handlePause, handleAbort, handleSetConcurrency,
     handleStartExecution, pipelineTriggerStep, setMode, setBusinessMode,

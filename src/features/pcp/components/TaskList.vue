@@ -1,284 +1,199 @@
 <!-- ============================================================
-     PCP TaskList.vue - 任务列表(真实列表实现,当前使用)
-     设计:
-       - v-for 渲染全部任务行(几百~千级无压力)
-       - 行高真实,滚动测算天然正确
-       - 详情面板内嵌行下,最大 400px 框内滚动(见 taskList.css)
-     与 TaskListVirtual.vue 共享 useTaskList 逻辑 + taskList.css 样式
+     PCP TaskList.vue - 任务列表改版（手风琴式进度可视化）
+     设计：
+       - 手风琴容器：同时只展开一个面板，标题点击切换
+       - 两个可视化面板（按流程顺序）：
+         1. 锦绣请求可视化（jxgj 阶段任务）
+         2. 携程请求可视化（trip 阶段任务）
+       - 航司/舱位/航线已移至左栏 TopToolbar「必填信息」框内常驻展示
+     旧实现备份于 TaskList.vue.bak
      ============================================================ -->
 <template>
-  <div class="tab-list">
-    <div v-for="item in store.tasks" :key="item.id" class="tl-row-wrap">
-      <div class="tl-row" @click="toggleExpand(item.id)">
-        <!-- ★ 纯 CSS 背景进度条：transform scaleX 走 GPU，不触发重排 -->
-        <div class="tl-row-bg" :class="progressClass(item)" :style="{
-          transform: `scaleX(${Math.max(0, Math.min(1, (progressWidth(item) || 0) / 100))})`,
-          transformOrigin: 'left center'
-        }"></div>
-
-        <div class="tl-row-content">
-          <div class="tl-row-expand" :class="{ open: expandedTaskId === item.id }">▶</div>
-          <div class="tab-header-item">{{ shortId(item.id) }}</div>
-          <div class="tab-header-item">{{ typeMap[item.type] || item.type }}</div>
-          <!-- 百分比按状态着色 -->
-          <div class="tab-header-item" :class="pctClass(item)">{{ Math.round(item.progress || 0) }}%</div>
-          <!-- 状态文字按状态着色 -->
-          <div class="tab-header-item" :class="statusClass(item.status)">
-            {{ statusMap[item.status]?.text || item.status }}
-          </div>
-          <div class="tab-header-item">{{ formatDuration(getDuration(item)) }}</div>
+  <div class="vis-list">
+    <!-- ===== 面板 1：锦绣请求可视化 ===== -->
+    <section class="vis-panel" :class="{ 'is-open': openIdx === 0 }">
+      <header class="vis-h" @click="toggle(0)">
+        <span class="vis-h-caret" :class="{ open: openIdx === 0 }">▶</span>
+        <span class="vis-h-title">锦绣请求</span>
+        <span class="vis-h-summary">
+          {{ store.jxgjTasks.length > 0 ? `${store.jxgjTasks.length} 个请求项` : '尚未生成预请求' }}
+        </span>
+      </header>
+      <div v-if="openIdx === 0" class="vis-body">
+        <!-- ★ RequestItem：task 自带 stage/preRequest/result/error，全生命周期实时更新
+             jxgj 的「请求参数/返回数据（状态+信息+航班提要表）」由组件内置渲染 -->
+        <div v-if="store.jxgjTasks.length > 0" class="vis-item-list">
+          <RequestItem
+            v-for="t in store.jxgjTasks"
+            :key="t.id"
+            :task="t"
+            platform="jxgj"
+          />
         </div>
+        <div v-else class="vis-empty">尚未生成预请求</div>
       </div>
+    </section>
 
-      <!-- ★ 展开详情面板（紧凑版）：核心信息一目了然，次要信息折叠 -->
-      <!-- 滚动:纯 CSS overscroll-behavior:auto,详情滚到底/到顶原生链式带动任务列表(见 taskList.css) -->
-      <div v-if="expandedTaskId === item.id" class="tl-detail">
-        <!-- ===== 顶部 meta 条：一行 chip 横排 ===== -->
-        <div class="tld-section tld-meta">
-          <span class="tld-chip">
-            <span class="tld-chip__label">状态</span>
-            <span class="tld-chip__value" :class="{
-              'tld-chip__value--fail': item.status === 'failed',
-              'tld-chip__value--ok': item.status === 'completed',
-              'tld-chip__value--warn': item.status === 'skipped' || item.status === 'paused',
-              'tld-chip__value--run': item.status === 'running'
-            }">{{ statusMap[item.status]?.text || item.status }}</span>
-          </span>
-          <span class="tld-chip__sep"></span>
-          <span class="tld-chip">
-            <span class="tld-chip__label">平台</span>
-            <span class="tld-chip__value">{{ typeMap[item.type] || item.type }}</span>
-          </span>
-          <span class="tld-chip__sep"></span>
-          <span class="tld-chip">
-            <span class="tld-chip__label">耗时</span>
-            <span class="tld-chip__value">{{ formatDuration(getDuration(item)) }}s</span>
-          </span>
-
-          <template v-if="item.result?._usedCredential">
-            <span class="tld-chip__sep"></span>
-            <span class="tld-chip"
-              :title="`账号：${item.result._usedCredential.name || '-'} / 用户：${item.result._usedCredential.username || '-'}`">
-              <span class="tld-chip__label">账号</span>
-              <span class="tld-chip__value">{{ item.result._usedCredential.name || '-' }}</span>
-            </span>
-          </template>
-
-          <!-- 致命错误徽章 inline -->
-          <span v-if="item.result?.isFatal" class="tld-chip__sep"></span>
-          <n-tag v-if="item.result?.isFatal" type="error" size="small" round>已停止剩余任务</n-tag>
+    <!-- ===== 面板 2：携程请求可视化 ===== -->
+    <section class="vis-panel" :class="{ 'is-open': openIdx === 1 }">
+      <header class="vis-h" @click="toggle(1)">
+        <span class="vis-h-caret" :class="{ open: openIdx === 1 }">▶</span>
+        <span class="vis-h-title">携程请求</span>
+        <span class="vis-h-summary">
+          {{ store.tripTasks.length > 0 ? `${store.tripTasks.length} 个请求项 · 胜出率 ${tripWinRateText}` : '待锦绣阶段产出日期组' }}
+        </span>
+      </header>
+      <div v-if="openIdx === 1" class="vis-body">
+        <!-- ★ trip RequestItem：参数（日期/航线/航司/舱位）+ 返回数据（状态/统计/比价提要）
+             由组件内置渲染；o2/o3 走组件内置兜底（JSON / 参数未挂载） -->
+        <div v-if="store.tripTasks.length > 0" class="vis-item-list">
+          <RequestItem
+            v-for="t in store.tripTasks"
+            :key="t.id"
+            :task="t"
+            :platform="t.type"
+          />
         </div>
-
-        <!-- ===== 核心结果：失败原因 / 跳过原因 / 处理结果 ===== -->
-        <div v-if="item.status === 'failed' && item.result?.error" class="tld-section tld-result tld-result--fail">{{
-          item.result.error }}</div>
-
-        <div v-else-if="item.status === 'skipped' && item.result?.error"
-          class="tld-section tld-result tld-result--skip">{{
-            item.result.error }}</div>
-
-        <div v-else-if="item.status === 'completed' && item.result" class="tld-section tld-result tld-result--ok">{{
-          summarizeResult(item.result) }}</div>
-
-        <!-- ===== 航班信息区块（仅完成态展示；jxgj 与 OTA 字段不同）===== -->
-        <div v-if="item.status === 'completed' && item.result" class="tld-section tld-flights">
-          <!-- ===== jxgj：请求查询 + 返回数据(date_obj) ===== -->
-          <template v-if="item.type === 'jxgj'">
-            <!-- 请求查询区：来自 a1Item，单值直接排列 -->
-            <div class="tld-meta">
-              <span class="tld-chip">
-                <span class="tld-chip__label">航班号</span>
-                <span class="tld-chip__value">{{ item.data?.hangsi || '-' }}</span>
-              </span>
-              <span class="tld-chip__sep"></span>
-              <span class="tld-chip">
-                <span class="tld-chip__label">出发</span>
-                <span class="tld-chip__value">{{ item.data?.CF_jichang || '-' }}</span>
-              </span>
-              <span class="tld-chip__sep"></span>
-              <span class="tld-chip">
-                <span class="tld-chip__label">到达</span>
-                <span class="tld-chip__value">{{ item.data?.DD_jichang || '-' }}</span>
-              </span>
-              <span class="tld-chip__sep"></span>
-              <span class="tld-chip">
-                <span class="tld-chip__label">所有舱位</span>
-                <span class="tld-chip__value">{{ item.data?.cangwei_str || '-' }}</span>
-              </span>
-            </div>
-
-            <!-- 返回数据区：date_obj（按日期分组） -->
-            <div v-if="getJxgjDateEntries(item).length === 0" class="tld-empty">无航班数据</div>
-            <template v-else>
-              <!-- 单条航班（1 日 1 航班）：直接排列，无需折叠 -->
-              <template v-if="getJxgjTotalFlights(item) === 1">
-                <div class="tld-meta">
-                  <span class="tld-chip">
-                    <span class="tld-chip__label">日期</span>
-                    <span class="tld-chip__value">{{ getJxgjDateEntries(item)[0].date }}</span>
-                  </span>
-                  <span class="tld-chip__sep"></span>
-                  <span class="tld-chip">
-                    <span class="tld-chip__label">航班</span>
-                    <span class="tld-chip__value">{{ getJxgjDateEntries(item)[0].items[0]?.H航班号 }}</span>
-                  </span>
-                  <span class="tld-chip__sep"></span>
-                  <span class="tld-chip">
-                    <span class="tld-chip__label">舱位</span>
-                    <span class="tld-chip__value">{{ getJxgjDateEntries(item)[0].items[0]?.C舱位 }}</span>
-                  </span>
-                  <span class="tld-chip__sep"></span>
-                  <span class="tld-chip">
-                    <span class="tld-chip__label">票价</span>
-                    <span class="tld-chip__value">{{ getJxgjDateEntries(item)[0].items[0]?.C成人总票价_CNY_INT }}</span>
-                  </span>
-                  <span class="tld-chip__sep"></span>
-                  <span class="tld-chip">
-                    <span class="tld-chip__label">底价</span>
-                    <span class="tld-chip__value">{{ getJxgjDateEntries(item)[0].items[0]?.dijia }}</span>
-                    <!-- 调试：底价计算命中来源（区间/全局/降级）+ 公式字符串（区间则显示 [L,U]） -->
-                    <small v-if="getJxgjDateEntries(item)[0].items[0]?._floorMeta" class="tld-fp-meta">
-                      ({{ formatFloorMeta(getJxgjDateEntries(item)[0].items[0]._floorMeta) }})
-                    </small>
-                  </span>
-                </div>
-              </template>
-
-              <!-- 多条航班：日期组折叠 → 点击展开看日期列表 → 点击日期看航班行 -->
-              <template v-else>
-                <span class="tld-collapse-toggle" :class="{ open: flightPanelExpandedId === item.id }"
-                  @click.stop="toggleFlightPanel(item.id)">
-                  <span class="caret">▶</span>
-                  <span>航班信息 · {{ getJxgjTotalFlights(item) }} 条 / {{ getJxgjDateEntries(item).length }} 日</span>
-                </span>
-                <div v-if="flightPanelExpandedId === item.id" class="tld-flights-list">
-                  <div v-for="d in getJxgjDateEntries(item)" :key="d.date" class="tld-date-group">
-                    <span class="tld-collapse-toggle" :class="{ open: expandedDates.has(d.date) }"
-                      @click.stop="toggleDate(d.date)">
-                      <span class="caret">▶</span>
-                      <span>{{ d.date }} · {{ d.items.length }} 条</span>
-                    </span>
-                    <div v-if="expandedDates.has(d.date)">
-                      <table class="tld-flight-table">
-                        <thead>
-                          <tr>
-                            <th>航班</th>
-                            <th>舱位</th>
-                            <th>票价</th>
-                            <th>底价</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="(f, idx) in d.items" :key="(f.H航班号 || '') + '_' + (f.C舱位 || '') + '_' + idx">
-                            <td>{{ f.H航班号 }}</td>
-                            <td>{{ f.C舱位 }}</td>
-                            <td>{{ f.C成人总票价_CNY_INT }}</td>
-                            <td>
-                              {{ f.dijia }}
-                              <small v-if="f._floorMeta" class="tld-fp-meta">
-                                ({{ formatFloorMeta(f._floorMeta) }})
-                              </small>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </template>
-            </template>
-          </template>
-
-          <!-- ===== OTA（trip/o2/o3）：官网 vs 携程 对照(单行一项) =====
-               processedData 每条同时含 C成人总票价_CNY_INT(官网/jxgj 链路)
-               和 XC_dijia(携程 OTA 返回底价)。同一任务 dateKey 相同,故仅在表头上方显示一次。
-               差额 = 携程底价 - 官网成人总票价(正=携程高于官网)。 -->
-          <template v-else-if="item.type === 'trip' || item.type === 'o2' || item.type === 'o3'">
-            <div v-if="getOtaFlights(item).length === 0" class="tld-empty">无匹配航班</div>
-            <template v-else>
-              <!-- 查询日期(同一任务 dateKey 共享,所有航班同日) -->
-              <div class="tld-cmp-date">查询日期：{{ item.data.dateKey || '-' }}</div>
-              <!-- 一行一项:官网价/携程价 并排 + 差额,斑马纹隔行 -->
-              <div class="tld-cmp-section">
-                <table class="tld-flight-table tld-cmp-table">
-                  <thead>
-                    <tr>
-                      <th>航班号/舱位</th>
-                      <th>出发--到达</th>
-                      <th>官网</th>
-                      <th>携程</th>
-                      <th>差额</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(f, idx) in getOtaFlights(item)" :key="'a_' + idx" class="cmp-row-single">
-                      <td>{{ f.H航班号 }} / {{ f.C舱位 }}</td>
-                      <td>{{ f.C出发机场 }}--{{ f.D到达机场 }}</td>
-                      <td>{{ f.C成人总票价_CNY_INT }}</td>
-                      <td>{{ f.XC_dijia }}</td>
-                      <!-- 下面这个td,如果值是负数就把color设为红色，否则就设为绿色 -->
-                      <td :style="{ color: getOtaDiff(f) < 0 ? '#cf1322' : '#389e0d' }">{{ getOtaDiff(f) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </template>
-          </template>
-        </div>
-
-        <!-- ===== 输入数据：默认折叠，需要才展开 ===== -->
-        <div v-if="item.data || item.result?._usedCredential" class="tld-section">
-          <span class="tld-collapse-toggle" :class="{ open: inputDataExpandedId === item.id }"
-            @click.stop="toggleInputData(item.id)">
-            <span class="caret">▶</span>
-            <span>{{ inputDataExpandedId === item.id ? '收起详情' : '展开输入数据' }}</span>
-          </span>
-
-          <div v-if="inputDataExpandedId === item.id">
-            <div v-if="item.result?._usedCredential" style="margin-top:4px; font-size:11.5px; color:#777;">
-              使用账号：{{ item.result._usedCredential.name }} / {{ item.result._usedCredential.username }}
-              <span v-if="item.result._usedCredential.platform">· 平台：{{ item.result._usedCredential.platform }}</span>
-            </div>
-            <div v-if="item.data" class="tld-data-json">{{ prettyJson(item.data, 30) }}</div>
-          </div>
-        </div>
-
-        <!-- ===== 返回数据：与输入数据相同的折叠方式 ===== -->
-        <div v-if="item.result && typeof item.result === 'object'" class="tld-section">
-          <span class="tld-collapse-toggle" :class="{ open: resultDataExpandedId === item.id }"
-            @click.stop="toggleResultData(item.id)">
-            <span class="caret">▶</span>
-            <span>{{ resultDataExpandedId === item.id ? '收起详情' : '展开返回数据' }}</span>
-          </span>
-
-          <div v-if="resultDataExpandedId === item.id" class="tld-data-json">
-            {{ prettyJson(item.result, 30) }}
-          </div>
-        </div>
+        <div v-else class="vis-empty">尚未生成预请求</div>
       </div>
-    </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { NTag } from 'naive-ui'
-import { useTaskList } from '../composables/useTaskList.js'
+import { ref, computed } from 'vue'
+import { useTaskStore } from '../stores/task.js'
+import RequestItem from './RequestItem.vue'
 
-const {
-  store,
-  expandedTaskId, toggleExpand,
-  inputDataExpandedId, toggleInputData,
-  resultDataExpandedId, toggleResultData,
-  flightPanelExpandedId, toggleFlightPanel,
-  expandedDates, toggleDate,
-  getJxgjDateEntries, getJxgjTotalFlights,
-  getOtaFlights, getOtaDiff,
-  summarizeResult, prettyJson,
-  typeMap, statusMap,
-  shortId, progressWidth, progressClass, pctClass, statusClass,
-  getDuration, formatDuration, formatFloorMeta
-} = useTaskList()
+const store = useTaskStore()
+
+// 手风琴展开状态：-1 = 全关，0 = 锦绣请求，1 = 携程请求
+//   同时只展开一个：点已开的面板 = 关闭；点其他面板 = 切换过去
+const openIdx = ref(-1)
+
+function toggle(idx) {
+  openIdx.value = openIdx.value === idx ? -1 : idx
+}
+
+// ★ 本次任务全部携程请求的汇总胜出率
+//   分母 = 所有 trip 请求项返回的航班总数（按 航班号|日期|出发|到达 分组，与 RequestItem tripGroups 一致）
+//   分子 = 组内至少一条 isOwn && shown（= showState===1 外显）的航班数
+//   仅投放未外显（ownHidden 黄）不算胜出；0 航班时显示 '—' 避免除零
+const tripWinRateText = computed(() => {
+  let totalFlights = 0
+  let wonFlights = 0
+  for (const t of store.tripTasks) {
+    const rows = t.result?.quoteRows
+    if (!Array.isArray(rows)) continue
+    const map = new Map()
+    for (const q of rows) {
+      const key = `${q.flightNo}|${q.date}|${q.depAirport}|${q.arrAirport}`
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(q)
+    }
+    for (const group of map.values()) {
+      totalFlights++
+      if (group.some(q => q.isOwn && q.shown)) wonFlights++
+    }
+  }
+  if (totalFlights === 0) return '—'
+  return `${Math.round((wonFlights / totalFlights) * 100)}%`
+})
 </script>
 
-<!-- 共享样式(与 TaskListVirtual.vue 同源):行/详情/颜色 -->
-<style scoped src="./taskList.css"></style>
+<style scoped>
+.vis-list {
+  display: flex;
+  flex-flow: column nowrap;
+  width: 100%;
+  /* ★ 滚动链：撑满 .tm-bottom 剩余高度（tm-bottom 已 flex:1 + min-height:0） */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vis-panel {
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  flex-flow: column nowrap;
+  /* 未展开面板：只占 header 自然高度；展开面板：吃掉剩余高度，内部 vis-body 滚动 */
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.vis-panel.is-open {
+  flex: 1 1 0;
+}
+
+.vis-panel:last-child {
+  border-bottom: none;
+}
+
+/* 面板头：可点击切换展开 */
+.vis-h {
+  display: flex;
+  flex-flow: row nowrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  user-select: none;
+  background: #fafafa;
+
+  &:hover {
+    background: #f0f0f0;
+  }
+}
+
+/* 三角箭头：展开时旋转 90° */
+.vis-h-caret {
+  display: inline-block;
+  font-size: 12px;
+  color: #666;
+  transition: transform 0.15s ease;
+  transform: rotate(0deg);
+
+  &.open {
+    transform: rotate(90deg);
+  }
+}
+
+.vis-h-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.vis-h-summary {
+  font-size: 12px;
+  color: #999;
+}
+
+/* 面板体：展开后内容容器，★ 仅此容器纵向滚动（单一滚动容器，避免父子双滚动） */
+.vis-body {
+  padding: 12px 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* 列表占位（后续接入真实数据时替换） */
+.vis-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  color: #bbb;
+  font-size: 13px;
+  border: 1px dashed #e0e0e0;
+  border-radius: 4px;
+}
+
+/* ===== RequestItem 列表容器 =====
+   每个 RequestItem 自带边框/圆角/背景，容器只负责垂直排列 + gap */
+.vis-item-list {
+  display: flex;
+  flex-flow: column nowrap;
+  gap: 12px;
+}
+</style>

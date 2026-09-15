@@ -41,11 +41,11 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
   // ========== File IPC ==========
 
   // 弹文件选择对话框，选 xlsx 后解析为 a1 数据
-  //   - 新格式：文件只有 出发机场/到达机场 两列，航司/舱位由前端透传用户输入（routeFields）
+  //   - 新格式：文件内含航司(R1)/舱位(R2)/航线(R4+)，无需前端透传 routeFields
   //   - defaultPath 用 lastDirectory：上次选过文件的话，直接打开同文件夹
   //   - 没记录时不传 defaultPath，Electron 用 OS 默认路径（一般也是桌面/文档）
   //   - 选完后更新 lastDirectory，下次延续
-  ipcMain.handle('pcp:file:uploadXlsx', async (_event, routeFields = {}) => {
+  ipcMain.handle('pcp:file:uploadXlsx', async () => {
     const lastDir = fileManager.getLastDirectory()
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ['openFile'],
@@ -57,12 +57,7 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
     }
     // 选完后更新 lastDirectory，下次打开默认定位到该文件夹
     fileManager.setLastDirectory(path.dirname(result.filePaths[0]))
-    return fileManager.parseXlsx(result.filePaths[0], routeFields)
-  })
-
-  // 重应用航司/舱位全局值到已解析的 a1（用户在 TopToolbar 改输入框后 blur 触发）
-  ipcMain.handle('pcp:file:applyRouteFields', (_event, routeFields = {}) => {
-    return fileManager.applyRouteFields(routeFields)
+    return fileManager.parseXlsx(result.filePaths[0])
   })
 
   ipcMain.handle('pcp:file:getA1', () => fileManager.getA1())

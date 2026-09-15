@@ -17,6 +17,10 @@ import * as registry from './platforms/registry.js'
 //   request=60     request 完成
 //   merge=90       mergeResult 完成
 //   100            全部完成（由 scheduler 在 task.status='completed' 时设）
+//
+// ★ 状态机：每个进度档位对应一个 stage（idle→credential→login→prepare→request→merge→done）
+//   runner 通过 report(p, stage) 上报阶段名，scheduler 接住后用 transition() 校验合法性
+//   终态 done/failed/skipped 由 scheduler 设置（runner 只报到 merge）
 const STEP_PROGRESS = {
   credential: 5,
   login: 15,
@@ -63,7 +67,8 @@ export class PlatformRunner {
    * 按 task.type 分发
    * @param {string} taskType  'jxgj' | 'trip' | 'o2' | 'o3' | 'o_combo'
    * @param {object} data       任务数据
-   * @param {function} onStep  (progress:number) => void  真实进度回调
+   * @param {function} onStep  (progress:number | {progress, stage, error?, reason?}) => void
+   *                          ★ 升级为可携带 stage 的对象形式（旧数字形式向后兼容）
    */
   async runByType(taskType, data, { onStep } = {}) {
     switch (taskType) {
@@ -83,7 +88,8 @@ export class PlatformRunner {
    * 单平台执行：账密 → 登录 → 前置 → 请求 → 交叉
    * @param {string} platform  'jxgj' | 'trip' | 'o2' | 'o3'
    * @param {object} data      业务数据
-   * @param {function} onStep  (progress) => void
+   * @param {function} onStep  (progress) | ({progress, stage, error?, reason?}) => void
+   *                          ★ 状态机：每个进度档位带 stage 名，scheduler 用 transition() 校验
    */
   async run(platform, data, { onStep } = {}) {
     if (!this.credentialManager) {
@@ -91,19 +97,30 @@ export class PlatformRunner {
     }
 
     const adapter = registry.get(platform)
-    const report = (p) => onStep?.(p)
+    // ★ report 升级：支持 report(progress) 或 report(progress, stage, extra)
+    //   - 传数字 → 旧形式（向后兼容，stage=undefined）
+    //   - 传 (progress, stage) → 状态机对象形式
+    //   scheduler 端会判断 payload 是数字还是对象，分别处理
+    const report = (p, stage, extra = {}) => {
+      if (stage === undefined) {
+        onStep?.(p)
+      } else {
+        onStep?.({ progress: p, stage, ...extra })
+      }
+    }
 
     // 步骤 1：取该平台当前选中账密
     const credential = this.credentialManager.getSelected(platform)
     if (!credential) {
       throw new Error(`[${platform}] 未配置账号，请先在"账密管理"里为该平台选择一个账号`)
     }
-    report(STEP_PROGRESS.credential)
+    report(STEP_PROGRESS.credential, 'credential')
 
     // BUG-4：a2 缺 date_obj 时 dateValue=null，跳过请求返回带原因的空结果
     //   避免无效 API 调用 + 让任务结果带上 0 结果的原因供用户看到
+    //   ★ 状态机：走正常 merge→done 路径（不是 skipped，因为这是"业务正常但无数据"）
     if (data && data.dateValue === null && data.dateKey === null) {
-      report(STEP_PROGRESS.merge)
+      report(STEP_PROGRESS.merge, 'merge')
       return {
         platform,
         status: 'ok',
@@ -116,7 +133,7 @@ export class PlatformRunner {
 
     // 步骤 2：使用该平台账密登录
     const loginResult = await adapter.login(credential)
-    report(STEP_PROGRESS.login)
+    report(STEP_PROGRESS.login, 'login')
 
     // 步骤 3：取该平台预编译配置 + 注入 ctx
     const compiledConfigs = this.getCompiledConfigs() || {}
@@ -125,12 +142,13 @@ export class PlatformRunner {
 
     // 步骤 4：三步走（前置 → 请求 → 交叉），每步上报
     const prepared = adapter.prepareRequest(data, data?.dateKey, platformConfig)
-    report(STEP_PROGRESS.prepare)
+    report(STEP_PROGRESS.prepare, 'prepare')
 
     // ★ 请求阶段是单次 await、无真实中间进度 → 加 indeterminate creep
     //   从 prepare(30) 渐近到 merge-2(88)，让进度条在 HTTP 等待期间可见地推进
     //   请求完成时 report(60) 被 reportTaskProgress 吞掉（creep 已超 60），自然衔接到 merge(90)/100
     //   快请求：creep 几乎没动（30→31）→ 60/90/100 正常报；慢请求：creep 推到 ~88 → 平滑收尾
+    //   ★ creep 期间不报 stage（仍处于 request 阶段，stage 不变）
     const stopCreep = creepProgress(report, STEP_PROGRESS.prepare, STEP_PROGRESS.merge - 2)
     let rawResponse
     try {
@@ -138,10 +156,10 @@ export class PlatformRunner {
     } finally {
       stopCreep()
     }
-    report(STEP_PROGRESS.request)
+    report(STEP_PROGRESS.request, 'request')
 
     const result = adapter.mergeResult(rawResponse, data, platformConfig)
-    report(STEP_PROGRESS.merge)
+    report(STEP_PROGRESS.merge, 'merge')
 
     // 附加"本次使用的账号"信息，方便前端日志/调试
     const usedCredentialInfo = {

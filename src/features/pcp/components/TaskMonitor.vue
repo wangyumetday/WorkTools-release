@@ -117,6 +117,12 @@
       align-items: center;
       padding: 8px 16px;
 
+      .tmb-h-left {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+
       >span {
         align-items: center;
         font-size: 14px;
@@ -223,27 +229,26 @@
     </div>
     <div class="tm-bottom">
       <div class="tmb-h">
-        <span>任务列表</span>
-        <!-- 并发控制：当前并发 / 设定并发 + 加减按钮（上限 16，默认 6） -->
-        <div class="tmb-concurrency">
-          <span class="tmbc-label">并发：</span>
-          <span class="tmbc-active">{{ store.activeCount }}</span>
-          <span class="tmbc-slash">/</span>
-          <span class="tmbc-active">{{ store.concurrency }}</span>
-          <n-button size="small" text @click="decConcurrency" style="margin-left: 4px;"
-            :disabled="store.concurrency <= 1">－</n-button>
-          <n-button size="small" text @click="incConcurrency" :disabled="store.concurrency >= 16">＋</n-button>
+        <div class="tmb-h-left">
+          <span>任务列表</span>
+          <!-- 并发控制：当前并发 / 设定并发 + 加减按钮（上限 16，默认 6），紧跟标题后 -->
+          <div class="tmb-concurrency">
+            <span class="tmbc-label">并发：</span>
+            <span class="tmbc-active">{{ store.activeCount }}</span>
+            <span class="tmbc-slash">/</span>
+            <span class="tmbc-active">{{ store.concurrency }}</span>
+            <n-button size="small" text @click="decConcurrency" style="margin-left: 4px;"
+              :disabled="store.concurrency <= 1">－</n-button>
+            <n-button size="small" text @click="incConcurrency" :disabled="store.concurrency >= 16">＋</n-button>
+          </div>
         </div>
+        <!-- 清空按钮：仅清已结束的任务（completed/failed/aborted），运行中保留 -->
+        <n-button size="small" type="default" @click="store.handleClearTasks"
+          :disabled="store.isRunning && store.tasks.every(t => ['pending','paused','running'].includes(t.status))">
+          清空
+        </n-button>
       </div>
-      <div class="tab-header">
-        <div class="tab-header-item" style="max-width:20px;"></div>
-        <div class="tab-header-item">ID</div>
-        <div class="tab-header-item">类型</div>
-        <div class="tab-header-item">进度</div>
-        <div class="tab-header-item">状态</div>
-        <div class="tab-header-item">耗时/s</div>
-      </div>
-      <!-- 任务列表(真实列表,当前使用;如需切虚拟列表换 TaskListVirtual) -->
+      <!-- 任务列表(手风琴式进度可视化：舱位航线组配/锦绣请求/携程请求) -->
       <TaskList />
     </div>
   </div>
