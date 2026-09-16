@@ -30,6 +30,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import registry, { O_PLATFORM_KEYS } from './platforms/registry.js'
 import { DEFAULT_BUSINESS_MODE, isValidBusinessMode } from './businessModes.js'
+import { exportRunLog } from './runLogExporter.js'
 
 const PIPELINE_STATE_FILE = 'pipelineState.json'
 
@@ -297,6 +298,7 @@ export class Pipeline {
     this.lastGateFail = null
     this.emit('pcp:task:state', this.taskManager.getState())
     this.emitState()
+    this._exportRunLog('aborted')
     return { success: true }
   }
 
@@ -478,6 +480,7 @@ export class Pipeline {
       }
       this._syncLegacyFields()
       this.emitState()
+      this._exportRunLog(stage === 'jxgj' ? 'stage-failed-jxgj' : 'stage-failed-o-combo')
       return
     }
     this.emit('pcp:task:state', this.taskManager.getState())
@@ -502,6 +505,7 @@ export class Pipeline {
       this._syncLegacyFields()
       this.emitState()
       this.emit('pcp:pipeline:gateFail', { success: false, missing: [], message: startResult.message })
+      this._exportRunLog(stage === 'jxgj' ? 'stage-failed-jxgj' : 'stage-failed-o-combo')
     }
   }
 
@@ -641,6 +645,8 @@ export class Pipeline {
       } else {
         this._syncLegacyFields()
         this.emitState()
+        // dev 模式：jxgj 单步运行结束（不衔接 o_combo），导出本次运行日志
+        this._exportRunLog('dev-jxgj-complete')
       }
     } else if (stage === 'o_combo') {
       // ★ 按 task.type 拆分 trip/o2/o3 统计
@@ -713,6 +719,8 @@ export class Pipeline {
 
       this._syncLegacyFields()
       this.emitState()
+      // o_combo 阶段结束 = 本次运行终点（auto 模式整链最后一阶段 / dev 模式单步）
+      this._exportRunLog(this.mode === 'auto' ? 'auto-complete' : 'dev-o-combo-complete')
     }
 
     // 2. 推 pcp:task:allComplete（渲染层据此刷新 a1/a2/a3 计数 + 提示）
@@ -818,6 +826,34 @@ export class Pipeline {
   _stopRateLimitTimer() {
     if (this._rateLimitTimer) clearInterval(this._rateLimitTimer)
     this._rateLimitTimer = null
+  }
+
+  // ========== 运行日志导出 ==========
+  /**
+   * 运行结束：把本次任务列表快照导出为 HTML 到桌面
+   *   触发点：handleStageComplete(jxgj dev / o_combo) / abort / runStage 早期失败
+   *   任务列表为空时跳过（避免空日志）
+   *   导出失败不阻塞主流程，仅 console.warn
+   * @param {string} trigger 结束原因标识（见 runLogExporter.triggerLabel）
+   */
+  _exportRunLog(trigger) {
+    try {
+      const tasks = this.taskManager?.getState?.()?.tasks || []
+      if (tasks.length === 0) return
+      const r = exportRunLog({
+        tasks,
+        fileManager: this.fileManager,
+        pipeline: this,
+        trigger
+      })
+      if (r.success) {
+        console.log(`[Pipeline] 运行日志已导出: ${r.file}`)
+      } else {
+        console.warn(`[Pipeline] 运行日志导出失败: ${r.error}`)
+      }
+    } catch (e) {
+      console.warn('[Pipeline] _exportRunLog 异常:', e)
+    }
   }
 }
 

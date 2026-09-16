@@ -19,16 +19,26 @@
           {{ store.jxgjTasks.length > 0 ? `${store.jxgjTasks.length} 个请求项` : '尚未生成预请求' }}
         </span>
       </header>
-      <div v-if="openIdx === 0" class="vis-body">
-        <!-- ★ RequestItem：task 自带 stage/preRequest/result/error，全生命周期实时更新
-             jxgj 的「请求参数/返回数据（状态+信息+航班提要表）」由组件内置渲染 -->
-        <div v-if="store.jxgjTasks.length > 0" class="vis-item-list">
-          <RequestItem
-            v-for="t in store.jxgjTasks"
-            :key="t.id"
-            :task="t"
-            platform="jxgj"
-          />
+      <div v-show="openIdx === 0" ref="jxgjScrollEl" class="vis-body">
+        <!-- ★ 虚拟列表：只渲染视口+overscan 内的 RequestItem，避免数百项全量 DOM 卡顿
+             每项绝对定位 translateY(start)；高度由 measureElement 实测（折叠/展开自适应）
+             折叠状态外置在 itemUi（按 task.id），组件回收重建不丢展开态 -->
+        <div v-if="store.jxgjTasks.length > 0" class="vis-virtual-viewport"
+             :style="{ height: jxgjVirt.getTotalSize() + 'px' }">
+          <div
+            v-for="vi in jxgjVirt.getVirtualItems()"
+            :key="vi.key"
+            :data-index="vi.index"
+            :ref="(node) => jxgjVirt.measureElement(node)"
+            class="vis-virtual-item"
+            :style="{ transform: `translateY(${vi.start}px)` }"
+          >
+            <RequestItem
+              :task="store.jxgjTasks[vi.index]"
+              platform="jxgj"
+              :ui-state="itemUi"
+            />
+          </div>
         </div>
         <div v-else class="vis-empty">尚未生成预请求</div>
       </div>
@@ -43,16 +53,24 @@
           {{ store.tripTasks.length > 0 ? `${store.tripTasks.length} 个请求项 · 胜出率 ${tripWinRateText}` : '待锦绣阶段产出日期组' }}
         </span>
       </header>
-      <div v-if="openIdx === 1" class="vis-body">
-        <!-- ★ trip RequestItem：参数（日期/航线/航司/舱位）+ 返回数据（状态/统计/比价提要）
-             由组件内置渲染；o2/o3 走组件内置兜底（JSON / 参数未挂载） -->
-        <div v-if="store.tripTasks.length > 0" class="vis-item-list">
-          <RequestItem
-            v-for="t in store.tripTasks"
-            :key="t.id"
-            :task="t"
-            :platform="t.type"
-          />
+      <div v-show="openIdx === 1" ref="tripScrollEl" class="vis-body">
+        <!-- ★ 虚拟列表（同锦绣面板）；platform 取 task.type（trip/o2/o3） -->
+        <div v-if="store.tripTasks.length > 0" class="vis-virtual-viewport"
+             :style="{ height: tripVirt.getTotalSize() + 'px' }">
+          <div
+            v-for="vi in tripVirt.getVirtualItems()"
+            :key="vi.key"
+            :data-index="vi.index"
+            :ref="(node) => tripVirt.measureElement(node)"
+            class="vis-virtual-item"
+            :style="{ transform: `translateY(${vi.start}px)` }"
+          >
+            <RequestItem
+              :task="store.tripTasks[vi.index]"
+              :platform="store.tripTasks[vi.index].type"
+              :ui-state="itemUi"
+            />
+          </div>
         </div>
         <div v-else class="vis-empty">尚未生成预请求</div>
       </div>
@@ -61,7 +79,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import { useTaskStore } from '../stores/task.js'
 import RequestItem from './RequestItem.vue'
 
@@ -74,6 +93,47 @@ const openIdx = ref(-1)
 function toggle(idx) {
   openIdx.value = openIdx.value === idx ? -1 : idx
 }
+
+// ===== 虚拟列表 =====
+// 两个面板各自的滚动容器（.vis-body，v-show 常驻 DOM，切面板不丢 scrollTop/不重挂载）
+const jxgjScrollEl = ref(null)
+const tripScrollEl = ref(null)
+
+// RequestItem 折叠状态外置（参数块/返回数据块/日期块/航班套餐展开）：
+// 虚拟列表只挂载可见项，滚出视口的组件会被销毁；状态按 task.id 存在这里，
+// 重建时经 :ui-state 传回，展开态原样恢复。两列表共用（task.id 全局唯一）
+const itemUi = reactive({})
+
+// 任务全部移除（阶段衔接/新一轮开始，task.id 计数器会复用）时清掉折叠状态，
+// 避免新任务错误命中同 id 的旧展开态
+watch(
+  () => store.jxgjTasks.length + store.tripTasks.length,
+  (total, oldTotal) => {
+    if (total === 0 && oldTotal > 0) {
+      for (const k of Object.keys(itemUi)) delete itemUi[k]
+    }
+  }
+)
+
+// 折叠态默认高度估算（头部 + 默认展开的参数块）；
+// 真实高度由 measureElement 经 ResizeObserver 实测并按 key 缓存，展开/折叠后自动修正
+const ESTIMATE_ITEM_SIZE = 112
+
+const jxgjVirt = useVirtualizer(computed(() => ({
+  count: store.jxgjTasks.length,
+  getScrollElement: () => jxgjScrollEl.value,
+  estimateSize: () => ESTIMATE_ITEM_SIZE,
+  overscan: 6,
+  getItemKey: (i) => store.jxgjTasks[i]?.id ?? i
+})))
+
+const tripVirt = useVirtualizer(computed(() => ({
+  count: store.tripTasks.length,
+  getScrollElement: () => tripScrollEl.value,
+  estimateSize: () => ESTIMATE_ITEM_SIZE,
+  overscan: 6,
+  getItemKey: (i) => store.tripTasks[i]?.id ?? i
+})))
 
 // ★ 本次任务全部携程请求的汇总胜出率
 //   分母 = 所有 trip 请求项返回的航班总数（按 航班号|日期|出发|到达 分组，与 RequestItem tripGroups 一致）
@@ -169,9 +229,10 @@ const tripWinRateText = computed(() => {
   color: #999;
 }
 
-/* 面板体：展开后内容容器，★ 仅此容器纵向滚动（单一滚动容器，避免父子双滚动） */
+/* 面板体：展开后内容容器，★ 仅此容器纵向滚动（单一滚动容器，避免父子双滚动）
+   左右 padding 移到 .vis-virtual-item（绝对定位项需要自己承担边距）*/
 .vis-body {
-  padding: 12px 16px;
+  padding: 12px 0 0;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -183,17 +244,28 @@ const tripWinRateText = computed(() => {
   align-items: center;
   justify-content: center;
   min-height: 56px;
+  margin: 0 16px 12px;
   color: #bbb;
   font-size: 13px;
   border: 1px dashed #e0e0e0;
   border-radius: 4px;
 }
 
-/* ===== RequestItem 列表容器 =====
-   每个 RequestItem 自带边框/圆角/背景，容器只负责垂直排列 + gap */
-.vis-item-list {
-  display: flex;
-  flex-flow: column nowrap;
-  gap: 12px;
+/* ===== 虚拟列表 =====
+   viewport：相对定位的总高占位（height=总高度，撑起滚动条）
+   item：绝对定位 + translateY(start)，左右 16px 边距，底部 12px 项间距；
+         元素本身被 measureElement 测量（含 padding），展开/折叠高度自动修正 */
+.vis-virtual-viewport {
+  position: relative;
+  width: 100%;
+}
+
+.vis-virtual-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  padding: 0 16px 12px;
 }
 </style>

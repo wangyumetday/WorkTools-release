@@ -272,16 +272,47 @@ import { computed, ref } from 'vue'
 
 const props = defineProps({
   task: { type: Object, required: true },
-  platform: { type: String, default: 'jxgj' } // 'jxgj' | 'trip' | 'o2' | 'o3'
+  platform: { type: String, default: 'jxgj' }, // 'jxgj' | 'trip' | 'o2' | 'o3'
+  // 外置 UI 状态 map（虚拟列表场景必填）：{ [taskId]: { params, result, dates, flights: string[] } }
+  // 虚拟列表只渲染可见项，滚出视口的组件会被销毁重建，折叠状态必须放外面才能跨回收保持；
+  // 为 null 时退回组件本地 ref（组件独立使用不受影响）
+  uiState: { type: Object, default: null }
 })
 
 // ===== 内容块折叠状态（三块独立）=====
 //   请求参数块默认展开（入队即可扫到参数）
 //   返回数据块默认折叠（避免长列表刷屏；需要时点标题展开查看状态/航班提要）
-const paramsCollapsed = ref(false)
-const resultCollapsed = ref(true)
-// 按日期分类（携程请求预览）：默认折叠，标题上直接显示日期组数供快速扫视
-const datesCollapsed = ref(true)
+//   按日期分类默认折叠（标题上直接显示日期组数供快速扫视）
+// 本地兜底状态（未传 uiState 时使用）
+const _localParams = ref(false)
+const _localResult = ref(true)
+const _localDates = ref(true)
+const _localFlights = ref([])
+
+// 折叠布尔状态的统一读写：有外置 map 按 task.id 存取（惰性建条目），否则走本地 ref
+const _localMap = { params: _localParams, result: _localResult, dates: _localDates }
+function _collapsed(field, def) {
+  return computed({
+    get() {
+      const map = props.uiState
+      if (!map) return _localMap[field].value
+      const e = map[props.task.id]
+      return e ? e[field] ?? def : def
+    },
+    set(v) {
+      const map = props.uiState
+      if (!map) {
+        _localMap[field].value = v
+        return
+      }
+      const e = map[props.task.id] || (map[props.task.id] = {})
+      e[field] = v
+    }
+  })
+}
+const paramsCollapsed = _collapsed('params', false)
+const resultCollapsed = _collapsed('result', true)
+const datesCollapsed = _collapsed('dates', true)
 
 // 预请求参数（task.preRequest）
 const preq = computed(() => props.task.preRequest || {})
@@ -522,13 +553,25 @@ const tripGroups = computed(() => {
   return groups
 })
 
-// 航班组折叠状态：空 Set = 全部展开；点航班行把 key 加入/移出集合
-const flightCollapsed = ref(new Set())
+// 航班组折叠状态：空集合 = 全部展开；点航班行把 key 加入/移出集合
+// 底层用数组存于外置 uiState.flights（Set 不可序列化且跨回收需重建），模板仍用 Set.has
+const flightCollapsed = computed(() => {
+  const map = props.uiState
+  const arr = map ? (map[props.task.id]?.flights ?? []) : _localFlights.value
+  return new Set(arr)
+})
 function toggleFlight(key) {
-  const next = new Set(flightCollapsed.value)
-  if (next.has(key)) next.delete(key)
-  else next.add(key)
-  flightCollapsed.value = next
+  const map = props.uiState
+  const arr = [...flightCollapsed.value]
+  const i = arr.indexOf(key)
+  if (i >= 0) arr.splice(i, 1)
+  else arr.push(key)
+  if (!map) {
+    _localFlights.value = arr
+    return
+  }
+  const e = map[props.task.id] || (map[props.task.id] = {})
+  e.flights = arr
 }
 
 // trip 返回统计：summary 里的携程航班/套餐数 + 各态报价计数
@@ -549,27 +592,64 @@ const tripStats = computed(() => {
 </script>
 
 <style scoped>
+/* ============================================================
+   RequestItem 视觉系统（v2 重构——多级数据清晰可读）
+   设计令牌
+     间距阶：4 · 6 · 8 · 10 · 12 · 16 · 20
+     背景层级（外→内，仅 4 层，每层语义明确）：
+       卡片浅彩（平台锚点） → 头部加深 → 内容区白（反白突出数据）→ 航班块极浅灰
+     边框层级（外→内，仅 3 层，粗细递减）：
+       卡片边+3px 左色条 → 块标题底边线 → 航班块弱描边 → 单元格分隔线
+     状态色（行背景）：绿=我方外显 / 黄=我方未显 / 棕红=比输 / 透明=比赢·未匹配
+     子项层级：套餐子行用 3px 左缩进条 + 略浅底 + 字号略小，明确从属主行
+   ============================================================ */
 .req-item {
+  --gap-block: 10px;
+  --pad-card-y: 10px;
+  --pad-card-x: 12px;
+  --pad-title-y: 8px;
+  --pad-title-x: 12px;
+  --pad-body: 12px;
+  --pad-cell-y: 7px;
+  --pad-cell-x: 10px;
+  --bg-content: #ffffff;
+  --bg-block: #f8f9fb;
+  --bg-soft: #fafbfc;
+  --border-card: #ececec;
+  --border-block: #d9dde3;
+  --border-soft: #ececef;
+  --border-softer: #f5f5f5;
   display: flex;
   flex-flow: column nowrap;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid #ececec;
-  border-left-width: 3px;        /* 平台识别左色条（颜色按平台覆盖）*/
+  gap: var(--gap-block);
+  padding: var(--pad-card-y) var(--pad-card-x);
+  border: 1px solid var(--border-card);
+  border-left-width: 3px;
   border-radius: 4px;
   background: #fff;
   font-size: 13px;
+  line-height: 1.5;
 }
 
-/* 平台色条 + 整圈彩色边框 + 卡片底色：锦绣蓝 / 携程橙 / 其他灰——远距离即可识别 */
+/* 平台色条 + 整圈彩色边框 + 卡片浅彩底（远距离即可识别归属）*/
 .req-item--pf-jxgj { border-color: #91caff; border-left: 3px solid #1890ff; background: #f7faff; }
 .req-item--pf-trip { border-color: #ffbb96; border-left: 3px solid #fa8c16; background: #fff9f2; }
 .req-item--pf-o2,
 .req-item--pf-o3 { border-left-color: #bfbfbf; }
 
-/* 头部轻染色，强化平台锚点（比卡片体略深一档）*/
-.req-item--pf-jxgj .req-h { background: #e8f2ff; margin: -8px -10px 0; padding: 6px 10px; border-radius: 3px 3px 0 0; }
-.req-item--pf-trip .req-h { background: #fff1de; margin: -8px -10px 0; padding: 6px 10px; border-radius: 3px 3px 0 0; }
+/* 头部色带：负边距撑满卡片宽度，比卡片体深一档；与块之间留 --gap-block 间距 */
+.req-item--pf-jxgj .req-h {
+  background: #e8f2ff;
+  margin: calc(-1 * var(--pad-card-y)) calc(-1 * var(--pad-card-x)) var(--gap-block);
+  padding: var(--pad-title-y) var(--pad-title-x);
+  border-radius: 3px 3px 0 0;
+}
+.req-item--pf-trip .req-h {
+  background: #fff1de;
+  margin: calc(-1 * var(--pad-card-y)) calc(-1 * var(--pad-card-x)) var(--gap-block);
+  padding: var(--pad-title-y) var(--pad-title-x);
+  border-radius: 3px 3px 0 0;
+}
 .req-item--pf-trip .rh-route { color: #d46b08; }
 
 /* ===== 头部 ===== */
@@ -631,34 +711,35 @@ const tripStats = computed(() => {
   flex-shrink: 0;
   padding: 1px 6px;
   border-radius: 3px;
-  background: #f5f5f5;
+  background: rgba(255, 255, 255, 0.55);
 }
 
-/* ===== 内容块（请求参数 / 返回数据）===== */
+/* ===== 内容块（请求参数 / 返回数据 / 按日期分类）=====
+   ★ 关键：块不用边框——靠内容区反白（白）与卡片浅彩底形成层级；
+   标题栏承担分隔职责（底边线 + 弱背景，是块的开头） */
 .req-block {
-  border: 1px solid #f0f0f0;
   border-radius: 3px;
   overflow: hidden;
+  background: var(--bg-content);
 }
 
 .rb-title {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 8px;
+  padding: var(--pad-title-y) var(--pad-title-x);
   font-size: 11px;
   color: #888;
-  background: #fafafa;
-  border-bottom: 1px solid #f0f0f0;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--border-soft);
   cursor: pointer;
   user-select: none;
 
   &:hover {
-    background: #f5f5f5;
+    background: #f5f6f8;
   }
 }
 
-/* 折叠三角箭头：展开时旋转 90°；折叠态标题去掉底边框（body 已隐藏） */
 .rb-caret {
   display: inline-block;
   font-size: 10px;
@@ -671,7 +752,6 @@ const tripStats = computed(() => {
   }
 }
 
-/* 标题右侧计数（如「2 个日期」），弱化显示 */
 .rb-title-count {
   margin-left: auto;
   font-size: 11px;
@@ -679,7 +759,6 @@ const tripStats = computed(() => {
   font-weight: 500;
 }
 
-/* trip 返回数据头部速览：灰色一行（状态/航班/匹配/自有），超长省略不折行 */
 .rb-title-count--trip {
   min-width: 0;
   color: #888;
@@ -694,7 +773,7 @@ const tripStats = computed(() => {
 }
 
 .rb-body {
-  padding: 6px 8px;
+  padding: var(--pad-body);
 }
 
 /* 键值对 */
@@ -707,11 +786,10 @@ const tripStats = computed(() => {
   line-height: 1.7;
 }
 
-/* 一行横排多组键值：每组 label+value 包在一起不被拆开，空间不足时整组换行 */
 .rb-kv--inline {
   flex-wrap: wrap;
-  row-gap: 2px;
-  column-gap: 12px;
+  row-gap: 4px;
+  column-gap: 16px;
 }
 
 .rb-group {
@@ -720,7 +798,6 @@ const tripStats = computed(() => {
   gap: 8px;
 }
 
-/* 横排模式下标签按自然宽度（不占固定 60px），组间距更紧凑 */
 .rb-kv--inline .rb-k {
   flex: 0 0 auto;
 }
@@ -740,7 +817,7 @@ const tripStats = computed(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+  margin-bottom: 10px;
   font-size: 12px;
 }
 
@@ -768,24 +845,24 @@ const tripStats = computed(() => {
   color: #555;
 }
 
-/* trip 失败时块内仅保留错误原因（标题已有「失败」标签，不重复 tag） */
 .rbs-msg--fail {
   color: #cf1322;
   word-break: break-all;
 }
 
-/* trip 返回统计行（航班数/套餐数/胜负计数） */
+/* trip 返回统计行：加浅灰容器，与图例形成"返回数据开头的两条信息条" */
 .rb-summary-line {
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
   font-size: 12px;
-  color: #666;
+  color: #555;
+  background: var(--bg-soft);
+  border-radius: 3px;
 }
 
-/* 「结果」列标签（行背景仿 OTA 只表达投放归属；胜负仍由标签表达）
-   比赢绿字 / 比输橙字（比输不用红色失败语义）/ 外显绿 / 未显棕 / 未匹配灰 */
 .rb-outcome {
   display: inline-block;
-  padding: 0 6px;
+  padding: 1px 6px;
   border-radius: 3px;
   font-size: 11px;
   font-weight: 600;
@@ -822,22 +899,16 @@ const tripStats = computed(() => {
   border: 1px solid #e0e0e0;
 }
 
-/* 全量报价表：五列全部给宽度——table-layout:fixed 下列宽之和小于表格宽度时，
-   浏览器按比例把多余空间分摊给所有列（不留单列独吞空白）；容器变窄时同步压缩。
-   列序：匹配结果 / 航线(航班号+机场换行) / 舱位 / 携程底价 / 行李；
-   我方价格不在报价行展示，统一见各航班块展开后上方的「锦绣官网」基准行
-   table-layout:auto → 航线列宽 = 本组所有行航线内容最宽者的宽度（内容自适应），
-   其他列保留 width 作为建议宽度，auto 模式下按内容就近伸缩，整列仍对齐 */
+/* ===== 全量报价表 ===== */
 .rb-table--quotes {
   table-layout: fixed;
 
-  th:nth-child(1) { width: 72px; }   /* 匹配结果（最长标签「无此航班」）*/
-  th:nth-child(2) { width: 18%; }   /* 航线（航班号+机场换行）*/
-  th:nth-child(3) { width: 48px; }  /* 舱位 */
-  th:nth-child(4) { width: 62px; }  /* 携程底价（¥1240）*/
-  th:nth-child(5) { width: 58px; }  /* 行李（1×20KG）*/
+  th:nth-child(1) { width: 76px; }
+  th:nth-child(2) { width: 20%; }
+  th:nth-child(3) { width: 52px; }
+  th:nth-child(4) { width: 68px; }
+  th:nth-child(5) { width: 60px; }
 
-  /* 表头与其他数据行：不换行 + 超出省略（航线列 td 通过 .qm-route-cell 覆盖允许换行） */
   th,
   tr.qrow > td {
     overflow: hidden;
@@ -851,48 +922,44 @@ const tripStats = computed(() => {
   font-size: 11px !important;
 }
 
-/* ===== 航班块（tbody）视觉分隔：完整描边 + 灰槽 + 整块浅灰底 =====
-   tbody 不渲染 margin/border/border-radius，描边靠各行 td 拼接
-   （border-collapse:collapse 下相邻边框自动合并）：
-   - 左/右边线：块内每行首末 td
-   - 顶线：首行 td border-top；非首块额外加 14px 灰槽（间距）+ 槽底实线
-   - 底线：末行 td border-bottom
-   比赢/未匹配行透明露出块底；绿/黄/棕红状态行保留自身色 */
+/* ===== 航班块（tbody）层级分隔 =====
+   tbody 不渲染 margin/border/border-radius，靠 td 拼接：
+   - 块整体极浅灰底（与白内容区微差，可见但不抢眼）
+   - 块四周 1px 弱描边（不再是 2px 灰描边，收敛）
+   - 块间距 8px（用内容区白色作槽，比之前 14px 灰槽更安静）
+   - 比赢/未匹配行透明露出块底；绿/黄/棕红状态行保留自身色 */
 .rb-table--quotes tbody {
-  background: #eef1f5;
+  background: var(--bg-block);
 }
-.rb-table--quotes tbody td:first-child { border-left: 2px solid #aeb7c2; }
-.rb-table--quotes tbody td:last-child  { border-right: 2px solid #aeb7c2; }
+.rb-table--quotes tbody td:first-child { border-left: 1px solid var(--border-block); }
+.rb-table--quotes tbody td:last-child  { border-right: 1px solid var(--border-block); }
 .rb-table--quotes tbody tr:first-child > td {
-  border-top: 2px solid #aeb7c2;
+  border-top: 1px solid var(--border-block);
 }
 .rb-table--quotes tbody:not(:first-child) tr:first-child > td {
-  border-top: 14px solid #d5dae2;             /* 块间灰槽 */
-  box-shadow: inset 0 2px 0 #aeb7c2;          /* 灰槽底部实线 = 块顶描边 */
+  border-top: 8px solid var(--bg-content);
+  box-shadow: inset 0 1px 0 var(--border-block);
 }
 .rb-table--quotes tbody tr:last-child > td {
-  border-bottom: 2px solid #aeb7c2;
+  border-bottom: 1px solid var(--border-block);
 }
 .rb-table--quotes thead th {
-  border-bottom: 2px solid #8c96a3;   /* 表头与首个航班块的分隔，加深 */
+  border-bottom: 1px solid var(--border-soft);
 }
 
-/* ===== 航班主行（OTA 展示行=普通数据行，点击展开套餐）===== */
+/* ===== 航班主行（点击展开/收起套餐）===== */
 tr.qrow--main {
   cursor: pointer;
   user-select: none;
 }
 
-/* 任意底色下都适用的轻微 hover 反馈（绿/黄/白行压暗一点点）*/
 tr.qrow--main:hover > td {
   filter: brightness(0.97);
 }
 
-/* 第2列「航线」单元格：航班号+机场换行显示（节省宽度）
-   携程数据行 td 有 white-space:nowrap 继承，这里覆盖允许子 div 换行 */
 .qm-route-cell {
   white-space: normal;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 .qm-flight {
@@ -904,34 +971,49 @@ tr.qrow--main:hover > td {
   font-size: 11.5px;
 }
 
-/* 锦绣对比行第4列：价格+底价换行（携程这列是「携程底价」，锦绣多一条「价格」）*/
 .qb-price-floor {
   white-space: normal;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
-/* 行背景：绿=我方外显，黄=我方未显，棕红=比输；比赢/未匹配透明，露出航班块浅灰底 */
+/* 状态行背景：透明=比赢/未匹配，露出块浅灰底 */
 tr.qrow--ownShown > td { background: #f6ffed; }
 tr.qrow--ownHidden > td { background: #fffbe6; }
-tr.qrow--lost > td { background: #fbe4dc; }   /* 比输：浅棕红 */
+tr.qrow--lost > td { background: #fbe4dc; }
 tr.qrow--won > td,
 tr.qrow--unmatched > td { background: transparent; }
 
-/* ===== 锦绣官网对比基准行（5 列与携程数据行对齐，蓝底一行）=====
-   第2列 航班+航线换行；第4列 价格+底价换行——整行 td 允许换行 */
+/* ★ 套餐子行：明确"子项"层级——3px 左缩进条 + 略浅半透明白底 + 字号略小
+   之前子行和主行长得几乎一样，只靠航线列留空，看不出层级关系 */
+tr.qrow-child > td {
+  font-size: 11.5px;
+  background: rgba(255, 255, 255, 0.5);
+}
+tr.qrow-child > td:first-child {
+  border-left: 3px solid var(--border-block);
+}
+/* 子行状态色覆盖半透明白底 */
+tr.qrow-child.qrow--ownShown > td { background: #f6ffed; }
+tr.qrow-child.qrow--ownHidden > td { background: #fffbe6; }
+tr.qrow-child.qrow--lost > td { background: #fbe4dc; }
+tr.qrow-child.qrow--won > td,
+tr.qrow-child.qrow--unmatched > td { background: rgba(255, 255, 255, 0.5); }
+
+/* 锦绣官网对比基准行 */
 .qrow-basis > td {
-  padding: 3px 8px;
+  padding: 6px var(--pad-cell-x);
   background: #f0f7ff;
-  border-top: 1px solid #e8e8e8;
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
   font-size: 11.5px;
   color: #555;
-  white-space: normal;          /* 允许子 div 换行（航班/航线、价格/底价）*/
-  line-height: 1.25;
+  white-space: normal;
+  line-height: 1.3;
   vertical-align: top;
 }
 
 .qb-tag {
-  padding: 0 5px;
+  padding: 1px 5px;
   border-radius: 3px;
   font-size: 10px;
   font-weight: 600;
@@ -940,20 +1022,23 @@ tr.qrow--unmatched > td { background: transparent; }
   border: 1px solid #91caff;
 }
 
-/* 图例 */
+/* 图例：加浅灰容器，与统计行视觉一致 */
 .rb-legend {
   display: flex;
   flex-flow: row wrap;
-  gap: 10px;
-  margin-bottom: 6px;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 6px 10px;
   font-size: 11px;
   color: #888;
+  background: var(--bg-soft);
+  border-radius: 3px;
 }
 
 .rbl-item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 
 .rbl-dot {
@@ -967,13 +1052,14 @@ tr.qrow--unmatched > td { background: transparent; }
 .rbl-dot--ownShown  { background: #f6ffed; border-color: #95de64; }
 .rbl-dot--ownHidden { background: #fffbe6; border-color: #ffd666; }
 .rbl-dot--lost      { background: #fbe4dc; border-color: #d4876f; }
-.rbl-dot--other     { background: #eef1f5; border-color: #aeb7c2; }
+.rbl-dot--other     { background: var(--bg-block); border-color: var(--border-block); }
 
 .rbl-hint {
   color: #bbb;
+  flex: 1 1 100%;
+  margin-top: 2px;
 }
 
-/* 舱位组：舱位串可能较长，允许占满后换行（不挤压其他参数组） */
 .rb-group--cw {
   flex: 1 1 120px;
   min-width: 0;
@@ -991,15 +1077,15 @@ tr.qrow--unmatched > td { background: transparent; }
   font-size: 12px;
 
   th, td {
-    padding: 3px 8px;
+    padding: var(--pad-cell-y) var(--pad-cell-x);
     text-align: left;
-    border-bottom: 1px solid #f5f5f5;
+    border-bottom: 1px solid var(--border-softer);
   }
 
   th {
     color: #999;
     font-weight: 500;
-    background: #fafafa;
+    background: var(--bg-soft);
   }
 
   td {
@@ -1013,18 +1099,26 @@ tr.qrow--unmatched > td { background: transparent; }
   font-weight: 600;
 }
 
-/* 按日期分组（携程请求预览） */
+/* 按日期分组（携程请求预览）：每组加容器，组间间距明确 */
 .rb-date-groups {
   display: flex;
   flex-flow: column nowrap;
-  gap: 8px;
+  gap: 12px;
+}
+
+.rb-date-group {
+  padding: 10px;
+  background: var(--bg-soft);
+  border-radius: 3px;
 }
 
 .rdg-head {
   font-size: 12px;
   font-weight: 600;
   color: #333;
-  padding: 2px 0;
+  padding: 0 0 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .rdg-count {
@@ -1032,11 +1126,10 @@ tr.qrow--unmatched > td { background: transparent; }
   color: #999;
 }
 
-/* JSON / 空态 */
 .rb-body pre {
   margin: 0;
-  padding: 6px 8px;
-  background: #fafafa;
+  padding: 8px 10px;
+  background: var(--bg-soft);
   border-radius: 3px;
   font-family: 'Consolas', 'Menlo', monospace;
   font-size: 11px;
@@ -1050,14 +1143,15 @@ tr.qrow--unmatched > td { background: transparent; }
 .req-empty {
   color: #bbb;
   font-size: 12px;
+  padding: 4px 0;
 }
 
-/* ===== 错误提示（无 result 时的兜底）===== */
+/* ===== 错误提示 ===== */
 .req-error {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
+  padding: 6px 10px;
   background: #fff1f0;
   border: 1px solid #ffa39e;
   border-radius: 3px;

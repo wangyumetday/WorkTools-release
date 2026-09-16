@@ -1,6 +1,6 @@
 {
   "name": "work-tools",
-  "version": "1.7.5",
+  "version": "1.7.6",
   "description": "Work Tools - 桌面工具集（PCP 比价工具 + ERC 汇率转换）",
   "main": "out/main/index.js",
   "author": "work-tools",
@@ -18,6 +18,7 @@
     "postinstall": "node node_modules/electron/install.js || echo electron install skipped"
   },
   "dependencies": {
+    "@tanstack/vue-virtual": "^3.13.39",
     "decimal.js": "^10.6.0",
     "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0",
