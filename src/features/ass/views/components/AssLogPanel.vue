@@ -50,6 +50,11 @@
           <span class="dim"> date:</span>
           <span class="txt">{{ l.dateDisplay }}</span>
 
+          <!-- 城市三字码展示：仅 P2 显示（airportToCity 映射后的城市码，填入携程表单） -->
+          <span v-if="l.cityDisplay" class="dim"> city:</span>
+          <span v-if="l.cityDisplay" :class="l.cityFallback ? 'city-fallback' : 'txt'">{{ l.cityDisplay }}</span>
+          <span v-if="l.cityFallback" class="city-fallback-note">机场码=城市码（映射表未覆盖，回退原码）</span>
+
           <!-- 状态关键字着色（唯一的高亮色） -->
           <span class="status" :style="{ color: termStatusColor(l.result) }">{{ l.result }}</span>
 
@@ -321,5 +326,18 @@ function termKindColor(kind) {
   color: #f85149;
   padding-left: 2ch;
   font-size: 12px;
+}
+
+/* 兜底城市码：红色醒目，提醒此条用了机场码冒充城市码 */
+.city-fallback {
+  color: #f85149;
+  font-weight: 600;
+}
+
+.city-fallback-note {
+  color: #f85149;
+  font-size: 11px;
+  margin-left: 1ch;
+  opacity: 0.85;
 }
 </style>

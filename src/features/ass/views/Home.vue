@@ -242,6 +242,20 @@ function pushLog(payload) {
     const arr = (qp.arr || '?').toUpperCase()
     const route = `${dep}-${arr}`
     const dateDisplay = formatDateSlash(qp.date || payload.date)
+
+    // 城市码展示：仅 P2 有（用 airportToCity 映射后的城市码填携程表单）
+    // P1 不涉及城市码，不展示；P2 始终有 depCity/arrCity（映射表总能给出结果）
+    // cityFallback=true 表示机场码不在映射表里、回退为机场码本身（多数机场码=城市码，属正常）
+    let cityDisplay = ''
+    let cityFallback = !!payload.cityFallback
+    if (payload.type === 'P2_ITEM') {
+      const depCity = (payload.depCity || '').toUpperCase()
+      const arrCity = (payload.arrCity || '').toUpperCase()
+      if (depCity && arrCity) {
+        cityDisplay = `${depCity}-${arrCity}`
+      }
+    }
+
     const row = {
       _ts: ts,
       _isItem: true,
@@ -254,6 +268,8 @@ function pushLog(payload) {
       dateDisplay,
       result: payload.result || '-',
       count: typeof payload.count === 'number' ? payload.count : 0,
+      cityDisplay,
+      cityFallback,
     }
     logs.value.unshift(row)
     if (logs.value.length > MAX_LOGS) logs.value.length = MAX_LOGS

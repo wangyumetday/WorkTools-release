@@ -24,6 +24,7 @@ import { processP2 } from './userHooks/processP2.js'
 import { tripQuery } from './tripClient.js'
 import { addFlights, snapshot as tjSnapshot, dumpGroups } from './tjStats.js'
 import { writeTjarrReport } from './reportWriter.js'
+import { airportToCity } from './airportToCity.js'
 
 // ---------- 工具 ----------
 
@@ -105,6 +106,8 @@ function buildJinXiuQuery(qp) {
 
 /**
  * hasFlight 判定（§4.2.1.4）
+ * 注：锦绣 TaskResult API 实测不返回城市三字码字段（仅 C出发机场/D到达机场），
+ * 城市码由 Phase 2 用本地 airportToCity.js 映射表转换得到，不在此处提取。
  * @returns {{ hasFlight: boolean|null, rawResponse: any, error: Error|null }}
  */
 async function judgeHasFlight(qp) {
@@ -256,11 +259,14 @@ export async function runAssTask(opts) {
   function fallbackP2(ctx, hookErr) {
     if (hookErr) counts.userHookErrors++
     return {
-      queryParam: ctx.queryParam,
-      status:     ctx.status,
-      raw:        ctx.rawResponse,
-      error:      ctx.error ? { name: ctx.error.name, message: ctx.error.message } : null,
-      _hookError: hookErr ? { name: hookErr.name, message: hookErr.message } : null,
+      queryParam:   ctx.queryParam,
+      status:       ctx.status,
+      depCity:      ctx.depCity ?? null,
+      arrCity:      ctx.arrCity ?? null,
+      cityFallback: ctx.cityFallback ?? false,
+      raw:          ctx.rawResponse,
+      error:        ctx.error ? { name: ctx.error.name, message: ctx.error.message } : null,
+      _hookError:   hookErr ? { name: hookErr.name, message: hookErr.message } : null,
     }
   }
 
@@ -322,14 +328,24 @@ export async function runAssTask(opts) {
         let err = null
         let count = 0
 
+        // 城市三字码：锦绣 API 不返回城市码，用本地 airportToCity 映射表转换
+        // 映射表覆盖 IATA MAC（多机场城市，如 PVG→SHA）+ 历史城市码（如 ADB→IZM）
+        // 查不到映射时回退为机场码本身（多数机场码=城市码，属正常情况，非兜底）
+        const depCity = airportToCity(qp.dep)
+        const arrCity = airportToCity(qp.arr)
+        // cityFallback=true 表示该机场码不在映射表里，回退为机场码本身（多数情况正常，仅作标注）
+        const cityFallback = depCity === qp.dep || arrCity === qp.arr
+
         if (flag === false) {
           // hasFlight=false → 跳过（写占位）
           status = 'SKIP'
           count  = 0
         } else {
           // true / null(UNKNOWN) → 都按"有航班"去请求携程（§8.3 宁查勿漏）
+          // 携程低价页按城市三字码查询：用 depCity/arrCity 填入出发/到达城市输入框
+          const tripQp = { ...qp, dep: depCity, arr: arrCity }
           try {
-            raw = await tripQuery(qp, session, requestLogin)
+            raw = await tripQuery(tripQp, session, requestLogin)
             status = 'OK'
             // ---- 解析携程 mock / 真实返回的数据条数 ----
             // mock: Content.Total || Content.List.length；真实实现也要保持该字段结构
@@ -356,6 +372,9 @@ export async function runAssTask(opts) {
           queryParam: qp,
           rawResponse: raw,
           status,
+          depCity,
+          arrCity,
+          cityFallback,
           error: err || null,
         }
         const p2Line = safeCallProcess(processP2, p2Ctx, fallbackP2)
@@ -371,6 +390,9 @@ export async function runAssTask(opts) {
           result: status,
           count,
           p1Flag: flag,
+          depCity,
+          arrCity,
+          cityFallback,
           error: err ? { name: err.name, message: err.message } : null,
         })
         // 推送最新统计快照（排行榜实时刷新）

@@ -17,12 +17,15 @@
  * Phase 2 数据处理函数
  *
  * @param   {object}  ctx
- * @param   {object}  ctx.queryParam      当前查询参数 { dep, arr, airline, date }
+ * @param   {object}  ctx.queryParam      当前查询参数 { dep, arr, airline, date }（出发/到达仍为机场码）
  * @param   {any}     ctx.rawResponse     携程的原始响应；status=SKIP/ERROR 时为 null
  * @param   {"SKIP"|"OK"|"ERROR"} ctx.status
  *   - "SKIP" : P1 标为无航班，直接跳过，未请求携程
  *   - "OK"   : 真实请求携程并拿到响应
  *   - "ERROR": 尝试请求携程但失败（详见 ctx.error）
+ * @param   {string|null} [ctx.depCity]      从锦绣返回提取的出发城市三字码；UNKNOWN 或字段缺失时为 null
+ * @param   {string|null} [ctx.arrCity]      从锦绣返回提取的到达城市三字码；UNKNOWN 或字段缺失时为 null
+ * @param   {boolean}     [ctx.cityFallback] 是否走了机场码兜底（depCity/arrCity 任一为 null 即 true）
  * @param   {Error|null} [ctx.error]      错误对象；仅 status=="ERROR" 时有值
  * @returns {any}                         要写入 P2 输出文件的单条记录
  */
@@ -30,10 +33,13 @@ export function processP2(ctx) {
   // ====== 用户编辑区（START）================================
   // 默认：原样透传（后续你自己改内部逻辑）
   return {
-    queryParam: ctx.queryParam,
-    status:     ctx.status,
-    raw:        ctx.rawResponse,
-    error:      ctx.error ? { name: ctx.error.name, message: ctx.error.message } : null,
+    queryParam:   ctx.queryParam,
+    status:       ctx.status,
+    depCity:      ctx.depCity ?? null,
+    arrCity:      ctx.arrCity ?? null,
+    cityFallback: ctx.cityFallback ?? false,
+    raw:          ctx.rawResponse,
+    error:        ctx.error ? { name: ctx.error.name, message: ctx.error.message } : null,
   }
   // ====== 用户编辑区（END）==================================
 }
