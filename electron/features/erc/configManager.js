@@ -1,6 +1,7 @@
 // ============================================================
-// ERC ConfigManager - 汇率源、刷新频率与悬浮窗外观配置管理器
-// 职责：管理两个汇率源的请求地址/key、全局自动刷新频率、悬浮窗缩放/透明度
+// ERC ConfigManager - 汇率源、币种富信息源、刷新频率与悬浮窗外观配置管理器
+// 职责：管理汇率源（exchangerate）与币种富信息源（restcountries）的地址/key、
+//       全局自动刷新频率、悬浮窗缩放/透明度
 //
 // 持久化：userData/config/ercConfig.json
 //   - 加载时与默认配置深合并，兼容老用户配置缺字段（地址/key 变更时自动补默认）
@@ -30,8 +31,8 @@ export const FLOATING_DIM_OPACITY_MAX = 1.0
 
 // 默认配置（原硬编码在 service.js 的地址与 key 下沉至此）
 //   providers.<id>.baseUrl 语义：
-//     exchangerate : 不含 key 的基础地址，适配者拼 `${baseUrl}/${key}/latest/USD`
-//     allratestoday: 完整批量汇率地址（query 已带 source=USD），key 走 Bearer 请求头
+//     exchangerate  : 不含 key 的基础地址，适配者拼 `${baseUrl}/${key}/latest/USD`
+//     restcountries : 币种富信息源（中文名、国旗图标），完整批量国家列表地址，key 走 Bearer 请求头
 //   floating：悬浮窗外观（缩放/透明度），由 ERC 设置页统一配置，持久化在主进程
 //     （悬浮窗独立 session partition，localStorage 与主窗不共享，故放主进程配置）
 const DEFAULT_CONFIG = {
@@ -40,9 +41,9 @@ const DEFAULT_CONFIG = {
       baseUrl: 'https://v6.exchangerate-api.com/v6',
       key: '966d147f84377b39f732f221'
     },
-    allratestoday: {
-      baseUrl: 'https://allratestoday.com/api/v1/rates?source=USD',
-      key: 'art_live_bNsDvm7rZLEI1lbrcrKeQuNkmlosaccV'
+    restcountries: {
+      baseUrl: 'https://api.restcountries.com/countries/v5',
+      key: 'rc_live_14364ff234dc406a9d0c338758f5a5cd'
     }
   },
   refreshIntervalMin: 30,
@@ -62,7 +63,7 @@ function cloneDefaults() {
   return {
     providers: {
       exchangerate: { ...DEFAULT_CONFIG.providers.exchangerate },
-      allratestoday: { ...DEFAULT_CONFIG.providers.allratestoday }
+      restcountries: { ...DEFAULT_CONFIG.providers.restcountries }
     },
     refreshIntervalMin: DEFAULT_CONFIG.refreshIntervalMin,
     floating: { ...DEFAULT_CONFIG.floating }
@@ -125,17 +126,23 @@ function persist() {
 }
 
 // 保存前格式校验；不通过抛 Error（controller 捕获后回传渲染层提示）
+// exchangerate 为必填（汇率唯一源）；restcountries 允许留空（留空则用默认值）
 function validate(patch) {
   if (!patch || typeof patch !== 'object') throw new Error('配置内容为空')
-  for (const id of Object.keys(DEFAULT_CONFIG.providers)) {
-    const p = patch.providers?.[id]
-    if (!p || typeof p !== 'object') throw new Error(`缺少汇率源 ${id} 的配置`)
-    const baseUrl = String(p.baseUrl ?? '').trim()
-    if (!/^https?:\/\/.+/.test(baseUrl)) {
-      throw new Error(`汇率源 ${id} 的地址必须以 http:// 或 https:// 开头`)
-    }
-    if (!String(p.key ?? '').trim()) {
-      throw new Error(`汇率源 ${id} 的 Key 不能为空`)
+  const ex = patch.providers?.exchangerate
+  if (!ex || typeof ex !== 'object') throw new Error('缺少汇率源 exchangerate 的配置')
+  const exBaseUrl = String(ex.baseUrl ?? '').trim()
+  if (!/^https?:\/\/.+/.test(exBaseUrl)) {
+    throw new Error('ExchangeRate-API 的地址必须以 http:// 或 https:// 开头')
+  }
+  if (!String(ex.key ?? '').trim()) {
+    throw new Error('ExchangeRate-API 的 Key 不能为空')
+  }
+  const rc = patch.providers?.restcountries
+  if (rc && typeof rc === 'object') {
+    const rcBaseUrl = String(rc.baseUrl ?? '').trim()
+    if (rcBaseUrl && !/^https?:\/\/.+/.test(rcBaseUrl)) {
+      throw new Error('币种富信息源的地址必须以 http:// 或 https:// 开头')
     }
   }
   const interval = Number(patch.refreshIntervalMin)
@@ -152,7 +159,7 @@ export function getErcConfig() {
   return {
     providers: {
       exchangerate: { ...c.providers.exchangerate },
-      allratestoday: { ...c.providers.allratestoday }
+      restcountries: { ...c.providers.restcountries }
     },
     refreshIntervalMin: c.refreshIntervalMin,
     floating: { ...c.floating }

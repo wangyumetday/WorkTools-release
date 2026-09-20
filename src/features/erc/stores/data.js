@@ -19,8 +19,8 @@ export const useDataStore = defineStore('erc-data', () => {
   // ==================== 币种与汇率数据 ====================
   // 锚定货币（汇率以 USD 为基准拉取）
   const AnchorCurrency = ref('USD')
-  // 汇率数据源标识（exchangerate / allratestoday），持久化，默认 allratestoday
-  const rateProvider = ref('allratestoday')
+  // 汇率数据源标识（唯一源 exchangerate），持久化
+  const rateProvider = ref('exchangerate')
   // 参与换算的币种列表（用户从全部币种里点选加入）
   const activeCurrency = ref([])
   // 全部国家信息（原始数据，含重复币种）
@@ -198,9 +198,9 @@ export const useDataStore = defineStore('erc-data', () => {
   }
 }, {
   // 持久化：汇率和币种列表写入 localStorage，避免每次启动都重新拉接口
-  // key 带版本号：v2 默认汇率源改为 allratestoday，旧版（v1/erc-data）缓存不再复用，
-  // 首次启动按常规流程重新拉国家列表与汇率（无兜底数据）
+  // key 带版本号：v3 移除 allratestoday 源、唯一汇率源改为 exchangerate，
+  // 旧版（v2/erc-data-v2）缓存不再复用，首次启动按常规流程重新拉国家列表与汇率
   persist: {
-    key: 'erc-data-v2'
+    key: 'erc-data-v3'
   }
 })

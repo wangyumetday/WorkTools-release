@@ -96,9 +96,9 @@ const mockApi = {
 
   // ---------- ERC feature：汇率转换 ----------
   erc: {
-    getExchangeRate:     (provider) => { mockNotReady('erc.getExchangeRate');     return mockDelay({ result: 'error', provider: provider || 'allratestoday', conversion_rates: {}, time_last_update_unix: 0 }) },
+    getExchangeRate:     (provider) => { mockNotReady('erc.getExchangeRate');     return mockDelay({ result: 'error', provider: provider || 'exchangerate', conversion_rates: {}, time_last_update_unix: 0 }) },
     getCountriesList:    () => { mockNotReady('erc.getCountriesList');    return mockDelay([]) },
-    configGet:           () => { mockNotReady('erc.configGet'); return mockDelay({ providers: { exchangerate: { baseUrl: '', key: '' }, allratestoday: { baseUrl: '', key: '' } }, refreshIntervalMin: 30 }) },
+    configGet:           () => { mockNotReady('erc.configGet'); return mockDelay({ providers: { exchangerate: { baseUrl: '', key: '' }, restcountries: { baseUrl: '', key: '' } }, refreshIntervalMin: 30 }) },
     configSet:           () => { mockNotReady('erc.configSet'); return mockDelay({ ok: true }) }
   },
 

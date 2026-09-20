@@ -1,7 +1,7 @@
 <!-- ============================================================
      ERC Settings.vue - 汇率服务 + 悬浮窗外观配置页
      职责：
-       - 配置两个汇率源（exchangerate / allratestoday）的请求地址与 Key
+       - 配置汇率源（exchangerate）与币种富信息源（restcountries）的请求地址与 Key
        - 配置 ERC 全局汇率自动刷新频率（分钟，不按源区分）
        - 配置悬浮窗缩放因子、透明度与固定展开态变暗透明度（原位于悬浮窗底部滑块，迁移至此统一管理）
      数据流：
@@ -19,7 +19,7 @@
     <div v-if="loading" class="settings-tip">正在加载配置...</div>
 
     <template v-else>
-      <!-- 两个汇率源各一张卡片：地址 + Key -->
+      <!-- 汇率源 + 币种富信息源各一张卡片：地址 + Key -->
       <div v-for="p in providerDefs" :key="p.id" class="provider-card">
         <div class="card-title">{{ p.label }}</div>
         <div class="form-row">
@@ -121,10 +121,10 @@ const ZOOM_MAX = 1.5
 // 悬浮窗外观持久化防抖：拖动滑块实时应用，但写盘合并为最后一次后 500ms
 const FLOATING_SAVE_DEBOUNCE_MS = 500
 
-// 展示顺序与标签（值与 service.js RATE_PROVIDERS 对应）
+// 展示顺序与标签（值与 configManager.js DEFAULT_CONFIG.providers 对应）
 const providerDefs = [
-  { id: 'exchangerate', label: 'ExchangeRate-API' },
-  { id: 'allratestoday', label: 'AllRatesToday' }
+  { id: 'exchangerate', label: 'ExchangeRate-API（汇率源）' },
+  { id: 'restcountries', label: '币种富信息源API（中文名、国旗图标）' }
 ]
 
 const loading = ref(true)
@@ -133,7 +133,7 @@ const saving = ref(false)
 const form = reactive({
   providers: {
     exchangerate: { baseUrl: '', key: '' },
-    allratestoday: { baseUrl: '', key: '' }
+    restcountries: { baseUrl: '', key: '' }
   },
   refreshIntervalMin: 30,
   floating: { opacity: 1.0, zoom: 1.0, dimOpacity: 0.1 }
@@ -197,15 +197,18 @@ onUnmounted(() => {
 })
 
 // 渲染层预校验（与主进程 validate 规则一致，提前拦截、少一次 IPC 往返）
+// exchangerate 必填（汇率唯一源）；restcountries 允许留空（留空则用默认值）
 function validateForm() {
-  for (const p of providerDefs) {
-    const baseUrl = form.providers[p.id].baseUrl.trim()
-    if (!/^https?:\/\/.+/.test(baseUrl)) {
-      return `${p.label} 的地址必须以 http:// 或 https:// 开头`
-    }
-    if (!form.providers[p.id].key.trim()) {
-      return `${p.label} 的 Key 不能为空`
-    }
+  const exBaseUrl = form.providers.exchangerate.baseUrl.trim()
+  if (!/^https?:\/\/.+/.test(exBaseUrl)) {
+    return 'ExchangeRate-API 的地址必须以 http:// 或 https:// 开头'
+  }
+  if (!form.providers.exchangerate.key.trim()) {
+    return 'ExchangeRate-API 的 Key 不能为空'
+  }
+  const rcBaseUrl = form.providers.restcountries.baseUrl.trim()
+  if (rcBaseUrl && !/^https?:\/\/.+/.test(rcBaseUrl)) {
+    return '币种富信息源的地址必须以 http:// 或 https:// 开头'
   }
   const n = Number(form.refreshIntervalMin)
   if (!Number.isInteger(n) || n < INTERVAL_MIN || n > INTERVAL_MAX) {
@@ -228,9 +231,9 @@ async function onSave() {
           baseUrl: form.providers.exchangerate.baseUrl.trim(),
           key: form.providers.exchangerate.key.trim()
         },
-        allratestoday: {
-          baseUrl: form.providers.allratestoday.baseUrl.trim(),
-          key: form.providers.allratestoday.key.trim()
+        restcountries: {
+          baseUrl: form.providers.restcountries.baseUrl.trim(),
+          key: form.providers.restcountries.key.trim()
         }
       },
       refreshIntervalMin: Number(form.refreshIntervalMin)

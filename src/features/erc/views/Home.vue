@@ -1,7 +1,7 @@
 <!-- ============================================================
      ERC Home.vue - 汇率转换主页
      职责：
-       - 顶部 tabs 切换"汇率转换 / 全部币种 / 设置"三个页面（替代原侧边栏导航）
+       - 顶部 tabs 切换"全部币种 / 设置"两个页面（汇率转换页已移除）
        - 全局 loading modal（拉取汇率时显示）
        - onMounted 初始化币种和汇率数据（若今日已同步则跳过）
      主题：darkTheme（保留原 currencyExchangeTool 暗色风格）
@@ -30,7 +30,6 @@
             </span>
           </div>
           <div class="header-actions">
-            <ProviderSelect />
             <n-button size="small" @click="api.floating.open()">打开悬浮窗</n-button>
           </div>
         </n-layout-header>
@@ -46,10 +45,6 @@
 
         <n-layout-content class="erc-content" :native-scrollbar="false">
           <n-tabs v-model:value="activeTab" type="line" animated>
-            <!-- 汇率转换：多币种同步换算 + 加币种 drawer -->
-            <n-tab-pane name="converter" tab="汇率转换">
-              <CurrencyConverter />
-            </n-tab-pane>
             <!-- 全部币种：展示所有币种网格，点击可加入换算 -->
             <n-tab-pane name="all" tab="全部币种">
               <addCurrency />
@@ -73,15 +68,13 @@ import {
 } from 'naive-ui'
 import { useDataStore } from '../stores/data.js'
 import api from '@/shared/api.js'
-import CurrencyConverter from './CurrencyConverter.vue'
 import addCurrency from '../components/addCurrency.vue'
-import ProviderSelect from '../components/ProviderSelect.vue'
 import Settings from './Settings.vue'
 
 const store = useDataStore()
 
-// 当前激活的 tab：汇率转换 / 全部币种
-const activeTab = ref('converter')
+// 当前激活的 tab：全部币种 / 设置
+const activeTab = ref('all')
 
 // 汇率上次更新时间（本地时区 YYYY-MM-DD HH:mm），无数据时不展示
 const lastUpdateLabel = computed(() => {
@@ -132,6 +125,8 @@ onMounted(async () => {
   height: 100vh;
   background: #1e1e1e;
   color: #fff;
+  display: flex;
+  flex-direction: column;
 }
 .erc-header {
   padding: 16px 24px;
@@ -139,6 +134,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
 }
 .header-title {
   display: flex;
@@ -199,6 +195,24 @@ onMounted(async () => {
 }
 .erc-content {
   padding: 16px 24px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* n-tabs 及其内部容器透传高度，使 tab 内容占满剩余空间 */
+.erc-content :deep(.n-tabs) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.erc-content :deep(.n-tabs-pane-wrapper) {
+  flex: 1;
+  min-height: 0;
+}
+.erc-content :deep(.n-tab-pane) {
+  height: 100%;
 }
 .loading-spin {
   width: 280px;

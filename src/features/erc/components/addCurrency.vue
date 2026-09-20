@@ -2,16 +2,15 @@
      addCurrency.vue - 币种选择列表（带三字码搜索）
      职责：展示全部币种（store.currencies_list），点击币种加入/移出参与换算
      复用场景：
-       1. CurrencyConverter 的"加币种"drawer 内容
-       2. Home.vue 的"全部币种"tab 页面
-       3. FloatingHome 的内联"加币种"面板
+       1. Home.vue 的"全部币种"tab 页面
+       2. FloatingHome 的内联"加币种"面板
      国旗图片来自 public/flags/<alpha2Code>.png（vite 静态资源，用绝对路径 /flags/）
      列表项：两列布局（左列 / 右列），每列上下两行：
        左列：国旗（上） | 中文国家名（下），均靠左
        右列：币种三字码 + 汇率（上） | 币种中文名（下）
      已移除国家英文名，避免信息冗余
      滚动条：统一 4px 宽，半透明 thumb
-     列表最大高度可由父级通过 --currency-list-max-h 覆盖（默认 240px）
+     列表高度由父级通过 --currency-list-max-h 覆盖（默认占满剩余空间）
      ============================================================ -->
 
 <template>
@@ -103,11 +102,14 @@ function selectCurrency(currency) {
   height: 100%;
   padding: 8px;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .search-box {
   width: 100%;
   margin-bottom: 8px;
+  flex-shrink: 0;
 }
 .search-input {
   width: 100%;
@@ -130,7 +132,9 @@ function selectCurrency(currency) {
 }
 
 .currency-list {
-  max-height: var(--currency-list-max-h, 240px);
+  flex: 1;
+  min-height: 0;
+  max-height: var(--currency-list-max-h, none);
   overflow-y: auto;
 }
 
