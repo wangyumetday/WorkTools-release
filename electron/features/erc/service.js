@@ -22,6 +22,8 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import https from 'node:https'
+import http from 'node:http'
 import { app } from 'electron'
 import { getErcConfig } from './configManager.js'
 
@@ -32,23 +34,78 @@ export const DEFAULT_RATE_PROVIDER = 'exchangerate'
 // 国家列表本地缓存的 schema 版本：字段结构升级时递增，旧版缓存自动失效重拉
 const COUNTRIES_CACHE_SCHEMA = 1
 
+// 自定义 Agent：启用 keep-alive 但把空闲超时设得比 Cloudflare 短（30s），
+//   避免 keep-alive race condition（服务器关空闲连接时客户端正好发请求 → RST）
+//   Cloudflare 默认空闲连接 60 秒关闭，我们 30 秒主动断，永远在服务器之前
+const keepAliveAgent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 1000,
+  maxSockets: 4,           // 串行 + 少量并发足够，避免触发 Cloudflare 边缘限流
+  maxFreeSockets: 2,
+  timeout: 30000           // 空闲 socket 30 秒后主动关
+})
+
 /**
- * 带超时的 GET JSON 请求
+ * 用 Node.js https 模块的 GET JSON 请求（带 retry）
+ *
+ * 为什么不用全局 fetch（undici）：
+ *   undici fetch 跟 Cloudflare（api.restcountries.com 的 CDN）不兼容，TCP 连接
+ *   阶段超时（UND_ERR_CONNECT_TIMEOUT），实测 10 秒后失败；而 https 模块 1-3 秒
+ *   返回 200。原因是 undici 的 TLS 指纹/HTTP/2 ALPN 协商被部分 Cloudflare 节点
+ *   reject（Node.js issue #41680 / undici #2611）。
+ *
+ * ECONNRESET retry：
+ *   ECONNRESET 是 HTTP keep-alive 的固有 race condition——服务器关闭空闲连接时
+ *   客户端正好发请求，服务器回 RST。标准修复是 retry（见 Node.js 官方推荐）。
+ *   重试 3 次，每次间隔 1 秒（线性 backoff，不指数，避免用户等太久）。
+ *
  * @param {string} url
- * @param {object} opts { timeoutMs, headers }
+ * @param {object} opts { timeoutMs, headers, retries }
  */
-async function getJson(url, { timeoutMs = 5000, headers } = {}) {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const res = await fetch(url, { method: 'GET', signal: controller.signal, headers })
-    if (!res.ok) {
-      throw new Error(`HTTP error! status: ${res.status}`)
-    }
-    return await res.json()
-  } finally {
-    clearTimeout(timeoutId)
-  }
+function getJson(url, { timeoutMs = 15000, headers = {}, retries = 3 } = {}) {
+  let attempt = 0
+  const tryOnce = () => new Promise((resolve, reject) => {
+    const lib = url.startsWith('https://') ? https : http
+    const req = lib.get(url, { headers, agent: keepAliveAgent }, res => {
+      // 3xx 重定向：跟随一次（restcountries 有时会 302）
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume()
+        getJson(res.headers.location, { timeoutMs, headers, retries }).then(resolve, reject)
+        return
+      }
+      if (res.statusCode !== 200) {
+        res.resume()
+        reject(new Error(`HTTP error! status: ${res.statusCode}`))
+        return
+      }
+      let data = ''
+      res.setEncoding('utf-8')
+      res.on('data', chunk => { data += chunk })
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data))
+        } catch (e) {
+          reject(new Error(`JSON parse error: ${e.message}`))
+        }
+      })
+    })
+    req.on('error', err => {
+      // ECONNRESET / ECONNREFUSED / ETIMEDOUT 重试，其他直接 reject
+      const retryable = ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EPIPE']
+      if (retryable.includes(err.code) && attempt < retries) {
+        attempt++
+        console.log(`[ERC service] ${err.code} on ${url.slice(0, 80)}..., retry ${attempt}/${retries}`)
+        setTimeout(() => tryOnce().then(resolve, reject), 1000)
+        return
+      }
+      reject(err)
+    })
+    // 连接/响应超时：超时后销毁请求，触发 'error' 事件
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Request timeout after ${timeoutMs}ms`))
+    })
+  })
+  return tryOnce()
 }
 
 /**
@@ -80,58 +137,49 @@ export async function fetchExchangeRate(provider = DEFAULT_RATE_PROVIDER) {
 const RESTCOUNTRIES_FIELDS = 'names.common,names.official,names.translations,codes.alpha_2,codes.alpha_3,flag.url_png,timezones,currencies,links.official,links.wikipedia'
 
 /**
- * 拉取全部国家信息（3 页并发合并 + 结构化映射）
- * 地址与 key 从配置读取（币种富信息源），15 秒超时
+ * 拉取全部国家信息（3 页串行 + retry + 结构化映射）
+ *
+ * 为什么串行不用并发：
+ *   restcountries.com 在 Cloudflare 后面，3 页并发会触发 Cloudflare 边缘限流
+ *   （>20 req/10s）和 keep-alive race condition（多请求复用 socket 时 RST）。
+ *   串行虽然慢（每页 1-14 秒，共 3-42 秒），但成功率高，且 fetchCountriesWithCache
+ *   会把结果缓存到本地文件（userData/cache/countries.json），之后启动从本地读，
+ *   不会每次都拉 API。
+ *
+ * 地址与 key 从配置读取（币种富信息源），每页 15 秒超时 + 3 次 retry
  * 返回 [{ name, officialName, alpha2Code, alpha3Code, flagUrlPng, timezones, currencies, translations, wikiLink, officialLink }]
  */
 export async function fetchCountries() {
   const { baseUrl, key } = getErcConfig().providers.restcountries
   const base = baseUrl.replace(/\/+$/, '')
-  const urls = [0, 100, 200].map(offset =>
-    `${base}?limit=100&offset=${offset}&requestedFromWeb=1&pretty&response_fields=${RESTCOUNTRIES_FIELDS}`
-  )
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 15000)
-  try {
-    // 三页并发请求（共用一个 AbortController，任一超时则全部中止）
-    const responses = await Promise.all(
-      urls.map(url =>
-        fetch(url, {
-          method: 'GET',
-          signal: controller.signal,
-          headers: { Authorization: `Bearer ${key}` }
-        })
-      )
-    )
-    // 依次读取 JSON 并合并到 data
-    const data = []
-    for (const res of responses) {
-      const json = await res.json()
-      data.push(...json.data.objects)
-    }
-    // 结构化映射：只保留前端需要的字段，currencies 补全 rate/value/initiative 供 store 使用
-    return data.map(item => ({
-      name: item.names?.common ?? '',
-      officialName: item.names?.official ?? '',
-      alpha2Code: item.codes?.alpha_2 ?? '',
-      alpha3Code: item.codes?.alpha_3 ?? '',
-      flagUrlPng: item.flag?.url_png ?? '',
-      timezones: item.timezones ?? [],
-      currencies: {
-        code: item.currencies[0]?.code ?? '',
-        name: item.currencies[0]?.name ?? '',
-        symbol: item.currencies[0]?.symbol ?? '',
-        rate: 0,
-        value: 0,
-        initiative: false
-      },
-      translations: item.names?.translations.zho ?? {},
-      wikiLink: item.links?.wikipedia ?? '',
-      officialLink: item.links?.official ?? ''
-    }))
-  } finally {
-    clearTimeout(timeoutId)
+  const headers = { Authorization: `Bearer ${key}` }
+  const data = []
+  // 3 页串行：offset 0/100/200，每页 100 条
+  for (const offset of [0, 100, 200]) {
+    const url = `${base}?limit=100&offset=${offset}&requestedFromWeb=1&pretty&response_fields=${RESTCOUNTRIES_FIELDS}`
+    const json = await getJson(url, { timeoutMs: 15000, headers, retries: 3 })
+    data.push(...json.data.objects)
   }
+  // 结构化映射：只保留前端需要的字段，currencies 补全 rate/value/initiative 供 store 使用
+  return data.map(item => ({
+    name: item.names?.common ?? '',
+    officialName: item.names?.official ?? '',
+    alpha2Code: item.codes?.alpha_2 ?? '',
+    alpha3Code: item.codes?.alpha_3 ?? '',
+    flagUrlPng: item.flag?.url_png ?? '',
+    timezones: item.timezones ?? [],
+    currencies: {
+      code: item.currencies[0]?.code ?? '',
+      name: item.currencies[0]?.name ?? '',
+      symbol: item.currencies[0]?.symbol ?? '',
+      rate: 0,
+      value: 0,
+      initiative: false
+    },
+    translations: item.names?.translations.zho ?? {},
+    wikiLink: item.links?.wikipedia ?? '',
+    officialLink: item.links?.official ?? ''
+  }))
 }
 
 // ==================== 国家列表本地缓存 ====================
@@ -188,26 +236,70 @@ function readCountriesCache() {
 }
 
 /**
- * 带本地缓存的国家列表获取（推荐入口）
- * 流程：
- *   1. 读本地缓存 → 若 updatedAt + maxAgeMs 仍在未来 → 直接返回缓存数据
- *   2. 缓存过期/不存在/损坏 → 调 fetchCountries() API
- *   3. API 成功 → 写本地缓存 + 返回新数据
- *   4. API 失败 → 抛错（不返回旧数据兜底，由渲染层显示醒目错误提示）
+ * 读取项目打包的 bundled 国家列表（electron/features/erc/data/countries.json）
  *
- * @param {number} maxAgeMs - 缓存有效期（毫秒），由 controller 从 ERC 配置注入
- * @returns {Promise<Array>} 国家列表（与 fetchCountries 返回结构一致）
+ * 用途：软件首次启动时 userData/cache/countries.json 还不存在，此时读 bundled 数据
+ *   作为初始数据源，让用户立即看到国家列表（不用等 API 拉取）。
+ *   bundled 数据由开发时一次性拉取完整 API 数据生成，随软件发布。
+ *
+ * @returns {Array} 国家列表（与 fetchCountries 返回结构一致），读失败返回空数组
  */
-export async function fetchCountriesWithCache(maxAgeMs) {
-  const cached = readCountriesCache()
-  if (cached) {
-    const ageMs = Date.now() - new Date(cached.updatedAt).getTime()
-    if (Number.isFinite(ageMs) && ageMs < maxAgeMs) {
-      return cached.data
-    }
+function readBundledCountries() {
+  try {
+    // ESM 里读相对路径文件：用 new URL + import.meta.url
+    const bundledUrl = new URL('./data/countries.json', import.meta.url)
+    const raw = fs.readFileSync(bundledUrl, 'utf-8')
+    const parsed = JSON.parse(raw)
+    if (!parsed || parsed.schemaVersion !== COUNTRIES_CACHE_SCHEMA) return []
+    if (!Array.isArray(parsed.data)) return []
+    return parsed.data
+  } catch {
+    return []
   }
-  // 缓存过期或不存在：调 API
-  const fresh = await fetchCountries()
-  writeCountriesCache(fresh)
-  return fresh
+}
+
+/**
+ * 渲染层获取国家列表（推荐入口）—— 立即返回，不调 API
+ *
+ * 数据源优先级：
+ *   1. userData/cache/countries.json（后台任务每天更新一次）
+ *   2. 项目 bundled 数据（electron/features/erc/data/countries.json，随软件发布）
+ *
+ * 设计要点：
+ *   - 不调 API：用户进入 ERC 界面立即拿到数据（<10ms），不阻塞 UI
+ *   - 不返回 null：bundled 数据随软件发布，总有数据可读
+ *   - API 拉取由 refreshCountriesCacheInBackground() 在后台静默完成
+ *
+ * @returns {Array} 国家列表（与 fetchCountries 返回结构一致）
+ */
+export function getCountriesForRenderer() {
+  // 1. 优先读 userData 缓存（后台任务更新过的最新数据）
+  const cached = readCountriesCache()
+  if (cached && Array.isArray(cached.data) && cached.data.length > 0) {
+    return cached.data
+  }
+  // 2. 缓存不存在/损坏 → 读 bundled 数据
+  return readBundledCountries()
+}
+
+/**
+ * 后台静默刷新国家列表缓存（不阻塞调用方）
+ *
+ * 调 fetchCountries() 拉 API → 成功写本地缓存，失败静默丢弃
+ *   - 不返回数据：调用方不等待结果
+ *   - 不抛错：网络/API 失败不打断用户，下次定时任务再试
+ *
+ * 由 controller 的 startCountriesBackgroundScheduler 每天 1 次调度
+ */
+export async function refreshCountriesCacheInBackground() {
+  try {
+    const fresh = await fetchCountries()
+    if (Array.isArray(fresh) && fresh.length > 0) {
+      writeCountriesCache(fresh)
+      console.log(`[ERC service] 后台刷新国家列表成功：${fresh.length} 个国家`)
+    }
+  } catch (e) {
+    // 静默失败：网络抖动不打断用户，下次定时任务再试
+    console.log(`[ERC service] 后台刷新国家列表失败：${e?.message || e}`)
+  }
 }

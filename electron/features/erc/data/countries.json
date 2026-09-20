@@ -1,0 +1,6178 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-20T08:24:38.011Z",
+  "count": 254,
+  "data": [
+    {
+      "name": "Abkhazia",
+      "officialName": "Republic of Abkhazia",
+      "alpha2Code": "",
+      "alpha3Code": "",
+      "flagUrlPng": "",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "RUB",
+        "name": "Russian ruble",
+        "symbol": "₽",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "阿布哈兹",
+        "official": "阿布哈兹共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Abkhazia",
+      "officialLink": "http://presidentofabkhazia.org"
+    },
+    {
+      "name": "Afghanistan",
+      "officialName": "Islamic Republic of Afghanistan",
+      "alpha2Code": "AF",
+      "alpha3Code": "AFG",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/af.png",
+      "timezones": [
+        "UTC+04:30"
+      ],
+      "currencies": {
+        "code": "AFN",
+        "name": "Afghan afghani",
+        "symbol": "؋",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "阿富汗",
+        "official": "阿富汗伊斯兰共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Afghanistan",
+      "officialLink": "https://president.gov.af"
+    },
+    {
+      "name": "Albania",
+      "officialName": "Republic of Albania",
+      "alpha2Code": "AL",
+      "alpha3Code": "ALB",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/al.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "ALL",
+        "name": "Albanian lek",
+        "symbol": "L",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "阿尔巴尼亚",
+        "official": "阿尔巴尼亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Albania",
+      "officialLink": "https://www.kryeministria.al"
+    },
+    {
+      "name": "Algeria",
+      "officialName": "People's Democratic Republic of Algeria",
+      "alpha2Code": "DZ",
+      "alpha3Code": "DZA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/dz.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "DZD",
+        "name": "Algerian dinar",
+        "symbol": "د.ج",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "阿尔及利亚",
+        "official": "阿尔及利亚人民民主共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Algeria",
+      "officialLink": "https://www.el-mouradia.dz"
+    },
+    {
+      "name": "American Samoa",
+      "officialName": "American Samoa",
+      "alpha2Code": "AS",
+      "alpha3Code": "ASM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/as.png",
+      "timezones": [
+        "UTC-11:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "美属萨摩亚",
+        "official": "美属萨摩亚"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/American_Samoa",
+      "officialLink": ""
+    },
+    {
+      "name": "Andorra",
+      "officialName": "Principality of Andorra",
+      "alpha2Code": "AD",
+      "alpha3Code": "AND",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ad.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "安道尔",
+        "official": "安道尔公国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Andorra",
+      "officialLink": "https://www.govern.ad"
+    },
+    {
+      "name": "Angola",
+      "officialName": "Republic of Angola",
+      "alpha2Code": "AO",
+      "alpha3Code": "AGO",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ao.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "AOA",
+        "name": "Angolan kwanza",
+        "symbol": "Kz",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "安哥拉",
+        "official": "安哥拉共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Angola",
+      "officialLink": "https://www.governo.gov.ao"
+    },
+    {
+      "name": "Anguilla",
+      "officialName": "Anguilla",
+      "alpha2Code": "AI",
+      "alpha3Code": "AIA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ai.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "XCD",
+        "name": "Eastern Caribbean dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "安圭拉",
+        "official": "安圭拉"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Anguilla",
+      "officialLink": ""
+    },
+    {
+      "name": "Antarctica",
+      "officialName": "Antarctica",
+      "alpha2Code": "AQ",
+      "alpha3Code": "ATA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/aq.png",
+      "timezones": [
+        "UTC-03:00",
+        "UTC+03:00",
+        "UTC+05:00",
+        "UTC+06:00",
+        "UTC+07:00",
+        "UTC+08:00",
+        "UTC+10:00",
+        "UTC+12:00"
+      ],
+      "currencies": {
+        "code": "",
+        "name": "",
+        "symbol": "",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "南极洲",
+        "official": "南极洲"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Antarctica",
+      "officialLink": ""
+    },
+    {
+      "name": "Antigua and Barbuda",
+      "officialName": "Antigua and Barbuda",
+      "alpha2Code": "AG",
+      "alpha3Code": "ATG",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ag.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "XCD",
+        "name": "Eastern Caribbean dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "安提瓜和巴布达",
+        "official": "安提瓜和巴布达"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Antigua_and_Barbuda",
+      "officialLink": "https://www.ab.gov.ag"
+    },
+    {
+      "name": "Argentina",
+      "officialName": "Argentine Republic",
+      "alpha2Code": "AR",
+      "alpha3Code": "ARG",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ar.png",
+      "timezones": [
+        "UTC-03:00"
+      ],
+      "currencies": {
+        "code": "ARS",
+        "name": "Argentine peso",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "阿根廷",
+        "official": "阿根廷共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Argentina",
+      "officialLink": "https://www.argentina.gob.ar"
+    },
+    {
+      "name": "Armenia",
+      "officialName": "Republic of Armenia",
+      "alpha2Code": "AM",
+      "alpha3Code": "ARM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/am.png",
+      "timezones": [
+        "UTC+04:00"
+      ],
+      "currencies": {
+        "code": "AMD",
+        "name": "Armenian dram",
+        "symbol": "֏",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "亚美尼亚",
+        "official": "亚美尼亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Armenia",
+      "officialLink": "https://www.gov.am"
+    },
+    {
+      "name": "Aruba",
+      "officialName": "Aruba",
+      "alpha2Code": "AW",
+      "alpha3Code": "ABW",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/aw.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "AWG",
+        "name": "Aruban florin",
+        "symbol": "ƒ",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "阿鲁巴",
+        "official": "阿鲁巴"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Aruba",
+      "officialLink": ""
+    },
+    {
+      "name": "Australia",
+      "officialName": "Commonwealth of Australia",
+      "alpha2Code": "AU",
+      "alpha3Code": "AUS",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/au.png",
+      "timezones": [
+        "UTC+05:00",
+        "UTC+06:30",
+        "UTC+07:00",
+        "UTC+08:00",
+        "UTC+09:30",
+        "UTC+10:00",
+        "UTC+10:30",
+        "UTC+11:30"
+      ],
+      "currencies": {
+        "code": "AUD",
+        "name": "Australian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "澳大利亚",
+        "official": "澳大利亚联邦"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Australia",
+      "officialLink": "https://www.australia.gov.au"
+    },
+    {
+      "name": "Austria",
+      "officialName": "Republic of Austria",
+      "alpha2Code": "AT",
+      "alpha3Code": "AUT",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/at.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "奥地利",
+        "official": "奥地利共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Austria",
+      "officialLink": "https://www.oesterreich.gv.at"
+    },
+    {
+      "name": "Azerbaijan",
+      "officialName": "Republic of Azerbaijan",
+      "alpha2Code": "AZ",
+      "alpha3Code": "AZE",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/az.png",
+      "timezones": [
+        "UTC+04:00"
+      ],
+      "currencies": {
+        "code": "AZN",
+        "name": "Azerbaijani manat",
+        "symbol": "₼",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "阿塞拜疆",
+        "official": "阿塞拜疆共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Azerbaijan",
+      "officialLink": "https://president.az"
+    },
+    {
+      "name": "Bahamas",
+      "officialName": "Commonwealth of the Bahamas",
+      "alpha2Code": "BS",
+      "alpha3Code": "BHS",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bs.png",
+      "timezones": [
+        "UTC-05:00"
+      ],
+      "currencies": {
+        "code": "BSD",
+        "name": "Bahamian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "巴哈马",
+        "official": "巴哈马联邦"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/The_Bahamas",
+      "officialLink": "https://www.bahamas.gov.bs"
+    },
+    {
+      "name": "Bahrain",
+      "officialName": "Kingdom of Bahrain",
+      "alpha2Code": "BH",
+      "alpha3Code": "BHR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bh.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "BHD",
+        "name": "Bahraini dinar",
+        "symbol": ".د.ب",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "巴林",
+        "official": "巴林王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Bahrain",
+      "officialLink": "https://www.bahrain.bh"
+    },
+    {
+      "name": "Bangladesh",
+      "officialName": "People's Republic of Bangladesh",
+      "alpha2Code": "BD",
+      "alpha3Code": "BGD",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bd.png",
+      "timezones": [
+        "UTC+06:00"
+      ],
+      "currencies": {
+        "code": "BDT",
+        "name": "Bangladeshi taka",
+        "symbol": "৳",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "孟加拉国",
+        "official": "孟加拉人民共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Bangladesh",
+      "officialLink": ""
+    },
+    {
+      "name": "Barbados",
+      "officialName": "Barbados",
+      "alpha2Code": "BB",
+      "alpha3Code": "BRB",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bb.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "BBD",
+        "name": "Barbadian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "巴巴多斯",
+        "official": "巴巴多斯"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Barbados",
+      "officialLink": "https://www.gov.bb"
+    },
+    {
+      "name": "Belarus",
+      "officialName": "Republic of Belarus",
+      "alpha2Code": "BY",
+      "alpha3Code": "BLR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/by.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "BYN",
+        "name": "Belarusian ruble",
+        "symbol": "Br",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "白俄罗斯",
+        "official": "白俄罗斯共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Belarus",
+      "officialLink": "https://president.gov.by"
+    },
+    {
+      "name": "Belgium",
+      "officialName": "Kingdom of Belgium",
+      "alpha2Code": "BE",
+      "alpha3Code": "BEL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/be.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "比利时",
+        "official": "比利时王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Belgium",
+      "officialLink": "https://www.belgium.be"
+    },
+    {
+      "name": "Belize",
+      "officialName": "Belize",
+      "alpha2Code": "BZ",
+      "alpha3Code": "BLZ",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bz.png",
+      "timezones": [
+        "UTC-06:00"
+      ],
+      "currencies": {
+        "code": "BZD",
+        "name": "Belize dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "伯利兹",
+        "official": "伯利兹"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Belize",
+      "officialLink": ""
+    },
+    {
+      "name": "Benin",
+      "officialName": "Republic of Benin",
+      "alpha2Code": "BJ",
+      "alpha3Code": "BEN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bj.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "XOF",
+        "name": "West African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "贝宁",
+        "official": "贝宁共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Benin",
+      "officialLink": "https://www.gouv.bj"
+    },
+    {
+      "name": "Bermuda",
+      "officialName": "Bermuda",
+      "alpha2Code": "BM",
+      "alpha3Code": "BMU",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bm.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "BMD",
+        "name": "Bermudian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "百慕大",
+        "official": "百慕大"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Bermuda",
+      "officialLink": ""
+    },
+    {
+      "name": "Bhutan",
+      "officialName": "Kingdom of Bhutan",
+      "alpha2Code": "BT",
+      "alpha3Code": "BTN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bt.png",
+      "timezones": [
+        "UTC+06:00"
+      ],
+      "currencies": {
+        "code": "BTN",
+        "name": "Bhutanese ngultrum",
+        "symbol": "Nu.",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "不丹",
+        "official": "不丹王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Bhutan",
+      "officialLink": "https://www.bhutan.gov.bt"
+    },
+    {
+      "name": "Bolivia",
+      "officialName": "Plurinational State of Bolivia",
+      "alpha2Code": "BO",
+      "alpha3Code": "BOL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bo.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "BOB",
+        "name": "Bolivian boliviano",
+        "symbol": "Bs.",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "玻利维亚",
+        "official": "多民族玻利维亚国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Bolivia",
+      "officialLink": "https://www.bolivia.gob.bo"
+    },
+    {
+      "name": "Bosnia and Herzegovina",
+      "officialName": "Bosnia and Herzegovina",
+      "alpha2Code": "BA",
+      "alpha3Code": "BIH",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ba.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "BAM",
+        "name": "Bosnia and Herzegovina convertible mark",
+        "symbol": "KM",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "波斯尼亚和黑塞哥维那",
+        "official": "波斯尼亚和黑塞哥维那"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Bosnia_and_Herzegovina",
+      "officialLink": "https://www.vijeceministara.gov.ba"
+    },
+    {
+      "name": "Botswana",
+      "officialName": "Republic of Botswana",
+      "alpha2Code": "BW",
+      "alpha3Code": "BWA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bw.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "BWP",
+        "name": "Botswana pula",
+        "symbol": "P",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "博茨瓦纳",
+        "official": "博茨瓦纳共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Botswana",
+      "officialLink": "https://www.gov.bw"
+    },
+    {
+      "name": "Bouvet Island",
+      "officialName": "Bouvet Island",
+      "alpha2Code": "BV",
+      "alpha3Code": "BVT",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bv.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "",
+        "name": "",
+        "symbol": "",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "布维岛",
+        "official": "布维岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Bouvet_Island",
+      "officialLink": ""
+    },
+    {
+      "name": "Brazil",
+      "officialName": "Federative Republic of Brazil",
+      "alpha2Code": "BR",
+      "alpha3Code": "BRA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/br.png",
+      "timezones": [
+        "UTC-05:00",
+        "UTC-04:00",
+        "UTC-03:00",
+        "UTC-02:00"
+      ],
+      "currencies": {
+        "code": "BRL",
+        "name": "Brazilian real",
+        "symbol": "R$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "巴西",
+        "official": "巴西联邦共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Brazil",
+      "officialLink": "https://www.gov.br"
+    },
+    {
+      "name": "British Indian Ocean Territory",
+      "officialName": "British Indian Ocean Territory",
+      "alpha2Code": "IO",
+      "alpha3Code": "IOT",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/io.png",
+      "timezones": [
+        "UTC+06:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "英属印度洋领地",
+        "official": "英属印度洋领地"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/British_Indian_Ocean_Territory",
+      "officialLink": ""
+    },
+    {
+      "name": "British Virgin Islands",
+      "officialName": "Virgin Islands",
+      "alpha2Code": "VG",
+      "alpha3Code": "VGB",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/vg.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "英属维尔京群岛",
+        "official": "英属维尔京群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/British_Virgin_Islands",
+      "officialLink": ""
+    },
+    {
+      "name": "Brunei",
+      "officialName": "Nation of Brunei, the Abode of Peace",
+      "alpha2Code": "BN",
+      "alpha3Code": "BRN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bn.png",
+      "timezones": [
+        "UTC+08:00"
+      ],
+      "currencies": {
+        "code": "BND",
+        "name": "Brunei dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "文莱",
+        "official": "文莱和平之国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Brunei",
+      "officialLink": "https://www.gov.bn"
+    },
+    {
+      "name": "Bulgaria",
+      "officialName": "Republic of Bulgaria",
+      "alpha2Code": "BG",
+      "alpha3Code": "BGR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bg.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "保加利亚",
+        "official": "保加利亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Bulgaria",
+      "officialLink": "https://www.government.bg"
+    },
+    {
+      "name": "Burkina Faso",
+      "officialName": "Burkina Faso",
+      "alpha2Code": "BF",
+      "alpha3Code": "BFA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bf.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "XOF",
+        "name": "West African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "布基纳法索",
+        "official": "布基纳法索"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Burkina_Faso",
+      "officialLink": "https://www.gouvernement.gov.bf"
+    },
+    {
+      "name": "Burundi",
+      "officialName": "Republic of Burundi",
+      "alpha2Code": "BI",
+      "alpha3Code": "BDI",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bi.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "BIF",
+        "name": "Burundian franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "布隆迪",
+        "official": "布隆迪共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Burundi",
+      "officialLink": "https://www.presidence.gov.bi"
+    },
+    {
+      "name": "Cabo Verde",
+      "officialName": "Republic of Cabo Verde",
+      "alpha2Code": "CV",
+      "alpha3Code": "CPV",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cv.png",
+      "timezones": [
+        "UTC-01:00"
+      ],
+      "currencies": {
+        "code": "CVE",
+        "name": "Cape Verdean escudo",
+        "symbol": "Esc",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "佛得角",
+        "official": "佛得角共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Cape_Verde",
+      "officialLink": "https://www.governo.cv"
+    },
+    {
+      "name": "Cambodia",
+      "officialName": "Kingdom of Cambodia",
+      "alpha2Code": "KH",
+      "alpha3Code": "KHM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/kh.png",
+      "timezones": [
+        "UTC+07:00"
+      ],
+      "currencies": {
+        "code": "KHR",
+        "name": "Cambodian riel",
+        "symbol": "៛",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "柬埔寨",
+        "official": "柬埔寨王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Cambodia",
+      "officialLink": "https://www.pressocm.gov.kh"
+    },
+    {
+      "name": "Cameroon",
+      "officialName": "Republic of Cameroon",
+      "alpha2Code": "CM",
+      "alpha3Code": "CMR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cm.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "XAF",
+        "name": "Central African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "喀麦隆",
+        "official": "喀麦隆共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Cameroon",
+      "officialLink": "https://www.spm.gov.cm"
+    },
+    {
+      "name": "Canada",
+      "officialName": "Canada",
+      "alpha2Code": "CA",
+      "alpha3Code": "CAN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ca.png",
+      "timezones": [
+        "UTC-08:00",
+        "UTC-07:00",
+        "UTC-06:00",
+        "UTC-05:00",
+        "UTC-04:00",
+        "UTC-03:30"
+      ],
+      "currencies": {
+        "code": "CAD",
+        "name": "Canadian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "加拿大",
+        "official": "加拿大"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Canada",
+      "officialLink": "https://www.canada.ca"
+    },
+    {
+      "name": "Caribbean Netherlands",
+      "officialName": "Bonaire, Sint Eustatius and Saba",
+      "alpha2Code": "BQ",
+      "alpha3Code": "BES",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bq.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "荷蘭加勒比區",
+        "official": "荷蘭加勒比區"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Caribbean_Netherlands",
+      "officialLink": ""
+    },
+    {
+      "name": "Cayman Islands",
+      "officialName": "Cayman Islands",
+      "alpha2Code": "KY",
+      "alpha3Code": "CYM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ky.png",
+      "timezones": [
+        "UTC-05:00"
+      ],
+      "currencies": {
+        "code": "KYD",
+        "name": "Cayman Islands dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "开曼群岛",
+        "official": "开曼群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Cayman_Islands",
+      "officialLink": ""
+    },
+    {
+      "name": "Central African Republic",
+      "officialName": "Central African Republic",
+      "alpha2Code": "CF",
+      "alpha3Code": "CAF",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cf.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "XAF",
+        "name": "Central African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "中非共和国",
+        "official": "中非共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Central_African_Republic",
+      "officialLink": "https://www.gouvernement.cf"
+    },
+    {
+      "name": "Chad",
+      "officialName": "Republic of Chad",
+      "alpha2Code": "TD",
+      "alpha3Code": "TCD",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/td.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "XAF",
+        "name": "Central African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "乍得",
+        "official": "乍得共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Chad",
+      "officialLink": "https://www.primature.td"
+    },
+    {
+      "name": "Chile",
+      "officialName": "Republic of Chile",
+      "alpha2Code": "CL",
+      "alpha3Code": "CHL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cl.png",
+      "timezones": [
+        "UTC-06:00",
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "CLP",
+        "name": "Chilean peso",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "智利",
+        "official": "智利共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Chile",
+      "officialLink": "https://www.gob.cl"
+    },
+    {
+      "name": "China",
+      "officialName": "People's Republic of China",
+      "alpha2Code": "CN",
+      "alpha3Code": "CHN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cn.png",
+      "timezones": [
+        "UTC+08:00"
+      ],
+      "currencies": {
+        "code": "CNY",
+        "name": "Chinese yuan",
+        "symbol": "¥",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {},
+      "wikiLink": "https://en.wikipedia.org/wiki/China",
+      "officialLink": "https://www.gov.cn"
+    },
+    {
+      "name": "Christmas Island",
+      "officialName": "Territory of Christmas Island",
+      "alpha2Code": "CX",
+      "alpha3Code": "CXR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cx.png",
+      "timezones": [
+        "UTC+07:00"
+      ],
+      "currencies": {
+        "code": "AUD",
+        "name": "Australian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "圣诞岛",
+        "official": "圣诞岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Christmas_Island",
+      "officialLink": ""
+    },
+    {
+      "name": "Cocos (Keeling) Islands",
+      "officialName": "Territory of the Cocos (Keeling) Islands",
+      "alpha2Code": "CC",
+      "alpha3Code": "CCK",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cc.png",
+      "timezones": [
+        "UTC+06:30"
+      ],
+      "currencies": {
+        "code": "AUD",
+        "name": "Australian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "科科斯",
+        "official": "科科斯"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Cocos_%28Keeling%29_Islands",
+      "officialLink": ""
+    },
+    {
+      "name": "Colombia",
+      "officialName": "Republic of Colombia",
+      "alpha2Code": "CO",
+      "alpha3Code": "COL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/co.png",
+      "timezones": [
+        "UTC-05:00"
+      ],
+      "currencies": {
+        "code": "COP",
+        "name": "Colombian peso",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "哥伦比亚",
+        "official": "哥伦比亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Colombia",
+      "officialLink": "https://www.gov.co"
+    },
+    {
+      "name": "Comoros",
+      "officialName": "Union of the Comoros",
+      "alpha2Code": "KM",
+      "alpha3Code": "COM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/km.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "KMF",
+        "name": "Comorian franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "科摩罗",
+        "official": "科摩罗联盟"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Comoros",
+      "officialLink": "https://www.beit-salam.km"
+    },
+    {
+      "name": "Congo",
+      "officialName": "Republic of the Congo",
+      "alpha2Code": "CG",
+      "alpha3Code": "COG",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cg.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "XAF",
+        "name": "Central African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "刚果",
+        "official": "刚果共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Republic_of_the_Congo",
+      "officialLink": "https://www.gouvernement.cg"
+    },
+    {
+      "name": "Cook Islands",
+      "officialName": "Cook Islands",
+      "alpha2Code": "CK",
+      "alpha3Code": "COK",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ck.png",
+      "timezones": [
+        "UTC-10:00"
+      ],
+      "currencies": {
+        "code": "CKD",
+        "name": "Cook Islands dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "库克群岛",
+        "official": "库克群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Cook_Islands",
+      "officialLink": ""
+    },
+    {
+      "name": "Costa Rica",
+      "officialName": "Republic of Costa Rica",
+      "alpha2Code": "CR",
+      "alpha3Code": "CRI",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cr.png",
+      "timezones": [
+        "UTC-06:00"
+      ],
+      "currencies": {
+        "code": "CRC",
+        "name": "Costa Rican colón",
+        "symbol": "₡",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "哥斯达黎加",
+        "official": "哥斯达黎加共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Costa_Rica",
+      "officialLink": ""
+    },
+    {
+      "name": "Croatia",
+      "officialName": "Republic of Croatia",
+      "alpha2Code": "HR",
+      "alpha3Code": "HRV",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/hr.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "克罗地亚",
+        "official": "克罗地亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Croatia",
+      "officialLink": "https://vlada.gov.hr"
+    },
+    {
+      "name": "Cuba",
+      "officialName": "Republic of Cuba",
+      "alpha2Code": "CU",
+      "alpha3Code": "CUB",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cu.png",
+      "timezones": [
+        "UTC-05:00"
+      ],
+      "currencies": {
+        "code": "CUP",
+        "name": "Cuban peso",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "古巴",
+        "official": "古巴共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Cuba",
+      "officialLink": "https://www.cuba.cu"
+    },
+    {
+      "name": "Curaçao",
+      "officialName": "Country of Curaçao",
+      "alpha2Code": "CW",
+      "alpha3Code": "CUW",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cw.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "XCG",
+        "name": "Caribbean guilder",
+        "symbol": "Cg",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "库拉索",
+        "official": "库拉索"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Cura%C3%A7ao",
+      "officialLink": ""
+    },
+    {
+      "name": "Cyprus",
+      "officialName": "Republic of Cyprus",
+      "alpha2Code": "CY",
+      "alpha3Code": "CYP",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cy.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "塞浦路斯",
+        "official": "塞浦路斯共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Cyprus",
+      "officialLink": "https://www.cyprus.gov.cy"
+    },
+    {
+      "name": "Czechia",
+      "officialName": "Czech Republic",
+      "alpha2Code": "CZ",
+      "alpha3Code": "CZE",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cz.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "CZK",
+        "name": "Czech koruna",
+        "symbol": "Kč",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "捷克",
+        "official": "捷克共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Czechia",
+      "officialLink": "https://www.vlada.cz"
+    },
+    {
+      "name": "DRC",
+      "officialName": "Democratic Republic of the Congo",
+      "alpha2Code": "CD",
+      "alpha3Code": "COD",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/cd.png",
+      "timezones": [
+        "UTC+01:00",
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "CDF",
+        "name": "Congolese franc",
+        "symbol": "FC",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "民主刚果",
+        "official": "刚果民主共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Democratic_Republic_of_the_Congo",
+      "officialLink": "https://www.presidentrdc.cd"
+    },
+    {
+      "name": "Denmark",
+      "officialName": "Kingdom of Denmark",
+      "alpha2Code": "DK",
+      "alpha3Code": "DNK",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/dk.png",
+      "timezones": [
+        "UTC-04:00",
+        "UTC-03:00",
+        "UTC-01:00",
+        "UTC",
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "DKK",
+        "name": "Danish krone",
+        "symbol": "kr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "丹麦",
+        "official": "丹麦王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Denmark",
+      "officialLink": "https://www.stm.dk"
+    },
+    {
+      "name": "Djibouti",
+      "officialName": "Republic of Djibouti",
+      "alpha2Code": "DJ",
+      "alpha3Code": "DJI",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/dj.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "DJF",
+        "name": "Djiboutian franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "吉布提",
+        "official": "吉布提共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Djibouti",
+      "officialLink": "https://www.presidence.dj"
+    },
+    {
+      "name": "Dominica",
+      "officialName": "Commonwealth of Dominica",
+      "alpha2Code": "DM",
+      "alpha3Code": "DMA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/dm.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "XCD",
+        "name": "Eastern Caribbean dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "多米尼加",
+        "official": "多米尼加共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Dominica",
+      "officialLink": "https://www.dominica.gov.dm"
+    },
+    {
+      "name": "Dominican Republic",
+      "officialName": "Dominican Republic",
+      "alpha2Code": "DO",
+      "alpha3Code": "DOM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/do.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "DOP",
+        "name": "Dominican peso",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "多明尼加",
+        "official": "多明尼加共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Dominican_Republic",
+      "officialLink": "https://www.gob.do"
+    },
+    {
+      "name": "Ecuador",
+      "officialName": "Republic of Ecuador",
+      "alpha2Code": "EC",
+      "alpha3Code": "ECU",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ec.png",
+      "timezones": [
+        "UTC-06:00",
+        "UTC-05:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "厄瓜多尔",
+        "official": "厄瓜多尔共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Ecuador",
+      "officialLink": "https://www.gob.ec"
+    },
+    {
+      "name": "Egypt",
+      "officialName": "Arab Republic of Egypt",
+      "alpha2Code": "EG",
+      "alpha3Code": "EGY",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/eg.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "EGP",
+        "name": "Egyptian pound",
+        "symbol": "ج.م",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "埃及",
+        "official": "阿拉伯埃及共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Egypt",
+      "officialLink": "https://www.egypt.gov.eg"
+    },
+    {
+      "name": "El Salvador",
+      "officialName": "Republic of El Salvador",
+      "alpha2Code": "SV",
+      "alpha3Code": "SLV",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sv.png",
+      "timezones": [
+        "UTC-06:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "萨尔瓦多",
+        "official": "萨尔瓦多共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/El_Salvador",
+      "officialLink": "https://www.presidencia.gob.sv"
+    },
+    {
+      "name": "Equatorial Guinea",
+      "officialName": "Republic of Equatorial Guinea",
+      "alpha2Code": "GQ",
+      "alpha3Code": "GNQ",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gq.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "XAF",
+        "name": "Central African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "赤道几内亚",
+        "official": "赤道几内亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Equatorial_Guinea",
+      "officialLink": "https://www.guineaecuatorialpress.com"
+    },
+    {
+      "name": "Eritrea",
+      "officialName": "State of Eritrea",
+      "alpha2Code": "ER",
+      "alpha3Code": "ERI",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/er.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "ERN",
+        "name": "Eritrean nakfa",
+        "symbol": "Nfk",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "厄立特里亚",
+        "official": "厄立特里亚"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Eritrea",
+      "officialLink": "https://www.shabait.com"
+    },
+    {
+      "name": "Estonia",
+      "officialName": "Republic of Estonia",
+      "alpha2Code": "EE",
+      "alpha3Code": "EST",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ee.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "爱沙尼亚",
+        "official": "爱沙尼亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Estonia",
+      "officialLink": "https://www.valitsus.ee"
+    },
+    {
+      "name": "Eswatini",
+      "officialName": "Kingdom of Eswatini",
+      "alpha2Code": "SZ",
+      "alpha3Code": "SWZ",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sz.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "SZL",
+        "name": "Swazi lilangeni",
+        "symbol": "L",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "斯威士兰",
+        "official": "斯威士兰王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Eswatini",
+      "officialLink": "https://www.gov.sz"
+    },
+    {
+      "name": "Ethiopia",
+      "officialName": "Federal Democratic Republic of Ethiopia",
+      "alpha2Code": "ET",
+      "alpha3Code": "ETH",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/et.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "ETB",
+        "name": "Ethiopian birr",
+        "symbol": "Br",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "埃塞俄比亚",
+        "official": "埃塞俄比亚联邦民主共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Ethiopia",
+      "officialLink": "https://www.ethiopia.gov.et"
+    },
+    {
+      "name": "Falkland Islands",
+      "officialName": "Falkland Islands",
+      "alpha2Code": "FK",
+      "alpha3Code": "FLK",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/fk.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "FKP",
+        "name": "Falkland Islands pound",
+        "symbol": "£",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "福克兰群岛",
+        "official": "福克兰群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Falkland_Islands",
+      "officialLink": ""
+    },
+    {
+      "name": "Faroe Islands",
+      "officialName": "Faroe Islands",
+      "alpha2Code": "FO",
+      "alpha3Code": "FRO",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/fo.png",
+      "timezones": [
+        "UTC+00:00"
+      ],
+      "currencies": {
+        "code": "DKK",
+        "name": "Danish krone",
+        "symbol": "kr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "法罗群岛",
+        "official": "法罗群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Faroe_Islands",
+      "officialLink": ""
+    },
+    {
+      "name": "Fiji",
+      "officialName": "Republic of Fiji",
+      "alpha2Code": "FJ",
+      "alpha3Code": "FJI",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/fj.png",
+      "timezones": [
+        "UTC+12:00"
+      ],
+      "currencies": {
+        "code": "FJD",
+        "name": "Fijian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "斐济",
+        "official": "斐济共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Fiji",
+      "officialLink": "https://www.fiji.gov.fj"
+    },
+    {
+      "name": "Finland",
+      "officialName": "Republic of Finland",
+      "alpha2Code": "FI",
+      "alpha3Code": "FIN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/fi.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "芬兰",
+        "official": "芬兰共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Finland",
+      "officialLink": "https://valtioneuvosto.fi"
+    },
+    {
+      "name": "France",
+      "officialName": "French Republic",
+      "alpha2Code": "FR",
+      "alpha3Code": "FRA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/fr.png",
+      "timezones": [
+        "UTC-10:00",
+        "UTC-09:30",
+        "UTC-09:00",
+        "UTC-08:00",
+        "UTC-04:00",
+        "UTC-03:00",
+        "UTC+01:00",
+        "UTC+02:00",
+        "UTC+03:00",
+        "UTC+04:00",
+        "UTC+05:00",
+        "UTC+10:00",
+        "UTC+11:00",
+        "UTC+12:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "法国",
+        "official": "法兰西共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/France",
+      "officialLink": "https://www.gouvernement.fr"
+    },
+    {
+      "name": "French Guiana",
+      "officialName": "Guiana",
+      "alpha2Code": "GF",
+      "alpha3Code": "GUF",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gf.png",
+      "timezones": [
+        "UTC-03:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "法属圭亚那",
+        "official": "法属圭亚那"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/French_Guiana",
+      "officialLink": ""
+    },
+    {
+      "name": "French Polynesia",
+      "officialName": "French Polynesia",
+      "alpha2Code": "PF",
+      "alpha3Code": "PYF",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/pf.png",
+      "timezones": [
+        "UTC-10:00",
+        "UTC-09:30",
+        "UTC-09:00"
+      ],
+      "currencies": {
+        "code": "XPF",
+        "name": "CFP franc",
+        "symbol": "₣",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "法属波利尼西亚",
+        "official": "法属波利尼西亚"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/French_Polynesia",
+      "officialLink": ""
+    },
+    {
+      "name": "French Southern and Antarctic Lands",
+      "officialName": "Territory of the French Southern and Antarctic Lands",
+      "alpha2Code": "TF",
+      "alpha3Code": "ATF",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/tf.png",
+      "timezones": [
+        "UTC+05:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "法国南部和南极土地",
+        "official": "法国南部和南极土地"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/French_Southern_and_Antarctic_Lands",
+      "officialLink": ""
+    },
+    {
+      "name": "Gabon",
+      "officialName": "Gabonese Republic",
+      "alpha2Code": "GA",
+      "alpha3Code": "GAB",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ga.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "XAF",
+        "name": "Central African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "加蓬",
+        "official": "加蓬共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Gabon",
+      "officialLink": "https://www.gouvernement.ga"
+    },
+    {
+      "name": "Gambia",
+      "officialName": "Republic of the Gambia",
+      "alpha2Code": "GM",
+      "alpha3Code": "GMB",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gm.png",
+      "timezones": [
+        "UTC+00:00"
+      ],
+      "currencies": {
+        "code": "GMD",
+        "name": "Gambian dalasi",
+        "symbol": "D",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "冈比亚",
+        "official": "冈比亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/The_Gambia",
+      "officialLink": "https://www.statehouse.gm"
+    },
+    {
+      "name": "Georgia",
+      "officialName": "Georgia",
+      "alpha2Code": "GE",
+      "alpha3Code": "GEO",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ge.png",
+      "timezones": [
+        "UTC+04:00"
+      ],
+      "currencies": {
+        "code": "GEL",
+        "name": "Georgian lari",
+        "symbol": "₾",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "格鲁吉亚",
+        "official": "格鲁吉亚"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Georgia_(country)",
+      "officialLink": "https://www.government.gov.ge"
+    },
+    {
+      "name": "Germany",
+      "officialName": "Federal Republic of Germany",
+      "alpha2Code": "DE",
+      "alpha3Code": "DEU",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/de.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "德国",
+        "official": "德意志联邦共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Germany",
+      "officialLink": "https://www.bundesregierung.de"
+    },
+    {
+      "name": "Ghana",
+      "officialName": "Republic of Ghana",
+      "alpha2Code": "GH",
+      "alpha3Code": "GHA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gh.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "GHS",
+        "name": "Ghanaian cedi",
+        "symbol": "₵",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "加纳",
+        "official": "加纳共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Ghana",
+      "officialLink": "https://www.ghana.gov.gh"
+    },
+    {
+      "name": "Gibraltar",
+      "officialName": "Gibraltar",
+      "alpha2Code": "GI",
+      "alpha3Code": "GIB",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gi.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "GIP",
+        "name": "Gibraltar pound",
+        "symbol": "£",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "直布罗陀",
+        "official": "直布罗陀"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Gibraltar",
+      "officialLink": ""
+    },
+    {
+      "name": "Greece",
+      "officialName": "Hellenic Republic",
+      "alpha2Code": "GR",
+      "alpha3Code": "GRC",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gr.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "希腊",
+        "official": "希腊共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Greece",
+      "officialLink": "https://www.primeminister.gr"
+    },
+    {
+      "name": "Greenland",
+      "officialName": "Greenland",
+      "alpha2Code": "GL",
+      "alpha3Code": "GRL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gl.png",
+      "timezones": [
+        "UTC-04:00",
+        "UTC-03:00",
+        "UTC-01:00",
+        "UTC+00:00"
+      ],
+      "currencies": {
+        "code": "DKK",
+        "name": "Danish krone",
+        "symbol": "kr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "格陵兰",
+        "official": "格陵兰"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Greenland",
+      "officialLink": ""
+    },
+    {
+      "name": "Grenada",
+      "officialName": "Grenada",
+      "alpha2Code": "GD",
+      "alpha3Code": "GRD",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gd.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "XCD",
+        "name": "Eastern Caribbean dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "格林纳达",
+        "official": "格林纳达"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Grenada",
+      "officialLink": "https://www.gov.gd"
+    },
+    {
+      "name": "Guadeloupe",
+      "officialName": "Guadeloupe",
+      "alpha2Code": "GP",
+      "alpha3Code": "GLP",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gp.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "瓜德罗普岛",
+        "official": "瓜德罗普岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Guadeloupe",
+      "officialLink": ""
+    },
+    {
+      "name": "Guam",
+      "officialName": "Guam",
+      "alpha2Code": "GU",
+      "alpha3Code": "GUM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gu.png",
+      "timezones": [
+        "UTC+10:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "关岛",
+        "official": "关岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Guam",
+      "officialLink": ""
+    },
+    {
+      "name": "Guatemala",
+      "officialName": "Republic of Guatemala",
+      "alpha2Code": "GT",
+      "alpha3Code": "GTM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gt.png",
+      "timezones": [
+        "UTC-06:00"
+      ],
+      "currencies": {
+        "code": "GTQ",
+        "name": "Guatemalan quetzal",
+        "symbol": "Q",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "危地马拉",
+        "official": "危地马拉共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Guatemala",
+      "officialLink": "https://www.guatemala.gob.gt"
+    },
+    {
+      "name": "Guernsey",
+      "officialName": "Bailiwick of Guernsey",
+      "alpha2Code": "GG",
+      "alpha3Code": "GGY",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gg.png",
+      "timezones": [
+        "UTC+00:00"
+      ],
+      "currencies": {
+        "code": "GBP",
+        "name": "British pound",
+        "symbol": "£",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "根西岛",
+        "official": "根西岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Guernsey",
+      "officialLink": ""
+    },
+    {
+      "name": "Guinea",
+      "officialName": "Republic of Guinea",
+      "alpha2Code": "GN",
+      "alpha3Code": "GIN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gn.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "GNF",
+        "name": "Guinean franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "几内亚",
+        "official": "几内亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Guinea",
+      "officialLink": "https://www.gouvernement.gov.gn"
+    },
+    {
+      "name": "Guinea-Bissau",
+      "officialName": "Republic of Guinea-Bissau",
+      "alpha2Code": "GW",
+      "alpha3Code": "GNB",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gw.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "XOF",
+        "name": "West African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "几内亚比绍",
+        "official": "几内亚比绍共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Guinea-Bissau",
+      "officialLink": "https://www.gov.gw"
+    },
+    {
+      "name": "Guyana",
+      "officialName": "Co-operative Republic of Guyana",
+      "alpha2Code": "GY",
+      "alpha3Code": "GUY",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gy.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "GYD",
+        "name": "Guyanese dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "圭亚那",
+        "official": "圭亚那共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Guyana",
+      "officialLink": "https://www.op.gov.gy"
+    },
+    {
+      "name": "Haiti",
+      "officialName": "Republic of Haiti",
+      "alpha2Code": "HT",
+      "alpha3Code": "HTI",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ht.png",
+      "timezones": [
+        "UTC-05:00"
+      ],
+      "currencies": {
+        "code": "HTG",
+        "name": "Haitian gourde",
+        "symbol": "G",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "海地",
+        "official": "海地共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Haiti",
+      "officialLink": "https://www.primature.gouv.ht"
+    },
+    {
+      "name": "Heard Island and McDonald Islands",
+      "officialName": "Heard Island and McDonald Islands",
+      "alpha2Code": "HM",
+      "alpha3Code": "HMD",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/hm.png",
+      "timezones": [
+        "UTC+05:00"
+      ],
+      "currencies": {
+        "code": "",
+        "name": "",
+        "symbol": "",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "赫德岛和麦当劳群岛",
+        "official": "赫德岛和麦当劳群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Heard_Island_and_McDonald_Islands",
+      "officialLink": ""
+    },
+    {
+      "name": "Honduras",
+      "officialName": "Republic of Honduras",
+      "alpha2Code": "HN",
+      "alpha3Code": "HND",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/hn.png",
+      "timezones": [
+        "UTC-06:00"
+      ],
+      "currencies": {
+        "code": "HNL",
+        "name": "Honduran lempira",
+        "symbol": "L",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "洪都拉斯",
+        "official": "洪都拉斯共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Honduras",
+      "officialLink": "https://www.presidencia.gob.hn"
+    },
+    {
+      "name": "Hong Kong",
+      "officialName": "Hong Kong Special Administrative Region of the People's Republic of China",
+      "alpha2Code": "HK",
+      "alpha3Code": "HKG",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/hk.png",
+      "timezones": [
+        "UTC+08:00"
+      ],
+      "currencies": {
+        "code": "HKD",
+        "name": "Hong Kong dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {},
+      "wikiLink": "https://en.wikipedia.org/wiki/Hong_Kong",
+      "officialLink": ""
+    },
+    {
+      "name": "Hungary",
+      "officialName": "Hungary",
+      "alpha2Code": "HU",
+      "alpha3Code": "HUN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/hu.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "HUF",
+        "name": "Hungarian forint",
+        "symbol": "Ft",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "匈牙利",
+        "official": "匈牙利"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Hungary",
+      "officialLink": "https://www.kormany.hu"
+    },
+    {
+      "name": "Iceland",
+      "officialName": "Iceland",
+      "alpha2Code": "IS",
+      "alpha3Code": "ISL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/is.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "ISK",
+        "name": "Icelandic króna",
+        "symbol": "kr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "冰岛",
+        "official": "冰岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Iceland",
+      "officialLink": "https://www.government.is"
+    },
+    {
+      "name": "India",
+      "officialName": "Republic of India",
+      "alpha2Code": "IN",
+      "alpha3Code": "IND",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/in.png",
+      "timezones": [
+        "UTC+05:30"
+      ],
+      "currencies": {
+        "code": "INR",
+        "name": "Indian rupee",
+        "symbol": "₹",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "印度",
+        "official": "印度共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/India",
+      "officialLink": "https://www.india.gov.in"
+    },
+    {
+      "name": "Indonesia",
+      "officialName": "Republic of Indonesia",
+      "alpha2Code": "ID",
+      "alpha3Code": "IDN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/id.png",
+      "timezones": [
+        "UTC+07:00",
+        "UTC+08:00",
+        "UTC+09:00"
+      ],
+      "currencies": {
+        "code": "IDR",
+        "name": "Indonesian rupiah",
+        "symbol": "Rp",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "印度尼西亚",
+        "official": "印度尼西亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Indonesia",
+      "officialLink": "https://www.indonesia.go.id"
+    },
+    {
+      "name": "Iran",
+      "officialName": "Islamic Republic of Iran",
+      "alpha2Code": "IR",
+      "alpha3Code": "IRN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ir.png",
+      "timezones": [
+        "UTC+03:30"
+      ],
+      "currencies": {
+        "code": "IRR",
+        "name": "Iranian rial",
+        "symbol": "﷼",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "伊朗",
+        "official": "伊朗伊斯兰共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Iran",
+      "officialLink": "https://www.dolat.ir"
+    },
+    {
+      "name": "Iraq",
+      "officialName": "Republic of Iraq",
+      "alpha2Code": "IQ",
+      "alpha3Code": "IRQ",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/iq.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "IQD",
+        "name": "Iraqi dinar",
+        "symbol": "ع.د",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "伊拉克",
+        "official": "伊拉克共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Iraq",
+      "officialLink": "https://www.cabinet.iq"
+    },
+    {
+      "name": "Ireland",
+      "officialName": "Republic of Ireland",
+      "alpha2Code": "IE",
+      "alpha3Code": "IRL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ie.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "爱尔兰",
+        "official": "爱尔兰共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Ireland",
+      "officialLink": "https://www.gov.ie"
+    },
+    {
+      "name": "Isle of Man",
+      "officialName": "Isle of Man",
+      "alpha2Code": "IM",
+      "alpha3Code": "IMN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/im.png",
+      "timezones": [
+        "UTC+00:00"
+      ],
+      "currencies": {
+        "code": "GBP",
+        "name": "British pound",
+        "symbol": "£",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "马恩岛",
+        "official": "马恩岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Isle_of_Man",
+      "officialLink": ""
+    },
+    {
+      "name": "Israel",
+      "officialName": "State of Israel",
+      "alpha2Code": "IL",
+      "alpha3Code": "ISR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/il.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "ILS",
+        "name": "Israeli new shekel",
+        "symbol": "₪",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "以色列",
+        "official": "以色列国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Israel",
+      "officialLink": "https://www.gov.il"
+    },
+    {
+      "name": "Italy",
+      "officialName": "Italian Republic",
+      "alpha2Code": "IT",
+      "alpha3Code": "ITA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/it.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "意大利",
+        "official": "意大利共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Italy",
+      "officialLink": "https://www.governo.it"
+    },
+    {
+      "name": "Ivory Coast",
+      "officialName": "Republic of Côte d'Ivoire",
+      "alpha2Code": "CI",
+      "alpha3Code": "CIV",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ci.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "XOF",
+        "name": "West African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "科特迪瓦",
+        "official": "科特迪瓦共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Ivory_Coast",
+      "officialLink": "https://www.gouv.ci"
+    },
+    {
+      "name": "Jamaica",
+      "officialName": "Jamaica",
+      "alpha2Code": "JM",
+      "alpha3Code": "JAM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/jm.png",
+      "timezones": [
+        "UTC-05:00"
+      ],
+      "currencies": {
+        "code": "JMD",
+        "name": "Jamaican dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "牙买加",
+        "official": "牙买加"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Jamaica",
+      "officialLink": "https://www.jis.gov.jm"
+    },
+    {
+      "name": "Japan",
+      "officialName": "Japan",
+      "alpha2Code": "JP",
+      "alpha3Code": "JPN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/jp.png",
+      "timezones": [
+        "UTC+09:00"
+      ],
+      "currencies": {
+        "code": "JPY",
+        "name": "Japanese yen",
+        "symbol": "¥",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "日本",
+        "official": "日本国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Japan",
+      "officialLink": "https://www.kantei.go.jp"
+    },
+    {
+      "name": "Jersey",
+      "officialName": "Bailiwick of Jersey",
+      "alpha2Code": "JE",
+      "alpha3Code": "JEY",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/je.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "GBP",
+        "name": "British pound",
+        "symbol": "£",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "泽西岛",
+        "official": "泽西岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Jersey",
+      "officialLink": ""
+    },
+    {
+      "name": "Jordan",
+      "officialName": "Hashemite Kingdom of Jordan",
+      "alpha2Code": "JO",
+      "alpha3Code": "JOR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/jo.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "JOD",
+        "name": "Jordanian dinar",
+        "symbol": "د.ا",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "约旦",
+        "official": "约旦哈希姆王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Jordan",
+      "officialLink": "https://www.pm.gov.jo"
+    },
+    {
+      "name": "Kazakhstan",
+      "officialName": "Republic of Kazakhstan",
+      "alpha2Code": "KZ",
+      "alpha3Code": "KAZ",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/kz.png",
+      "timezones": [
+        "UTC+05:00",
+        "UTC+06:00"
+      ],
+      "currencies": {
+        "code": "KZT",
+        "name": "Kazakhstani tenge",
+        "symbol": "₸",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "哈萨克斯坦",
+        "official": "哈萨克斯坦共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Kazakhstan",
+      "officialLink": "https://www.gov.kz"
+    },
+    {
+      "name": "Kenya",
+      "officialName": "Republic of Kenya",
+      "alpha2Code": "KE",
+      "alpha3Code": "KEN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ke.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "KES",
+        "name": "Kenyan shilling",
+        "symbol": "Sh",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "肯尼亚",
+        "official": "肯尼亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Kenya",
+      "officialLink": "https://www.president.go.ke"
+    },
+    {
+      "name": "Kiribati",
+      "officialName": "Independent and Sovereign Republic of Kiribati",
+      "alpha2Code": "KI",
+      "alpha3Code": "KIR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ki.png",
+      "timezones": [
+        "UTC+12:00",
+        "UTC+13:00",
+        "UTC+14:00"
+      ],
+      "currencies": {
+        "code": "AUD",
+        "name": "Australian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "基里巴斯",
+        "official": "基里巴斯共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Kiribati",
+      "officialLink": "https://www.president.gov.ki"
+    },
+    {
+      "name": "Kosovo",
+      "officialName": "Republic of Kosovo",
+      "alpha2Code": "XK",
+      "alpha3Code": "UNK",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/xk.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "科索沃",
+        "official": "科索沃共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Kosovo",
+      "officialLink": "https://www.rks-gov.net"
+    },
+    {
+      "name": "Kuwait",
+      "officialName": "State of Kuwait",
+      "alpha2Code": "KW",
+      "alpha3Code": "KWT",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/kw.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "KWD",
+        "name": "Kuwaiti dinar",
+        "symbol": "د.ك",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "科威特",
+        "official": "科威特国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Kuwait",
+      "officialLink": "https://www.e.gov.kw"
+    },
+    {
+      "name": "Kyrgyzstan",
+      "officialName": "Kyrgyz Republic",
+      "alpha2Code": "KG",
+      "alpha3Code": "KGZ",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/kg.png",
+      "timezones": [
+        "UTC+06:00"
+      ],
+      "currencies": {
+        "code": "KGS",
+        "name": "Kyrgyzstani som",
+        "symbol": "с",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "吉尔吉斯斯坦",
+        "official": "吉尔吉斯斯坦共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Kyrgyzstan",
+      "officialLink": "https://www.gov.kg"
+    },
+    {
+      "name": "Laos",
+      "officialName": "Lao People's Democratic Republic",
+      "alpha2Code": "LA",
+      "alpha3Code": "LAO",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/la.png",
+      "timezones": [
+        "UTC+07:00"
+      ],
+      "currencies": {
+        "code": "LAK",
+        "name": "Lao kip",
+        "symbol": "₭",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "老挝",
+        "official": "老挝人民民主共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Laos",
+      "officialLink": "https://www.laogov.gov.la"
+    },
+    {
+      "name": "Latvia",
+      "officialName": "Republic of Latvia",
+      "alpha2Code": "LV",
+      "alpha3Code": "LVA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/lv.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "拉脱维亚",
+        "official": "拉脱维亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Latvia",
+      "officialLink": "https://www.latvija.lv"
+    },
+    {
+      "name": "Lebanon",
+      "officialName": "Lebanese Republic",
+      "alpha2Code": "LB",
+      "alpha3Code": "LBN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/lb.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "LBP",
+        "name": "Lebanese pound",
+        "symbol": "ل.ل",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "黎巴嫩",
+        "official": "黎巴嫩共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Lebanon",
+      "officialLink": "https://www.presidency.gov.lb"
+    },
+    {
+      "name": "Lesotho",
+      "officialName": "Kingdom of Lesotho",
+      "alpha2Code": "LS",
+      "alpha3Code": "LSO",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ls.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "LSL",
+        "name": "Lesotho loti",
+        "symbol": "L",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "莱索托",
+        "official": "莱索托王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Lesotho",
+      "officialLink": "https://www.gov.ls"
+    },
+    {
+      "name": "Liberia",
+      "officialName": "Republic of Liberia",
+      "alpha2Code": "LR",
+      "alpha3Code": "LBR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/lr.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "LRD",
+        "name": "Liberian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "利比里亚",
+        "official": "利比里亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Liberia",
+      "officialLink": "https://www.emansion.gov.lr"
+    },
+    {
+      "name": "Libya",
+      "officialName": "State of Libya",
+      "alpha2Code": "LY",
+      "alpha3Code": "LBY",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ly.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "LYD",
+        "name": "Libyan dinar",
+        "symbol": "ل.د",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "利比亚",
+        "official": "利比亚国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Libya",
+      "officialLink": "https://www.gov.ly"
+    },
+    {
+      "name": "Liechtenstein",
+      "officialName": "Principality of Liechtenstein",
+      "alpha2Code": "LI",
+      "alpha3Code": "LIE",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/li.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "CHF",
+        "name": "Swiss franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "列支敦士登",
+        "official": "列支敦士登公国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Liechtenstein",
+      "officialLink": "https://www.llv.li"
+    },
+    {
+      "name": "Lithuania",
+      "officialName": "Republic of Lithuania",
+      "alpha2Code": "LT",
+      "alpha3Code": "LTU",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/lt.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "立陶宛",
+        "official": "立陶宛共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Lithuania",
+      "officialLink": "https://www.lrv.lt"
+    },
+    {
+      "name": "Luxembourg",
+      "officialName": "Grand Duchy of Luxembourg",
+      "alpha2Code": "LU",
+      "alpha3Code": "LUX",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/lu.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "卢森堡",
+        "official": "卢森堡大公国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Luxembourg",
+      "officialLink": "https://gouvernement.lu"
+    },
+    {
+      "name": "Macau",
+      "officialName": "Macao Special Administrative Region of the People's Republic of China",
+      "alpha2Code": "MO",
+      "alpha3Code": "MAC",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mo.png",
+      "timezones": [
+        "UTC+08:00"
+      ],
+      "currencies": {
+        "code": "MOP",
+        "name": "Macanese pataca",
+        "symbol": "P",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {},
+      "wikiLink": "https://en.wikipedia.org/wiki/Macau",
+      "officialLink": ""
+    },
+    {
+      "name": "Madagascar",
+      "officialName": "Republic of Madagascar",
+      "alpha2Code": "MG",
+      "alpha3Code": "MDG",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mg.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "MGA",
+        "name": "Malagasy ariary",
+        "symbol": "Ar",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "马达加斯加",
+        "official": "马达加斯加共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Madagascar",
+      "officialLink": "https://www.gouvernement.mg"
+    },
+    {
+      "name": "Malawi",
+      "officialName": "Republic of Malawi",
+      "alpha2Code": "MW",
+      "alpha3Code": "MWI",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mw.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "MWK",
+        "name": "Malawian kwacha",
+        "symbol": "MK",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "马拉维",
+        "official": "马拉维共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Malawi",
+      "officialLink": "https://www.malawi.gov.mw"
+    },
+    {
+      "name": "Malaysia",
+      "officialName": "Malaysia",
+      "alpha2Code": "MY",
+      "alpha3Code": "MYS",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/my.png",
+      "timezones": [
+        "UTC+08:00"
+      ],
+      "currencies": {
+        "code": "MYR",
+        "name": "Malaysian ringgit",
+        "symbol": "RM",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "马来西亚",
+        "official": "马来西亚"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Malaysia",
+      "officialLink": "https://www.malaysia.gov.my"
+    },
+    {
+      "name": "Maldives",
+      "officialName": "Republic of Maldives",
+      "alpha2Code": "MV",
+      "alpha3Code": "MDV",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mv.png",
+      "timezones": [
+        "UTC+05:00"
+      ],
+      "currencies": {
+        "code": "MVR",
+        "name": "Maldivian rufiyaa",
+        "symbol": ".ރ",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "马尔代夫",
+        "official": "马尔代夫共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Maldives",
+      "officialLink": "https://presidency.gov.mv"
+    },
+    {
+      "name": "Mali",
+      "officialName": "Republic of Mali",
+      "alpha2Code": "ML",
+      "alpha3Code": "MLI",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ml.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "XOF",
+        "name": "West African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "马里",
+        "official": "马里共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Mali",
+      "officialLink": "https://www.primature.gov.ml"
+    },
+    {
+      "name": "Malta",
+      "officialName": "Republic of Malta",
+      "alpha2Code": "MT",
+      "alpha3Code": "MLT",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mt.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "马耳他",
+        "official": "马耳他共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Malta",
+      "officialLink": "https://www.gov.mt"
+    },
+    {
+      "name": "Marshall Islands",
+      "officialName": "Republic of the Marshall Islands",
+      "alpha2Code": "MH",
+      "alpha3Code": "MHL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mh.png",
+      "timezones": [
+        "UTC+12:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "马绍尔群岛",
+        "official": "马绍尔群岛共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Marshall_Islands",
+      "officialLink": "https://www.rmigovernment.org"
+    },
+    {
+      "name": "Martinique",
+      "officialName": "Martinique",
+      "alpha2Code": "MQ",
+      "alpha3Code": "MTQ",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mq.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "马提尼克",
+        "official": "马提尼克"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Martinique",
+      "officialLink": ""
+    },
+    {
+      "name": "Mauritania",
+      "officialName": "Islamic Republic of Mauritania",
+      "alpha2Code": "MR",
+      "alpha3Code": "MRT",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mr.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "MRU",
+        "name": "Mauritanian ouguiya",
+        "symbol": "UM",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "毛里塔尼亚",
+        "official": "毛里塔尼亚伊斯兰共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Mauritania",
+      "officialLink": "https://www.mauritania.mr"
+    },
+    {
+      "name": "Mauritius",
+      "officialName": "Republic of Mauritius",
+      "alpha2Code": "MU",
+      "alpha3Code": "MUS",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mu.png",
+      "timezones": [
+        "UTC+04:00"
+      ],
+      "currencies": {
+        "code": "MUR",
+        "name": "Mauritian rupee",
+        "symbol": "₨",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "毛里求斯",
+        "official": "毛里求斯共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Mauritius",
+      "officialLink": "https://www.gov.mu"
+    },
+    {
+      "name": "Mayotte",
+      "officialName": "Department of Mayotte",
+      "alpha2Code": "YT",
+      "alpha3Code": "MYT",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/yt.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "马约特",
+        "official": "马约特"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Mayotte",
+      "officialLink": ""
+    },
+    {
+      "name": "Mexico",
+      "officialName": "United Mexican States",
+      "alpha2Code": "MX",
+      "alpha3Code": "MEX",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mx.png",
+      "timezones": [
+        "UTC-08:00",
+        "UTC-07:00",
+        "UTC-06:00"
+      ],
+      "currencies": {
+        "code": "MXN",
+        "name": "Mexican peso",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "墨西哥",
+        "official": "墨西哥合众国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Mexico",
+      "officialLink": "https://www.gob.mx"
+    },
+    {
+      "name": "Micronesia",
+      "officialName": "Federated States of Micronesia",
+      "alpha2Code": "FM",
+      "alpha3Code": "FSM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/fm.png",
+      "timezones": [
+        "UTC+10:00",
+        "UTC+11:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "密克罗尼西亚",
+        "official": "密克罗尼西亚联邦"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Federated_States_of_Micronesia",
+      "officialLink": "https://www.fsmgov.org"
+    },
+    {
+      "name": "Moldova",
+      "officialName": "Republic of Moldova",
+      "alpha2Code": "MD",
+      "alpha3Code": "MDA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/md.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "MDL",
+        "name": "Moldovan leu",
+        "symbol": "L",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "摩尔多瓦",
+        "official": "摩尔多瓦共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Moldova",
+      "officialLink": "https://www.gov.md"
+    },
+    {
+      "name": "Monaco",
+      "officialName": "Principality of Monaco",
+      "alpha2Code": "MC",
+      "alpha3Code": "MCO",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mc.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "摩纳哥",
+        "official": "摩纳哥公国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Monaco",
+      "officialLink": "https://www.gouv.mc"
+    },
+    {
+      "name": "Mongolia",
+      "officialName": "Mongolia",
+      "alpha2Code": "MN",
+      "alpha3Code": "MNG",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mn.png",
+      "timezones": [
+        "UTC+07:00",
+        "UTC+08:00"
+      ],
+      "currencies": {
+        "code": "MNT",
+        "name": "Mongolian tögrög",
+        "symbol": "₮",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "蒙古",
+        "official": "蒙古"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Mongolia",
+      "officialLink": "https://www.pmis.gov.mn"
+    },
+    {
+      "name": "Montenegro",
+      "officialName": "Montenegro",
+      "alpha2Code": "ME",
+      "alpha3Code": "MNE",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/me.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "黑山",
+        "official": "黑山"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Montenegro",
+      "officialLink": "https://www.gov.me"
+    },
+    {
+      "name": "Montserrat",
+      "officialName": "Montserrat",
+      "alpha2Code": "MS",
+      "alpha3Code": "MSR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ms.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "XCD",
+        "name": "Eastern Caribbean dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "蒙特塞拉特",
+        "official": "蒙特塞拉特"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Montserrat",
+      "officialLink": ""
+    },
+    {
+      "name": "Morocco",
+      "officialName": "Kingdom of Morocco",
+      "alpha2Code": "MA",
+      "alpha3Code": "MAR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ma.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "MAD",
+        "name": "Moroccan dirham",
+        "symbol": "د.م.",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "摩洛哥",
+        "official": "摩洛哥王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Morocco",
+      "officialLink": "https://www.maroc.ma"
+    },
+    {
+      "name": "Mozambique",
+      "officialName": "Republic of Mozambique",
+      "alpha2Code": "MZ",
+      "alpha3Code": "MOZ",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mz.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "MZN",
+        "name": "Mozambican metical",
+        "symbol": "MT",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "莫桑比克",
+        "official": "莫桑比克共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Mozambique",
+      "officialLink": "https://www.portaldogoverno.gov.mz"
+    },
+    {
+      "name": "Myanmar",
+      "officialName": "Republic of the Union of Myanmar",
+      "alpha2Code": "MM",
+      "alpha3Code": "MMR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mm.png",
+      "timezones": [
+        "UTC+06:30"
+      ],
+      "currencies": {
+        "code": "MMK",
+        "name": "Burmese kyat",
+        "symbol": "Ks",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "缅甸",
+        "official": "缅甸联邦共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Myanmar",
+      "officialLink": "https://www.myanmarembassy.com"
+    },
+    {
+      "name": "Namibia",
+      "officialName": "Republic of Namibia",
+      "alpha2Code": "NA",
+      "alpha3Code": "NAM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/na.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "NAD",
+        "name": "Namibian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "纳米比亚",
+        "official": "纳米比亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Namibia",
+      "officialLink": "https://www.gov.na"
+    },
+    {
+      "name": "Nauru",
+      "officialName": "Republic of Nauru",
+      "alpha2Code": "NR",
+      "alpha3Code": "NRU",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/nr.png",
+      "timezones": [
+        "UTC+12:00"
+      ],
+      "currencies": {
+        "code": "AUD",
+        "name": "Australian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "瑙鲁",
+        "official": "瑙鲁共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Nauru",
+      "officialLink": "https://www.naurugov.nr"
+    },
+    {
+      "name": "Nepal",
+      "officialName": "Federal Democratic Republic of Nepal",
+      "alpha2Code": "NP",
+      "alpha3Code": "NPL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/np.png",
+      "timezones": [
+        "UTC+05:45"
+      ],
+      "currencies": {
+        "code": "NPR",
+        "name": "Nepalese rupee",
+        "symbol": "₨",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "尼泊尔",
+        "official": "尼泊尔联邦民主共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Nepal",
+      "officialLink": "https://www.nepal.gov.np"
+    },
+    {
+      "name": "Netherlands",
+      "officialName": "Kingdom of the Netherlands",
+      "alpha2Code": "NL",
+      "alpha3Code": "NLD",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/nl.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "荷兰",
+        "official": "荷兰"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Netherlands",
+      "officialLink": "https://www.government.nl"
+    },
+    {
+      "name": "New Caledonia",
+      "officialName": "New Caledonia",
+      "alpha2Code": "NC",
+      "alpha3Code": "NCL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/nc.png",
+      "timezones": [
+        "UTC+11:00"
+      ],
+      "currencies": {
+        "code": "XPF",
+        "name": "CFP franc",
+        "symbol": "₣",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "新喀里多尼亚",
+        "official": "新喀里多尼亚"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/New_Caledonia",
+      "officialLink": ""
+    },
+    {
+      "name": "New Zealand",
+      "officialName": "New Zealand",
+      "alpha2Code": "NZ",
+      "alpha3Code": "NZL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/nz.png",
+      "timezones": [
+        "UTC-11:00",
+        "UTC-10:00",
+        "UTC+12:00",
+        "UTC+12:45",
+        "UTC+13:00"
+      ],
+      "currencies": {
+        "code": "NZD",
+        "name": "New Zealand dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "新西兰",
+        "official": "新西兰"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/New_Zealand",
+      "officialLink": "https://www.govt.nz"
+    },
+    {
+      "name": "Nicaragua",
+      "officialName": "Republic of Nicaragua",
+      "alpha2Code": "NI",
+      "alpha3Code": "NIC",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ni.png",
+      "timezones": [
+        "UTC-06:00"
+      ],
+      "currencies": {
+        "code": "NIO",
+        "name": "Nicaraguan córdoba",
+        "symbol": "C$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "尼加拉瓜",
+        "official": "尼加拉瓜共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Nicaragua",
+      "officialLink": "https://www.presidencia.gob.ni"
+    },
+    {
+      "name": "Niger",
+      "officialName": "Republic of Niger",
+      "alpha2Code": "NE",
+      "alpha3Code": "NER",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ne.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "XOF",
+        "name": "West African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "尼日尔",
+        "official": "尼日尔共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Niger",
+      "officialLink": "https://www.gouvernement.ne"
+    },
+    {
+      "name": "Nigeria",
+      "officialName": "Federal Republic of Nigeria",
+      "alpha2Code": "NG",
+      "alpha3Code": "NGA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ng.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "NGN",
+        "name": "Nigerian naira",
+        "symbol": "₦",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "尼日利亚",
+        "official": "尼日利亚联邦共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Nigeria",
+      "officialLink": "https://www.nigeria.gov.ng"
+    },
+    {
+      "name": "Niue",
+      "officialName": "Niue",
+      "alpha2Code": "NU",
+      "alpha3Code": "NIU",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/nu.png",
+      "timezones": [
+        "UTC-11:00"
+      ],
+      "currencies": {
+        "code": "NZD",
+        "name": "New Zealand dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "纽埃",
+        "official": "纽埃"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Niue",
+      "officialLink": ""
+    },
+    {
+      "name": "Norfolk Island",
+      "officialName": "Territory of Norfolk Island",
+      "alpha2Code": "NF",
+      "alpha3Code": "NFK",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/nf.png",
+      "timezones": [
+        "UTC+11:30"
+      ],
+      "currencies": {
+        "code": "AUD",
+        "name": "Australian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "诺福克岛",
+        "official": "诺福克岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Norfolk_Island",
+      "officialLink": ""
+    },
+    {
+      "name": "North Korea",
+      "officialName": "Democratic People's Republic of Korea",
+      "alpha2Code": "KP",
+      "alpha3Code": "PRK",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/kp.png",
+      "timezones": [
+        "UTC+09:00"
+      ],
+      "currencies": {
+        "code": "KPW",
+        "name": "North Korean won",
+        "symbol": "₩",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "朝鲜",
+        "official": "朝鲜人民民主共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/North_Korea",
+      "officialLink": "https://www.rodong.rep.kp"
+    },
+    {
+      "name": "North Macedonia",
+      "officialName": "Republic of North Macedonia",
+      "alpha2Code": "MK",
+      "alpha3Code": "MKD",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mk.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "MKD",
+        "name": "Macedonian denar",
+        "symbol": "den",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "北馬其頓",
+        "official": "北馬其頓共和國"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/North_Macedonia",
+      "officialLink": "https://vlada.mk"
+    },
+    {
+      "name": "Northern Cyprus",
+      "officialName": "Turkish Republic of Northern Cyprus",
+      "alpha2Code": "",
+      "alpha3Code": "",
+      "flagUrlPng": "",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "TRY",
+        "name": "Turkish lira",
+        "symbol": "₺",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "北塞浦路斯",
+        "official": "北塞浦路斯土耳其共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Northern_Cyprus",
+      "officialLink": "https://kktcb.org"
+    },
+    {
+      "name": "Northern Mariana Islands",
+      "officialName": "Commonwealth of the Northern Mariana Islands",
+      "alpha2Code": "MP",
+      "alpha3Code": "MNP",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mp.png",
+      "timezones": [
+        "UTC+10:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "北马里亚纳群岛",
+        "official": "北马里亚纳群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Northern_Mariana_Islands",
+      "officialLink": ""
+    },
+    {
+      "name": "Norway",
+      "officialName": "Kingdom of Norway",
+      "alpha2Code": "NO",
+      "alpha3Code": "NOR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/no.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "NOK",
+        "name": "Norwegian krone",
+        "symbol": "kr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "挪威",
+        "official": "挪威王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Norway",
+      "officialLink": "https://www.regjeringen.no"
+    },
+    {
+      "name": "Oman",
+      "officialName": "Sultanate of Oman",
+      "alpha2Code": "OM",
+      "alpha3Code": "OMN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/om.png",
+      "timezones": [
+        "UTC+04:00"
+      ],
+      "currencies": {
+        "code": "OMR",
+        "name": "Omani rial",
+        "symbol": "ر.ع.",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "阿曼",
+        "official": "阿曼苏丹国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Oman",
+      "officialLink": "https://www.oman.om"
+    },
+    {
+      "name": "Pakistan",
+      "officialName": "Islamic Republic of Pakistan",
+      "alpha2Code": "PK",
+      "alpha3Code": "PAK",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/pk.png",
+      "timezones": [
+        "UTC+05:00"
+      ],
+      "currencies": {
+        "code": "PKR",
+        "name": "Pakistani rupee",
+        "symbol": "₨",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "巴基斯坦",
+        "official": "巴基斯坦伊斯兰共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Pakistan",
+      "officialLink": "https://www.pakistan.gov.pk"
+    },
+    {
+      "name": "Palau",
+      "officialName": "Republic of Palau",
+      "alpha2Code": "PW",
+      "alpha3Code": "PLW",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/pw.png",
+      "timezones": [
+        "UTC+09:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "帕劳",
+        "official": "帕劳共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Palau",
+      "officialLink": "https://www.palaugov.pw"
+    },
+    {
+      "name": "Palestine",
+      "officialName": "State of Palestine",
+      "alpha2Code": "PS",
+      "alpha3Code": "PSE",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ps.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "EGP",
+        "name": "Egyptian pound",
+        "symbol": "ج.م",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "巴勒斯坦",
+        "official": "巴勒斯坦国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Palestine",
+      "officialLink": "https://www.palestinecabinet.gov.ps"
+    },
+    {
+      "name": "Panama",
+      "officialName": "Republic of Panama",
+      "alpha2Code": "PA",
+      "alpha3Code": "PAN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/pa.png",
+      "timezones": [
+        "UTC-05:00"
+      ],
+      "currencies": {
+        "code": "PAB",
+        "name": "Panamanian balboa",
+        "symbol": "B/.",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "巴拿马",
+        "official": "巴拿马共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Panama",
+      "officialLink": "https://www.presidencia.gob.pa"
+    },
+    {
+      "name": "Papua New Guinea",
+      "officialName": "Independent State of Papua New Guinea",
+      "alpha2Code": "PG",
+      "alpha3Code": "PNG",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/pg.png",
+      "timezones": [
+        "UTC+10:00"
+      ],
+      "currencies": {
+        "code": "PGK",
+        "name": "Papua New Guinean kina",
+        "symbol": "K",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "巴布亚新几内亚",
+        "official": "巴布亚新几内亚"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Papua_New_Guinea",
+      "officialLink": "https://www.pm.gov.pg"
+    },
+    {
+      "name": "Paraguay",
+      "officialName": "Republic of Paraguay",
+      "alpha2Code": "PY",
+      "alpha3Code": "PRY",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/py.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "PYG",
+        "name": "Paraguayan guaraní",
+        "symbol": "₲",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "巴拉圭",
+        "official": "巴拉圭共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Paraguay",
+      "officialLink": "https://www.presidencia.gov.py"
+    },
+    {
+      "name": "Peru",
+      "officialName": "Republic of Peru",
+      "alpha2Code": "PE",
+      "alpha3Code": "PER",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/pe.png",
+      "timezones": [
+        "UTC-05:00"
+      ],
+      "currencies": {
+        "code": "PEN",
+        "name": "Peruvian sol",
+        "symbol": "S/",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "秘鲁",
+        "official": "秘鲁共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Peru",
+      "officialLink": "https://www.gob.pe"
+    },
+    {
+      "name": "Philippines",
+      "officialName": "Republic of the Philippines",
+      "alpha2Code": "PH",
+      "alpha3Code": "PHL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ph.png",
+      "timezones": [
+        "UTC+08:00"
+      ],
+      "currencies": {
+        "code": "PHP",
+        "name": "Philippine peso",
+        "symbol": "₱",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "菲律宾",
+        "official": "菲律宾共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Philippines",
+      "officialLink": "https://www.gov.ph"
+    },
+    {
+      "name": "Pitcairn Islands",
+      "officialName": "Pitcairn Group of Islands",
+      "alpha2Code": "PN",
+      "alpha3Code": "PCN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/pn.png",
+      "timezones": [
+        "UTC-08:00"
+      ],
+      "currencies": {
+        "code": "NZD",
+        "name": "New Zealand dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "皮特凯恩群岛",
+        "official": "皮特凯恩群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Pitcairn_Islands",
+      "officialLink": ""
+    },
+    {
+      "name": "Poland",
+      "officialName": "Republic of Poland",
+      "alpha2Code": "PL",
+      "alpha3Code": "POL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/pl.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "PLN",
+        "name": "Polish złoty",
+        "symbol": "zł",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "波兰",
+        "official": "波兰共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Poland",
+      "officialLink": "https://www.gov.pl"
+    },
+    {
+      "name": "Portugal",
+      "officialName": "Portuguese Republic",
+      "alpha2Code": "PT",
+      "alpha3Code": "PRT",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/pt.png",
+      "timezones": [
+        "UTC-01:00",
+        "UTC"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "葡萄牙",
+        "official": "葡萄牙共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Portugal",
+      "officialLink": "https://www.portugal.gov.pt"
+    },
+    {
+      "name": "Puerto Rico",
+      "officialName": "Commonwealth of Puerto Rico",
+      "alpha2Code": "PR",
+      "alpha3Code": "PRI",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/pr.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "波多黎各",
+        "official": "波多黎各联邦"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Puerto_Rico",
+      "officialLink": ""
+    },
+    {
+      "name": "Qatar",
+      "officialName": "State of Qatar",
+      "alpha2Code": "QA",
+      "alpha3Code": "QAT",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/qa.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "QAR",
+        "name": "Qatari riyal",
+        "symbol": "ر.ق",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "卡塔尔",
+        "official": "卡塔尔国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Qatar",
+      "officialLink": "https://www.gov.qa"
+    },
+    {
+      "name": "Romania",
+      "officialName": "Romania",
+      "alpha2Code": "RO",
+      "alpha3Code": "ROU",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ro.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "RON",
+        "name": "Romanian leu",
+        "symbol": "lei",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "罗马尼亚",
+        "official": "罗马尼亚"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Romania",
+      "officialLink": "https://www.gov.ro"
+    },
+    {
+      "name": "Russia",
+      "officialName": "Russian Federation",
+      "alpha2Code": "RU",
+      "alpha3Code": "RUS",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ru.png",
+      "timezones": [
+        "UTC+03:00",
+        "UTC+04:00",
+        "UTC+06:00",
+        "UTC+07:00",
+        "UTC+08:00",
+        "UTC+09:00",
+        "UTC+10:00",
+        "UTC+11:00",
+        "UTC+12:00"
+      ],
+      "currencies": {
+        "code": "RUB",
+        "name": "Russian ruble",
+        "symbol": "₽",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "俄罗斯",
+        "official": "俄罗斯联邦"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Russia",
+      "officialLink": "https://www.government.ru"
+    },
+    {
+      "name": "Rwanda",
+      "officialName": "Republic of Rwanda",
+      "alpha2Code": "RW",
+      "alpha3Code": "RWA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/rw.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "RWF",
+        "name": "Rwandan franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "卢旺达",
+        "official": "卢旺达共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Rwanda",
+      "officialLink": "https://www.gov.rw"
+    },
+    {
+      "name": "Réunion",
+      "officialName": "Réunion Island",
+      "alpha2Code": "RE",
+      "alpha3Code": "REU",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/re.png",
+      "timezones": [
+        "UTC+04:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "留尼旺岛",
+        "official": "留尼旺岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/R%C3%A9union",
+      "officialLink": ""
+    },
+    {
+      "name": "Saint Barthélemy",
+      "officialName": "Collectivity of Saint Barthélemy",
+      "alpha2Code": "BL",
+      "alpha3Code": "BLM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/bl.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "圣巴泰勒米",
+        "official": "圣巴泰勒米集体"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Saint_Barth%C3%A9lemy",
+      "officialLink": ""
+    },
+    {
+      "name": "Saint Helena, Ascension and Tristan da Cunha",
+      "officialName": "Saint Helena, Ascension and Tristan da Cunha",
+      "alpha2Code": "SH",
+      "alpha3Code": "SHN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sh.png",
+      "timezones": [
+        "UTC+00:00"
+      ],
+      "currencies": {
+        "code": "GBP",
+        "name": "British pound",
+        "symbol": "£",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "圣赫勒拿、阿森松和特里斯坦-达库尼亚",
+        "official": "圣赫勒拿、阿森松和特里斯坦-达库尼亚"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Saint_Helena%2C_Ascension_and_Tristan_da_Cunha",
+      "officialLink": ""
+    },
+    {
+      "name": "Saint Kitts and Nevis",
+      "officialName": "Federation of Saint Christopher and Nevis",
+      "alpha2Code": "KN",
+      "alpha3Code": "KNA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/kn.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "XCD",
+        "name": "Eastern Caribbean dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "圣基茨和尼维斯",
+        "official": "圣克里斯托弗和尼维斯联邦"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Saint_Kitts_and_Nevis",
+      "officialLink": "https://www.gov.kn"
+    },
+    {
+      "name": "Saint Lucia",
+      "officialName": "Saint Lucia",
+      "alpha2Code": "LC",
+      "alpha3Code": "LCA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/lc.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "XCD",
+        "name": "Eastern Caribbean dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "圣卢西亚",
+        "official": "圣卢西亚"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Saint_Lucia",
+      "officialLink": "https://www.govt.lc"
+    },
+    {
+      "name": "Saint Martin",
+      "officialName": "Saint Martin",
+      "alpha2Code": "MF",
+      "alpha3Code": "MAF",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/mf.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "圣马丁",
+        "official": "圣马丁"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Saint_Martin",
+      "officialLink": ""
+    },
+    {
+      "name": "Saint Pierre and Miquelon",
+      "officialName": "Saint Pierre and Miquelon",
+      "alpha2Code": "PM",
+      "alpha3Code": "SPM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/pm.png",
+      "timezones": [
+        "UTC-03:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "圣皮埃尔和密克隆",
+        "official": "圣皮埃尔和密克隆"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Saint_Pierre_and_Miquelon",
+      "officialLink": ""
+    },
+    {
+      "name": "Saint Vincent and the Grenadines",
+      "officialName": "Saint Vincent and the Grenadines",
+      "alpha2Code": "VC",
+      "alpha3Code": "VCT",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/vc.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "XCD",
+        "name": "Eastern Caribbean dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "圣文森特和格林纳丁斯",
+        "official": "圣文森特和格林纳丁斯"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Saint_Vincent_and_the_Grenadines",
+      "officialLink": "https://www.gov.vc"
+    },
+    {
+      "name": "Samoa",
+      "officialName": "Independent State of Samoa",
+      "alpha2Code": "WS",
+      "alpha3Code": "WSM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ws.png",
+      "timezones": [
+        "UTC+13:00"
+      ],
+      "currencies": {
+        "code": "WST",
+        "name": "Samoan tālā",
+        "symbol": "T",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "萨摩亚",
+        "official": "萨摩亚独立国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Samoa",
+      "officialLink": "https://www.govt.ws"
+    },
+    {
+      "name": "San Marino",
+      "officialName": "Republic of San Marino",
+      "alpha2Code": "SM",
+      "alpha3Code": "SMR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sm.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "圣马力诺",
+        "official": "圣马力诺共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/San_Marino",
+      "officialLink": "https://www.gov.sm"
+    },
+    {
+      "name": "Saudi Arabia",
+      "officialName": "Kingdom of Saudi Arabia",
+      "alpha2Code": "SA",
+      "alpha3Code": "SAU",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sa.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "SAR",
+        "name": "Saudi riyal",
+        "symbol": "ر.س",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "沙特阿拉伯",
+        "official": "沙特阿拉伯王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Saudi_Arabia",
+      "officialLink": "https://www.my.gov.sa"
+    },
+    {
+      "name": "Senegal",
+      "officialName": "Republic of Senegal",
+      "alpha2Code": "SN",
+      "alpha3Code": "SEN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sn.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "XOF",
+        "name": "West African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "塞内加尔",
+        "official": "塞内加尔共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Senegal",
+      "officialLink": "https://www.gouv.sn"
+    },
+    {
+      "name": "Serbia",
+      "officialName": "Republic of Serbia",
+      "alpha2Code": "RS",
+      "alpha3Code": "SRB",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/rs.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "RSD",
+        "name": "Serbian dinar",
+        "symbol": "дин.",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "塞尔维亚",
+        "official": "塞尔维亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Serbia",
+      "officialLink": "https://www.srbija.gov.rs"
+    },
+    {
+      "name": "Seychelles",
+      "officialName": "Republic of Seychelles",
+      "alpha2Code": "SC",
+      "alpha3Code": "SYC",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sc.png",
+      "timezones": [
+        "UTC+04:00"
+      ],
+      "currencies": {
+        "code": "SCR",
+        "name": "Seychellois rupee",
+        "symbol": "₨",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "塞舌尔",
+        "official": "塞舌尔共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Seychelles",
+      "officialLink": "https://www.statehouse.gov.sc"
+    },
+    {
+      "name": "Sierra Leone",
+      "officialName": "Republic of Sierra Leone",
+      "alpha2Code": "SL",
+      "alpha3Code": "SLE",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sl.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "SLE",
+        "name": "Sierra Leonean leone",
+        "symbol": "Le",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "塞拉利昂",
+        "official": "塞拉利昂共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Sierra_Leone",
+      "officialLink": "https://www.statehouse.gov.sl"
+    },
+    {
+      "name": "Singapore",
+      "officialName": "Republic of Singapore",
+      "alpha2Code": "SG",
+      "alpha3Code": "SGP",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sg.png",
+      "timezones": [
+        "UTC+08:00"
+      ],
+      "currencies": {
+        "code": "SGD",
+        "name": "Singapore dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {},
+      "wikiLink": "https://en.wikipedia.org/wiki/Singapore",
+      "officialLink": "https://www.gov.sg"
+    },
+    {
+      "name": "Sint Maarten",
+      "officialName": "Sint Maarten",
+      "alpha2Code": "SX",
+      "alpha3Code": "SXM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sx.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "XCG",
+        "name": "Caribbean guilder",
+        "symbol": "Cg",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "圣马丁岛",
+        "official": "圣马丁岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Sint_Maarten",
+      "officialLink": ""
+    },
+    {
+      "name": "Slovakia",
+      "officialName": "Slovak Republic",
+      "alpha2Code": "SK",
+      "alpha3Code": "SVK",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sk.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "斯洛伐克",
+        "official": "斯洛伐克共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Slovakia",
+      "officialLink": "https://www.vlada.gov.sk"
+    },
+    {
+      "name": "Slovenia",
+      "officialName": "Republic of Slovenia",
+      "alpha2Code": "SI",
+      "alpha3Code": "SVN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/si.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "斯洛文尼亚",
+        "official": "斯洛文尼亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Slovenia",
+      "officialLink": "https://www.gov.si"
+    },
+    {
+      "name": "Solomon Islands",
+      "officialName": "Solomon Islands",
+      "alpha2Code": "SB",
+      "alpha3Code": "SLB",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sb.png",
+      "timezones": [
+        "UTC+11:00"
+      ],
+      "currencies": {
+        "code": "SBD",
+        "name": "Solomon Islands dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "所罗门群岛",
+        "official": "所罗门群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Solomon_Islands",
+      "officialLink": "https://www.gov.sb"
+    },
+    {
+      "name": "Somalia",
+      "officialName": "Federal Republic of Somalia",
+      "alpha2Code": "SO",
+      "alpha3Code": "SOM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/so.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "SOS",
+        "name": "Somali shilling",
+        "symbol": "Sh",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "索马里",
+        "official": "索马里共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Somalia",
+      "officialLink": "https://www.villasomalia.gov.so"
+    },
+    {
+      "name": "Somaliland",
+      "officialName": "Republic of Somaliland",
+      "alpha2Code": "",
+      "alpha3Code": "",
+      "flagUrlPng": "",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "SLSH",
+        "name": "Somaliland shilling",
+        "symbol": "Sl.Sh",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "索马里兰",
+        "official": "索马里兰共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Somaliland",
+      "officialLink": "https://www.govsomaliland.org"
+    },
+    {
+      "name": "South Africa",
+      "officialName": "Republic of South Africa",
+      "alpha2Code": "ZA",
+      "alpha3Code": "ZAF",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/za.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "ZAR",
+        "name": "South African rand",
+        "symbol": "R",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "南非",
+        "official": "南非共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/South_Africa",
+      "officialLink": "https://www.gov.za"
+    },
+    {
+      "name": "South Georgia",
+      "officialName": "South Georgia and the South Sandwich Islands",
+      "alpha2Code": "GS",
+      "alpha3Code": "SGS",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gs.png",
+      "timezones": [
+        "UTC-02:00"
+      ],
+      "currencies": {
+        "code": "GBP",
+        "name": "British pound",
+        "symbol": "£",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "南乔治亚",
+        "official": "南乔治亚岛和南桑威奇群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/South_Georgia",
+      "officialLink": ""
+    },
+    {
+      "name": "South Korea",
+      "officialName": "Republic of Korea",
+      "alpha2Code": "KR",
+      "alpha3Code": "KOR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/kr.png",
+      "timezones": [
+        "UTC+09:00"
+      ],
+      "currencies": {
+        "code": "KRW",
+        "name": "South Korean won",
+        "symbol": "₩",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "韩国",
+        "official": "大韩民国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/South_Korea",
+      "officialLink": "https://www.korea.go.kr"
+    },
+    {
+      "name": "South Ossetia",
+      "officialName": "Republic of South Ossetia",
+      "alpha2Code": "",
+      "alpha3Code": "",
+      "flagUrlPng": "",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "RUB",
+        "name": "Russian ruble",
+        "symbol": "₽",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "南奥塞梯",
+        "official": "南奥塞梯共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/South_Ossetia",
+      "officialLink": "http://presidentruo.org"
+    },
+    {
+      "name": "South Sudan",
+      "officialName": "Republic of South Sudan",
+      "alpha2Code": "SS",
+      "alpha3Code": "SSD",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ss.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "SSP",
+        "name": "South Sudanese pound",
+        "symbol": "£",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "南苏丹",
+        "official": "南苏丹共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/South_Sudan",
+      "officialLink": "https://www.goss.org"
+    },
+    {
+      "name": "Spain",
+      "officialName": "Kingdom of Spain",
+      "alpha2Code": "ES",
+      "alpha3Code": "ESP",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/es.png",
+      "timezones": [
+        "UTC",
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "西班牙",
+        "official": "西班牙王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Spain",
+      "officialLink": "https://www.lamoncloa.gob.es"
+    },
+    {
+      "name": "Sri Lanka",
+      "officialName": "Democratic Socialist Republic of Sri Lanka",
+      "alpha2Code": "LK",
+      "alpha3Code": "LKA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/lk.png",
+      "timezones": [
+        "UTC+05:30"
+      ],
+      "currencies": {
+        "code": "LKR",
+        "name": "Sri Lankan rupee",
+        "symbol": "Rs",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "斯里兰卡",
+        "official": "斯里兰卡民主社会主义共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Sri_Lanka",
+      "officialLink": "https://www.gov.lk"
+    },
+    {
+      "name": "Sudan",
+      "officialName": "Republic of the Sudan",
+      "alpha2Code": "SD",
+      "alpha3Code": "SDN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sd.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "SDG",
+        "name": "Sudanese pound",
+        "symbol": "ج.س",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "苏丹",
+        "official": "苏丹共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Sudan",
+      "officialLink": "https://www.sudan.gov.sd"
+    },
+    {
+      "name": "Suriname",
+      "officialName": "Republic of Suriname",
+      "alpha2Code": "SR",
+      "alpha3Code": "SUR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sr.png",
+      "timezones": [
+        "UTC-03:00"
+      ],
+      "currencies": {
+        "code": "SRD",
+        "name": "Surinamese dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "苏里南",
+        "official": "苏里南共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Suriname",
+      "officialLink": "https://www.gov.sr"
+    },
+    {
+      "name": "Svalbard and Jan Mayen",
+      "officialName": "Svalbard og Jan Mayen",
+      "alpha2Code": "SJ",
+      "alpha3Code": "SJM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sj.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "NOK",
+        "name": "Norwegian krone",
+        "symbol": "kr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "斯瓦尔巴特",
+        "official": "斯瓦尔巴特"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Svalbard_and_Jan_Mayen",
+      "officialLink": ""
+    },
+    {
+      "name": "Sweden",
+      "officialName": "Kingdom of Sweden",
+      "alpha2Code": "SE",
+      "alpha3Code": "SWE",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/se.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "SEK",
+        "name": "Swedish krona",
+        "symbol": "kr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "瑞典",
+        "official": "瑞典王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Sweden",
+      "officialLink": "https://www.government.se"
+    },
+    {
+      "name": "Switzerland",
+      "officialName": "Swiss Confederation",
+      "alpha2Code": "CH",
+      "alpha3Code": "CHE",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ch.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "CHF",
+        "name": "Swiss franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "瑞士",
+        "official": "瑞士联邦"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Switzerland",
+      "officialLink": "https://www.admin.ch"
+    },
+    {
+      "name": "Syria",
+      "officialName": "Syrian Arab Republic",
+      "alpha2Code": "SY",
+      "alpha3Code": "SYR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/sy.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "SYP",
+        "name": "Syrian pound",
+        "symbol": "£",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "叙利亚",
+        "official": "叙利亚阿拉伯共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Syria",
+      "officialLink": "https://www.gov.sy"
+    },
+    {
+      "name": "São Tomé and Príncipe",
+      "officialName": "Democratic Republic of São Tomé and Príncipe",
+      "alpha2Code": "ST",
+      "alpha3Code": "STP",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/st.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "STN",
+        "name": "São Tomé and Príncipe dobra",
+        "symbol": "Db",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "圣多美和普林西比",
+        "official": "圣多美和普林西比民主共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/S%C3%A3o_Tom%C3%A9_and_Pr%C3%ADncipe",
+      "officialLink": "https://www.presidencia.st"
+    },
+    {
+      "name": "Taiwan",
+      "officialName": "Republic of China (Taiwan)",
+      "alpha2Code": "TW",
+      "alpha3Code": "TWN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/tw.png",
+      "timezones": [
+        "UTC+08:00"
+      ],
+      "currencies": {
+        "code": "TWD",
+        "name": "New Taiwan dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {},
+      "wikiLink": "https://en.wikipedia.org/wiki/Taiwan",
+      "officialLink": "https://www.ey.gov.tw"
+    },
+    {
+      "name": "Tajikistan",
+      "officialName": "Republic of Tajikistan",
+      "alpha2Code": "TJ",
+      "alpha3Code": "TJK",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/tj.png",
+      "timezones": [
+        "UTC+05:00"
+      ],
+      "currencies": {
+        "code": "TJS",
+        "name": "Tajikistani somoni",
+        "symbol": "ЅМ",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "塔吉克斯坦",
+        "official": "塔吉克斯坦共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Tajikistan",
+      "officialLink": "https://www.president.tj"
+    },
+    {
+      "name": "Tanzania",
+      "officialName": "United Republic of Tanzania",
+      "alpha2Code": "TZ",
+      "alpha3Code": "TZA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/tz.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "TZS",
+        "name": "Tanzanian shilling",
+        "symbol": "Sh",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "坦桑尼亚",
+        "official": "坦桑尼亚联合共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Tanzania",
+      "officialLink": "https://www.utumishi.go.tz"
+    },
+    {
+      "name": "Thailand",
+      "officialName": "Kingdom of Thailand",
+      "alpha2Code": "TH",
+      "alpha3Code": "THA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/th.png",
+      "timezones": [
+        "UTC+07:00"
+      ],
+      "currencies": {
+        "code": "THB",
+        "name": "Thai baht",
+        "symbol": "฿",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "泰国",
+        "official": "泰王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Thailand",
+      "officialLink": "https://www.thaigov.go.th"
+    },
+    {
+      "name": "Timor-Leste",
+      "officialName": "Democratic Republic of Timor-Leste",
+      "alpha2Code": "TL",
+      "alpha3Code": "TLS",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/tl.png",
+      "timezones": [
+        "UTC+09:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "东帝汶",
+        "official": "东帝汶民主共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Timor-Leste",
+      "officialLink": "https://www.governu.tl"
+    },
+    {
+      "name": "Togo",
+      "officialName": "Togolese Republic",
+      "alpha2Code": "TG",
+      "alpha3Code": "TGO",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/tg.png",
+      "timezones": [
+        "UTC"
+      ],
+      "currencies": {
+        "code": "XOF",
+        "name": "West African CFA franc",
+        "symbol": "Fr",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "多哥",
+        "official": "多哥共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Togo",
+      "officialLink": "https://www.gouvernement.tg"
+    },
+    {
+      "name": "Tokelau",
+      "officialName": "Tokelau",
+      "alpha2Code": "TK",
+      "alpha3Code": "TKL",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/tk.png",
+      "timezones": [
+        "UTC+13:00"
+      ],
+      "currencies": {
+        "code": "NZD",
+        "name": "New Zealand dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "托克劳",
+        "official": "托克劳"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Tokelau",
+      "officialLink": ""
+    },
+    {
+      "name": "Tonga",
+      "officialName": "Kingdom of Tonga",
+      "alpha2Code": "TO",
+      "alpha3Code": "TON",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/to.png",
+      "timezones": [
+        "UTC+13:00"
+      ],
+      "currencies": {
+        "code": "TOP",
+        "name": "Tongan paʻanga",
+        "symbol": "T$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "汤加",
+        "official": "汤加王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Tonga",
+      "officialLink": "https://www.gov.to"
+    },
+    {
+      "name": "Trinidad and Tobago",
+      "officialName": "Republic of Trinidad and Tobago",
+      "alpha2Code": "TT",
+      "alpha3Code": "TTO",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/tt.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "TTD",
+        "name": "Trinidad and Tobago dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "特立尼达和多巴哥",
+        "official": "特立尼达和多巴哥共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Trinidad_and_Tobago",
+      "officialLink": "https://www.ttconnect.gov.tt"
+    },
+    {
+      "name": "Tunisia",
+      "officialName": "Republic of Tunisia",
+      "alpha2Code": "TN",
+      "alpha3Code": "TUN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/tn.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "TND",
+        "name": "Tunisian dinar",
+        "symbol": "د.ت",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "突尼斯",
+        "official": "突尼斯共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Tunisia",
+      "officialLink": "https://www.pm.gov.tn"
+    },
+    {
+      "name": "Turkey",
+      "officialName": "Republic of Türkiye",
+      "alpha2Code": "TR",
+      "alpha3Code": "TUR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/tr.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "TRY",
+        "name": "Turkish lira",
+        "symbol": "₺",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "土耳其",
+        "official": "土耳其共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Turkey",
+      "officialLink": "https://www.turkiye.gov.tr"
+    },
+    {
+      "name": "Turkmenistan",
+      "officialName": "Turkmenistan",
+      "alpha2Code": "TM",
+      "alpha3Code": "TKM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/tm.png",
+      "timezones": [
+        "UTC+05:00"
+      ],
+      "currencies": {
+        "code": "TMT",
+        "name": "Turkmenistan manat",
+        "symbol": "m",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "土库曼斯坦",
+        "official": "土库曼斯坦"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Turkmenistan",
+      "officialLink": "https://www.turkmenistan.gov.tm"
+    },
+    {
+      "name": "Turks and Caicos Islands",
+      "officialName": "Turks and Caicos Islands",
+      "alpha2Code": "TC",
+      "alpha3Code": "TCA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/tc.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "特克斯和凯科斯群岛",
+        "official": "特克斯和凯科斯群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Turks_and_Caicos_Islands",
+      "officialLink": ""
+    },
+    {
+      "name": "Tuvalu",
+      "officialName": "Tuvalu",
+      "alpha2Code": "TV",
+      "alpha3Code": "TUV",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/tv.png",
+      "timezones": [
+        "UTC+12:00"
+      ],
+      "currencies": {
+        "code": "AUD",
+        "name": "Australian dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "图瓦卢",
+        "official": "图瓦卢"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Tuvalu",
+      "officialLink": "https://www.tuvaluislands.com"
+    },
+    {
+      "name": "Uganda",
+      "officialName": "Republic of Uganda",
+      "alpha2Code": "UG",
+      "alpha3Code": "UGA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ug.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "UGX",
+        "name": "Ugandan shilling",
+        "symbol": "Sh",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "乌干达",
+        "official": "乌干达共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Uganda",
+      "officialLink": ""
+    },
+    {
+      "name": "Ukraine",
+      "officialName": "Ukraine",
+      "alpha2Code": "UA",
+      "alpha3Code": "UKR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ua.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "UAH",
+        "name": "Ukrainian hryvnia",
+        "symbol": "₴",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "乌克兰",
+        "official": "乌克兰"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Ukraine",
+      "officialLink": "https://www.kmu.gov.ua"
+    },
+    {
+      "name": "United Arab Emirates",
+      "officialName": "United Arab Emirates",
+      "alpha2Code": "AE",
+      "alpha3Code": "ARE",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ae.png",
+      "timezones": [
+        "UTC+04:00"
+      ],
+      "currencies": {
+        "code": "AED",
+        "name": "United Arab Emirates dirham",
+        "symbol": "د.إ",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "阿拉伯联合酋长国",
+        "official": "阿拉伯联合酋长国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/United_Arab_Emirates",
+      "officialLink": "https://www.government.ae"
+    },
+    {
+      "name": "United Kingdom",
+      "officialName": "United Kingdom of Great Britain and Northern Ireland",
+      "alpha2Code": "GB",
+      "alpha3Code": "GBR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/gb.png",
+      "timezones": [
+        "UTC-08:00",
+        "UTC-05:00",
+        "UTC-04:00",
+        "UTC-03:00",
+        "UTC-02:00",
+        "UTC",
+        "UTC+01:00",
+        "UTC+02:00",
+        "UTC+06:00"
+      ],
+      "currencies": {
+        "code": "GBP",
+        "name": "British pound",
+        "symbol": "£",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "英国",
+        "official": "大不列颠及北爱尔兰联合王国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/United_Kingdom",
+      "officialLink": "https://www.gov.uk"
+    },
+    {
+      "name": "United States",
+      "officialName": "United States of America",
+      "alpha2Code": "US",
+      "alpha3Code": "USA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/us.png",
+      "timezones": [
+        "UTC-12:00",
+        "UTC-11:00",
+        "UTC-10:00",
+        "UTC-09:00",
+        "UTC-08:00",
+        "UTC-07:00",
+        "UTC-06:00",
+        "UTC-05:00",
+        "UTC-04:00",
+        "UTC+10:00",
+        "UTC+12:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "美国",
+        "official": "美利坚合众国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/United_States",
+      "officialLink": "https://www.usa.gov"
+    },
+    {
+      "name": "United States Minor Outlying Islands",
+      "officialName": "United States Minor Outlying Islands",
+      "alpha2Code": "UM",
+      "alpha3Code": "UMI",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/um.png",
+      "timezones": [
+        "UTC-11:00",
+        "UTC-10:00",
+        "UTC+12:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "美国本土外小岛屿",
+        "official": "美国本土外小岛屿"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/United_States_Minor_Outlying_Islands",
+      "officialLink": ""
+    },
+    {
+      "name": "United States Virgin Islands",
+      "officialName": "Virgin Islands of the United States",
+      "alpha2Code": "VI",
+      "alpha3Code": "VIR",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/vi.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "美属维尔京群岛",
+        "official": "美属维尔京群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/United_States_Virgin_Islands",
+      "officialLink": ""
+    },
+    {
+      "name": "Uruguay",
+      "officialName": "Oriental Republic of Uruguay",
+      "alpha2Code": "UY",
+      "alpha3Code": "URY",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/uy.png",
+      "timezones": [
+        "UTC-03:00"
+      ],
+      "currencies": {
+        "code": "UYU",
+        "name": "Uruguayan peso",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "乌拉圭",
+        "official": "乌拉圭东岸共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Uruguay",
+      "officialLink": "https://www.gub.uy"
+    },
+    {
+      "name": "Uzbekistan",
+      "officialName": "Republic of Uzbekistan",
+      "alpha2Code": "UZ",
+      "alpha3Code": "UZB",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/uz.png",
+      "timezones": [
+        "UTC+05:00"
+      ],
+      "currencies": {
+        "code": "UZS",
+        "name": "Uzbekistani soʻm",
+        "symbol": "so'm",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "乌兹别克斯坦",
+        "official": "乌兹别克斯坦共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Uzbekistan",
+      "officialLink": "https://www.gov.uz"
+    },
+    {
+      "name": "Vanuatu",
+      "officialName": "Republic of Vanuatu",
+      "alpha2Code": "VU",
+      "alpha3Code": "VUT",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/vu.png",
+      "timezones": [
+        "UTC+11:00"
+      ],
+      "currencies": {
+        "code": "VUV",
+        "name": "Vanuatu vatu",
+        "symbol": "Vt",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "瓦努阿图",
+        "official": "瓦努阿图共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Vanuatu",
+      "officialLink": "https://www.vanuatu.gov.vu"
+    },
+    {
+      "name": "Vatican City",
+      "officialName": "Vatican City State",
+      "alpha2Code": "VA",
+      "alpha3Code": "VAT",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/va.png",
+      "timezones": [
+        "UTC+01:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "梵蒂冈",
+        "official": "梵蒂冈城国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Vatican_City",
+      "officialLink": "https://www.vatican.va"
+    },
+    {
+      "name": "Venezuela",
+      "officialName": "Bolivarian Republic of Venezuela",
+      "alpha2Code": "VE",
+      "alpha3Code": "VEN",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ve.png",
+      "timezones": [
+        "UTC-04:00"
+      ],
+      "currencies": {
+        "code": "VES",
+        "name": "Venezuelan bolívar soberano",
+        "symbol": "Bs.S.",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "委内瑞拉",
+        "official": "委内瑞拉玻利瓦尔共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Venezuela",
+      "officialLink": "https://www.venezuela.gob.ve"
+    },
+    {
+      "name": "Vietnam",
+      "officialName": "Socialist Republic of Vietnam",
+      "alpha2Code": "VN",
+      "alpha3Code": "VNM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/vn.png",
+      "timezones": [
+        "UTC+07:00"
+      ],
+      "currencies": {
+        "code": "VND",
+        "name": "Vietnamese đồng",
+        "symbol": "₫",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "越南",
+        "official": "越南社会主义共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Vietnam",
+      "officialLink": "https://chinhphu.vn"
+    },
+    {
+      "name": "Wallis and Futuna",
+      "officialName": "Territory of the Wallis and Futuna Islands",
+      "alpha2Code": "WF",
+      "alpha3Code": "WLF",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/wf.png",
+      "timezones": [
+        "UTC+12:00"
+      ],
+      "currencies": {
+        "code": "XPF",
+        "name": "CFP franc",
+        "symbol": "₣",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "瓦利斯和富图纳群岛",
+        "official": "瓦利斯和富图纳群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Wallis_and_Futuna",
+      "officialLink": ""
+    },
+    {
+      "name": "Western Sahara",
+      "officialName": "Sahrawi Arab Democratic Republic",
+      "alpha2Code": "EH",
+      "alpha3Code": "ESH",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/eh.png",
+      "timezones": [
+        "UTC+00:00"
+      ],
+      "currencies": {
+        "code": "DZD",
+        "name": "Algerian dinar",
+        "symbol": "د.ج",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "西撒哈拉",
+        "official": "阿拉伯撒哈拉民主共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Western_Sahara",
+      "officialLink": ""
+    },
+    {
+      "name": "Yemen",
+      "officialName": "Republic of Yemen",
+      "alpha2Code": "YE",
+      "alpha3Code": "YEM",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ye.png",
+      "timezones": [
+        "UTC+03:00"
+      ],
+      "currencies": {
+        "code": "YER",
+        "name": "Yemeni rial",
+        "symbol": "﷼",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "也门",
+        "official": "也门共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Yemen",
+      "officialLink": "https://www.yemen.gov.ye"
+    },
+    {
+      "name": "Zambia",
+      "officialName": "Republic of Zambia",
+      "alpha2Code": "ZM",
+      "alpha3Code": "ZMB",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/zm.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "ZMW",
+        "name": "Zambian kwacha",
+        "symbol": "ZK",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "赞比亚",
+        "official": "赞比亚共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Zambia",
+      "officialLink": "https://www.statehouse.gov.zm"
+    },
+    {
+      "name": "Zimbabwe",
+      "officialName": "Republic of Zimbabwe",
+      "alpha2Code": "ZW",
+      "alpha3Code": "ZWE",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/zw.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "USD",
+        "name": "United States dollar",
+        "symbol": "$",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "津巴布韦",
+        "official": "津巴布韦共和国"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/Zimbabwe",
+      "officialLink": "https://www.zim.gov.zw"
+    },
+    {
+      "name": "Åland Islands",
+      "officialName": "Åland Islands",
+      "alpha2Code": "AX",
+      "alpha3Code": "ALA",
+      "flagUrlPng": "https://flags.restcountries.com/v5/w640/ax.png",
+      "timezones": [
+        "UTC+02:00"
+      ],
+      "currencies": {
+        "code": "EUR",
+        "name": "Euro",
+        "symbol": "€",
+        "rate": 0,
+        "value": 0,
+        "initiative": false
+      },
+      "translations": {
+        "common": "奥兰群岛",
+        "official": "奥兰群岛"
+      },
+      "wikiLink": "https://en.wikipedia.org/wiki/%C3%85land_Islands",
+      "officialLink": ""
+    }
+  ]
+}

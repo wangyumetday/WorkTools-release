@@ -1,17 +1,26 @@
 // ============================================================
 // 悬浮窗管理器 + IPC 控制器
-// 职责：创建/控制半透明置顶无边框的悬浮窗，支持 hover 展开/收缩
+// 职责：创建/控制置顶无边框的悬浮窗，支持 hover 展开/收缩
 //        并注册 floating:* IPC handlers
 //
 // 窗口特性：
-//   - transparent: true   半透明（配合渲染层 rgba 背景）
 //   - frame: false        无边框
 //   - alwaysOnTop: true   置顶
 //   - skipTaskbar: true   不在任务栏占位
 //   - resizable: true     frameless 无 OS resize 边框（用户无法拖边）；
 //                          程序化 setBounds 需要它——resizable: false 在 Windows
 //                          会把窗口尺寸锁死，setBounds 改高/宽被 clamp，展开无效
-//   - backgroundColor: '#00000000'  透明窗口表面底色，消除圆角白边
+//   - backgroundColor     实色深色底（与渲染层 .fh 一致），不再用 transparent
+//   - hasShadow: true     OS 系统阴影（无边框窗口需要，提供视觉深度）
+//
+// 不再使用 transparent: true 的原因：
+//   Electron 官方文档警告「Transparent windows are not resizable. Setting
+//   resizable to true may make a transparent window stop working on some
+//   platforms.」——本窗口必须 resizable: true（程序化 setBounds 展开动画），
+//   两者冲突在 Win10 22H2 + 部分 GPU 驱动下触发：窗口构造成功但表面无法合成，
+//   用户看到「点打开悬浮窗无反应」。改为实色背景 + 渲染层 border-radius 模拟
+//   圆角，组合符合官方推荐，跨平台稳定。失去的仅是「边角透明」装饰效果，
+//   不影响点击穿透（本来就不工作，见 electron/electron #1335）。
 //
 // 三机制彻底解耦：
 //   1. 拖拽移动：渲染层 mousedown → floating:dragStart/Stop IPC → 主进程
@@ -20,7 +29,7 @@
 //      鼠标滑过把手会触发 mouseleave → 误收缩）。自定义拖拽全条顶栏可拖，
 //      且 mouseenter/mouseleave/mousedown 互不冲突。screen API 自动处理 DPI/多屏。
 //   2. hover 展开/收缩：渲染层 mouseenter/mouseleave（DOM 坐标，恒正确）。
-//      不用主进程 cursor 轮询——Electron 41.3+ frameless 透明窗口有
+//      不用主进程 cursor 轮询——Electron 41.3+ frameless 窗口有
 //      thickFrame HWND 外扩，getBounds() 与可见窗口偏移，轮询 hit-test 会
 //      落到错误区域导致展开/收缩反复抖动。DOM 事件完全绕开该问题。
 //      （来源：electron/electron #50332 thickFrame；#611 wontfix mouseleave）
@@ -149,12 +158,14 @@ function openFloating() {
     width: COLLAPSED.width,
     height: COLLAPSED.height,
     frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
+    // transparent 删除：与 resizable: true 冲突，Win10 22H2 + 部分 GPU 驱动下窗口无法合成
+    //   详见文件顶部「不再使用 transparent: true 的原因」
+    backgroundColor: '#1a1a1a',  // 实色深色底，与渲染层 .fh 背景一致
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: true,
     maximizable: false,
+    hasShadow: true,  // 无边框窗口需要 OS 阴影提供视觉深度
     webPreferences: {
       // 隔离会话分区：否则 setZoomFactor 会按 origin 写入共享 default session，
       // 导致悬浮窗缩放因子泄漏到同 session 的其他窗口（主窗口等）
@@ -436,7 +447,7 @@ function snapOut() {
   if (isAnimating) return false
   if (isResizing) return false  // 用户在拖边改大小，虚框跟鼠标走但 bounds 未变，一律拒绝
   // cursor 守卫：鼠标仍在窗口 bounds（含 ~6px OS resize 把手外延）内时拒绝收回。
-  // 解决 frameless transparent 窗口 resizable:true 时 thickFrame 外扩把手吞 mouseleave
+  // 解决 frameless resizable:true 窗口 thickFrame 外扩把手吞 mouseleave
   // 导致的误触发问题。鼠标真移出窗口外才执行 snapOut。
   const PAD = 8  // OS resize 把手宽度（实测 ~5-6px，加安全边）
   const cursor = screen.getCursorScreenPoint()

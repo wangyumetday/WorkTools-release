@@ -595,6 +595,12 @@ async function retryLoadCountries() {
   padding: 8px 10px 6px;
   color: #fff;
   font-size: 12px;
+  /* 窗口已改为非透明实色底（transparent: false + backgroundColor: '#1a1a1a'），
+     .fh 同色背景填满窗口，border-radius 让视觉边角圆滑（窗口方角与 .fh 圆角同色，
+     看不出边界）。OS 阴影按窗口方角投射，深色背景下视觉差异不明显。 */
+  background: #1a1a1a;
+  border-radius: 6px;
+  box-sizing: border-box;
 }
 
 /* 币种列表加载失败提示条：顶部红底白字，紧凑布局 */

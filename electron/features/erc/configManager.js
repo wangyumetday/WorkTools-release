@@ -43,7 +43,7 @@ const DEFAULT_CONFIG = {
     },
     restcountries: {
       baseUrl: 'https://api.restcountries.com/countries/v5',
-      key: 'rc_live_14364ff234dc406a9d0c338758f5a5cd'
+      key: 'rc_live_f4b2574cecc9494dad9a9452e2d05752'
     }
   },
   refreshIntervalMin: 30,

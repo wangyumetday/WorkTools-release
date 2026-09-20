@@ -104,12 +104,14 @@ export const useDataStore = defineStore('erc-data', () => {
   }
 
   // 更新汇率：按当前数据源（rateProvider）用 USD 锚定汇率刷新各币种 rate
+  // 失败时只打印错误日志，不弹 UI（避免网络抖动打断用户操作）；
+  // 用户重试可在 ERC 设置页点「测试连接」看具体错误
   async function updata_exchangeRates() {
     try {
       const res = await api.erc.getExchangeRate(rateProvider.value)
       applyRateUpdate(res)
     } catch (error) {
-      // 静默失败（原逻辑如此，避免网络抖动打断用户操作）
+      console.error('[ERC] 汇率更新失败:', error)
     }
   }
 
