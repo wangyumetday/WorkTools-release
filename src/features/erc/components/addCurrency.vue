@@ -14,7 +14,7 @@
      ============================================================ -->
 
 <template>
-  <div class="wrap">
+  <div class="wrap" :class="{ 'is-static': !selectable }">
     <div class="search-box">
       <input
         class="search-input"
@@ -27,10 +27,10 @@
     <div class="currency-list">
       <div
         class="currency-item"
-        :class="{ 'is-selected': isActive(item.currencies.code) }"
+        :class="{ 'is-selected': selectable && isActive(item.currencies.code) }"
         v-for="(item, index) in filteredCurrencies"
         :key="index"
-        @click="selectCurrency(item)"
+        @click="onItemClick(item)"
       >
         <!-- 左列：国旗（上）/ 中文国家名（下） -->
         <div class="col-left">
@@ -70,6 +70,13 @@ import { ref, reactive, computed } from 'vue'
 import { useDataStore } from '../stores/data.js'
 import { matchCurrencyByKeyword, getCurrencyZhName } from '../shared/searchIndex.js'
 
+// selectable：是否允许点击币种加入/移出换算。
+//   - true（默认）：FloatingHome 的"加币种"面板，点击加入 activeCurrency
+//   - false：Home.vue 的"全部币种"tab，纯展示（无点选，无选中高亮，无 pointer 光标）
+const props = defineProps({
+  selectable: { type: Boolean, default: true }
+})
+
 const store = useDataStore()
 
 const searchCode = ref('')
@@ -103,8 +110,9 @@ function formatRate(rate) {
   return n.toFixed(2)
 }
 
-// 点击币种：加入或移出参与换算
-function selectCurrency(currency) {
+// 点击币种：非交互模式（!selectable）直接忽略；否则加入或移出参与换算
+function onItemClick(currency) {
+  if (!props.selectable) return
   store.updataActiveCurrency(currency)
 }
 </script>
@@ -169,6 +177,13 @@ function selectCurrency(currency) {
 }
 .currency-item:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+/* 纯展示模式（主界面"全部币种"tab）：无点选反馈，无 pointer 光标，无 hover 变色 */
+.is-static .currency-item {
+  cursor: default;
+}
+.is-static .currency-item:hover {
+  background: transparent;
 }
 .currency-item.is-selected {
   background: rgba(99, 226, 183, 0.14);

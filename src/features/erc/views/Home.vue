@@ -11,8 +11,8 @@
 <template>
   <n-config-provider :theme="darkTheme">
     <n-message-provider>
-      <n-layout class="erc-home">
-        <n-layout-header class="erc-header">
+      <div class="erc-home">
+        <div class="erc-header">
           <div class="header-title">
             <h2>汇率转换</h2>
             <span class="update-time">
@@ -32,7 +32,7 @@
           <div class="header-actions">
             <n-button size="small" @click="api.floating.open()">打开悬浮窗</n-button>
           </div>
-        </n-layout-header>
+        </div>
 
         <!-- 全局 loading：拉取汇率时显示 -->
         <n-modal :show="store.loading" transform-origin="center">
@@ -70,9 +70,9 @@
               flexDirection: 'column'
             }"
           >
-            <!-- 全部币种：展示所有币种网格，点击可加入换算 -->
+            <!-- 全部币种：展示所有币种（纯展示，无点选） -->
             <n-tab-pane name="all" tab="全部币种">
-              <addCurrency />
+              <addCurrency :selectable="false" />
             </n-tab-pane>
             <!-- 设置：汇率源地址/Key 与全局刷新频率 -->
             <n-tab-pane name="settings" tab="设置">
@@ -80,7 +80,7 @@
             </n-tab-pane>
           </n-tabs>
         </div>
-      </n-layout>
+      </div>
     </n-message-provider>
   </n-config-provider>
 </template>
@@ -88,7 +88,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import {
-  NConfigProvider, darkTheme, NMessageProvider, NLayout, NLayoutHeader,
+  NConfigProvider, darkTheme, NMessageProvider,
   NTabs, NTabPane, NModal, NSpin, NButton
 } from 'naive-ui'
 import { useDataStore } from '../stores/data.js'
@@ -176,7 +176,8 @@ onMounted(async () => {
   background: #1e1e1e;
   color: #fff;
   display: flex;
-  flex-direction: column;
+  flex-flow: column nowrap;
+  /* flex-direction: column; */
   overflow: hidden;
 }
 .erc-header {
@@ -280,8 +281,10 @@ onMounted(async () => {
 }
 .erc-content {
   padding: 16px 24px;
-  flex: 1 1 auto;
+  /* flex: 1 1 auto; */
+  flex: 1;
   min-height: 0;
+  /* height: 100%; */
   min-width: 0;
   display: flex;
   flex-direction: column;
