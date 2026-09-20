@@ -19,14 +19,18 @@
 // 平移阶段：feature 的 routes 在 router/index.js 单独 import
 // ============================================================
 
-import { CubeOutline as CubeIcon, SwapHorizontalOutline as SwapIcon } from '@vicons/ionicons5'
+import {
+  ScaleOutline as ScaleIcon,
+  SwapHorizontalOutline as SwapIcon,
+  StatsChartOutline as StatsChartIcon
+} from '@vicons/ionicons5'
 
 export const features = [
   {
     key: 'pcp',
     label: '比价工具',
     name: 'PriceComparisonPolicy',
-    icon: CubeIcon,
+    icon: ScaleIcon,
     path: '/pcp',
     supportsFloating: false
   },
@@ -42,7 +46,7 @@ export const features = [
     key: 'ass',
     name: 'AgentStatistics',
     label: '统计代理',
-    icon: SwapIcon,
+    icon: StatsChartIcon,
     path: '/ass',
     supportsFloating: false,
     // 入口默认隐藏：仅在用户输入组合键 tj3599 后才显示（见 src/shared/secretUnlock.js）

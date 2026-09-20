@@ -20,16 +20,23 @@
       :width="180"
       :collapsed="collapsed"
       show-trigger
+      :content-style="{ display: 'flex', flexDirection: 'column' }"
       @collapse="collapsed = true"
       @expand="collapsed = false"
     >
-      <n-menu
-        :collapsed="collapsed"
-        :collapsed-width="52"
-        :collapsed-icon-size="22"
-        :options="menuOptions"
-        :value="activeKey"
-      />
+      <div class="menu-wrap">
+        <n-menu
+          :collapsed="collapsed"
+          :collapsed-width="52"
+          :collapsed-icon-size="22"
+          :options="menuOptions"
+          :value="activeKey"
+        />
+      </div>
+      <div v-if="!collapsed" class="sider-footer">
+        <span class="version-text">v{{ appVersion }}</span>
+        <span class="build-date">{{ buildDate }}</span>
+      </div>
     </n-layout-sider>
 
     <!-- 内容区：渲染当前 feature 的视图，keep-alive 让切走的 feature 不卸载 -->
@@ -49,9 +56,14 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { NIcon, NMenu, NLayout, NLayoutSider, NLayoutContent } from 'naive-ui'
 import { features } from '@/shared/featureRegistry'
 import { unlockedState, installSecretCodeListener } from '@/shared/secretUnlock'
+import pkg from '../../package.json'
 
 // 侧边栏折叠态：默认折叠（只显示图标）
 const collapsed = ref(true)
+
+// 版本号、发布日期均直接读 package.json；发布新版本时手动更新 package.json 的 releaseDate 字段
+const appVersion = pkg.version
+const buildDate = pkg.releaseDate || ''
 
 const route = useRoute()
 const router = useRouter()
@@ -100,6 +112,31 @@ onBeforeUnmount(() => {
 .app-shell {
   width: 100%;
   height: 100vh;
+}
+
+.menu-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sider-footer {
+  flex-shrink: 0;
+  padding: 8px 16px 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.version-text {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.build-date {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.3);
 }
 
 .content {

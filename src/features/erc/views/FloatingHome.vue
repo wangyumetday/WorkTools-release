@@ -15,6 +15,11 @@
 
 <template>
   <div class="fh">
+    <!-- 币种列表加载失败提示条：API 拉取失败时醒目提示，附重试按钮 -->
+    <div v-if="store.loadError" class="fh-load-error">
+      <span class="fh-load-error-text">币种数据加载失败</span>
+      <button class="fh-load-error-retry" :disabled="retrying" @click="retryLoadCountries">重试</button>
+    </div>
     <!-- ============ 换算成人民币 ============ -->
     <section class="fh-sec any-to-cny">
       <div class="fh-sec-title">任意币种转人民币</div>
@@ -541,23 +546,42 @@ function becomeInitiative(cur) {
   cur.currencies.initiative = true
 }
 
-// ==================== 初始化 ====================
-// 复用 Home 的初始化逻辑：拉数据 + 种入默认 CNY/USD（store 有 guard，重复调用幂等）
+// 初始化：拉数据 → 拉汇率 → 种入默认 CNY/USD
+// 关键：currencies_list 不再持久化（改由主进程 fetchCountriesWithCache 管理），
+//   冷启动 fresh 数据里 rate 全是 0，必须每次都拉一次 rate；旧逻辑用 syncDate
+//   判断"今天是否拉过"已失效（currencies_list 持久化的前提不存在了）。
+//   load 失败时置 store.loadError=true，由模板顶部错误条提示用户重试
 onMounted(async () => {
-  const today = new Date().toISOString().substring(0, 10)
   if (store.currencies_list.length === 0) {
     await store.load_all_countries_list()
   }
-  if (store.syncDate !== today) {
-    await store.updata_exchangeRates()
-  }
-  store.seedDefaultCurrencies()
-  // 订阅主进程定时刷新推送（30 分钟一次）
-  // 主进程单点调度，渲染层只接收，无需本地 setInterval
+  // 订阅主进程定时刷新推送（30 分钟一次，主进程单点调度，渲染层只接收）
   api.erc.onRateUpdated((res) => {
     store.handleRateBroadcast(res)
   })
+  // 加载失败：loadError 已驱动顶部错误条，后续步骤无意义，早 return
+  if (store.loadError) return
+  await store.updata_exchangeRates()
+  store.seedDefaultCurrencies()
 })
+
+// 手动重试币种列表拉取：store.loadError=true 时由用户点击触发
+//   用本地 retrying ref 控制 button disabled，不复用 store.loading（语义为汇率拉取中）
+//   重试成功后必须再调 updata_exchangeRates：load 拉的是国家列表（rate=0），
+//   需要单独拉汇率才有 rate，否则 seedDefaultCurrencies 种入的 CNY/USD rate=0 算不出值
+const retrying = ref(false)
+async function retryLoadCountries() {
+  if (retrying.value) return
+  retrying.value = true
+  try {
+    await store.load_all_countries_list()
+    if (store.loadError) return
+    await store.updata_exchangeRates()
+    store.seedDefaultCurrencies()
+  } finally {
+    retrying.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -571,6 +595,41 @@ onMounted(async () => {
   padding: 8px 10px 6px;
   color: #fff;
   font-size: 12px;
+}
+
+/* 币种列表加载失败提示条：顶部红底白字，紧凑布局 */
+.fh-load-error {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  background: rgba(220, 50, 50, 0.92);
+  color: #fff;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+.fh-load-error-text {
+  flex: 1 1 auto;
+}
+.fh-load-error-retry {
+  flex: 0 0 auto;
+  padding: 2px 10px;
+  background: #fff;
+  color: #d63232;
+  border: none;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.fh-load-error-retry:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+.fh-load-error-retry:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
 .any-to-cny {}

@@ -35,6 +35,9 @@ export const useDataStore = defineStore('erc-data', () => {
   const nationalDetails = ref([])
   // 是否正在拉取数据（驱动 loading modal）
   const loading = ref(false)
+  // 国家列表加载失败标记：API 失败时置 true，驱动 Home/FloatingHome 显示醒目错误提示
+  //   false 表示成功或尚未尝试；用户重试时由 action 内部置回 false
+  const loadError = ref(false)
   // 预留字段
   const duo = ref([])
 
@@ -46,7 +49,20 @@ export const useDataStore = defineStore('erc-data', () => {
 
   // ==================== 数据加载 ====================
   // 加载全部国家信息，并按币种 code 去重生成 currencies_list
+  // 失败时置 loadError=true（不返回兜底数据），由 UI 显示醒目错误提示
+  //
+  // activeCurrency 引用重定向：
+  //   - localStorage 持久化的 activeCurrency 项是上次会话的旧对象（值快照），
+  //     与本次拉取的 fresh currencies_list 中的对象不是同一引用
+  //   - 若不重定向，applyRateUpdate 走 currencies_list 更新 rate 时不会触及
+  //     activeCurrency 中的旧项 → syncPassiveValues 用旧 rate 算 → 数值过期
+  //   - 重定向：按 code 匹配 fresh 项，把用户状态（value、initiative）和已知
+  //     rate 搬到 fresh，然后把 activeCurrency 的对应项替换为 fresh 引用
+  //   - 找不到匹配（API 已下架该币种）的旧项被剔除
+  //   - rate 也搬过去：若今日已同步（today==syncDate）会跳过 updata_exchangeRates，
+  //     此时 fresh 项的 rate 是 0，搬旧 rate 进来保证当日重开也能算
   async function load_all_countries_list() {
+    loadError.value = false
     try {
       all_countries_list.value = await api.erc.getCountriesList()
       const seen = new Set()
@@ -56,9 +72,35 @@ export const useDataStore = defineStore('erc-data', () => {
         seen.add(code)
         return true
       })
+      rehydrateActiveCurrency()
     } catch (error) {
       console.error('加载国家列表失败:', error)
+      loadError.value = true
     }
+  }
+
+  // 把持久化的旧 activeCurrency 项替换为 fresh currencies_list 中的同 code 引用
+  //   保留：value（用户输入金额）、initiative（主动标记）、rate（已知汇率）
+  //   丢弃：旧 name/flag/translations 等结构字段（用 fresh 的）
+  function rehydrateActiveCurrency() {
+    if (activeCurrency.value.length === 0) return
+    const codeMap = new Map()
+    for (const item of currencies_list.value) {
+      const code = item.currencies?.code
+      if (code) codeMap.set(code.toUpperCase(), item)
+    }
+    const next = []
+    for (const stale of activeCurrency.value) {
+      const code = stale.currencies?.code
+      if (!code) continue
+      const fresh = codeMap.get(code.toUpperCase())
+      if (!fresh) continue
+      fresh.currencies.value = stale.currencies?.value ?? 0
+      fresh.currencies.initiative = !!stale.currencies?.initiative
+      if (stale.currencies?.rate) fresh.currencies.rate = stale.currencies.rate
+      next.push(fresh)
+    }
+    activeCurrency.value = next
   }
 
   // 更新汇率：按当前数据源（rateProvider）用 USD 锚定汇率刷新各币种 rate
@@ -188,7 +230,7 @@ export const useDataStore = defineStore('erc-data', () => {
   return {
     // state
     AnchorCurrency, rateProvider, activeCurrency, all_countries_list, currencies_list,
-    syncDate, lastUpdateTime, nationalDetails, loading, duo,
+    syncDate, lastUpdateTime, nationalDetails, loading, loadError, duo,
     // getters
     initiativeCurrency,
     // actions
@@ -197,10 +239,17 @@ export const useDataStore = defineStore('erc-data', () => {
     syncPassiveValues, seedDefaultCurrencies
   }
 }, {
-  // 持久化：汇率和币种列表写入 localStorage，避免每次启动都重新拉接口
-  // key 带版本号：v3 移除 allratestoday 源、唯一汇率源改为 exchangerate，
-  // 旧版（v2/erc-data-v2）缓存不再复用，首次启动按常规流程重新拉国家列表与汇率
+  // 持久化：仅持久化用户配置字段，不缓存外部 API 数据（currencies_list/all_countries_list）
+  //   - 国家列表由主进程 fetchCountriesWithCache 管理（userData/cache/countries.json），
+  //     渲染层每次冷启动从主进程拉，避免 localStorage 旧版本残留数据导致搜索失效
+  //   - 汇率（rate/value/initiative）嵌在 currencies_list 里随之上行刷新，不进 localStorage
+  //   - activeCurrency 会持久化，但 load_all_countries_list 末尾调 rehydrateActiveCurrency
+  //     把旧引用替换为 fresh currencies_list 中的同 code 引用，保证后续 applyRateUpdate
+  //     走 currencies_list 时能同步更新 activeCurrency 中的项
+  // key 保留 erc-data-v3：pick 限定的字段集与旧版兼容，旧 localStorage 中已废弃字段
+  //   会被自动忽略（pinia-persistedstate v4 反序列化时只读 pick 中的项）
   persist: {
-    key: 'erc-data-v3'
+    key: 'erc-data-v3',
+    pick: ['activeCurrency', 'rateProvider', 'syncDate', 'lastUpdateTime']
   }
 })

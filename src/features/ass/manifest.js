@@ -6,12 +6,12 @@
 // supportsFloating: true 表示 ass 支持以半透明悬浮窗模式打开
 // ============================================================
 
-import { SwapHorizontalOutline as SwapIcon } from '@vicons/ionicons5'
+import { StatsChartOutline as StatsChartIcon } from '@vicons/ionicons5'
 
 export const manifest = {
   key: 'ass',
   label: '统计代理',
-  icon: SwapIcon,
+  icon: StatsChartIcon,
   path: '/ass',
   supportsFloating: false
 }

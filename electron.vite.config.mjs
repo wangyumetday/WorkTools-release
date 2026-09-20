@@ -14,8 +14,10 @@ import { defineConfig } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
+const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'))
 
 export default defineConfig({
   // 主进程 bundle：入口 electron/main.js，输出 out/main/index.js
@@ -55,6 +57,10 @@ export default defineConfig({
       }
     },
     plugins: [vue()],
+    define: {
+      __APP_VERSION__: JSON.stringify(pkg.version),
+      __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10))
+    },
     server: {
       // Windows 下 IDE 异步保存 / 跨盘 / 网盘场景，fs 事件偶发丢失。
       // 开 polling 兜底是 Vite 官方推荐的 Windows 实践，仅作用于 renderer dev server。

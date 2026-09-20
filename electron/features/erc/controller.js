@@ -20,7 +20,7 @@
 // ============================================================
 
 import { ipcMain, BrowserWindow } from 'electron'
-import { fetchExchangeRate, fetchCountries, RATE_PROVIDERS, DEFAULT_RATE_PROVIDER } from './service.js'
+import { fetchExchangeRate, fetchCountries, fetchCountriesWithCache, RATE_PROVIDERS, DEFAULT_RATE_PROVIDER } from './service.js'
 import { getErcConfig, setErcConfig } from './configManager.js'
 
 // 主进程记忆的当前汇率源：渲染层切换源时经 getRate 更新此处，
@@ -44,8 +44,12 @@ export function registerErcController() {
   })
 
   // 拉取全部国家信息（含币种代码、国旗、时区）
+  // 走 fetchCountriesWithCache：未过期读本地缓存文件，过期/不存在/损坏调 API + 写文件
+  //   maxAgeMs 用 ERC 配置的 refreshIntervalMin（与汇率同步频率一致，默认 30 分钟）
+  //   API 失败 → 抛错给渲染层 catch，由 store.loadError 显示醒目错误提示（不返回旧数据兜底）
   ipcMain.handle('erc:exchange:getCountries', async () => {
-    return await fetchCountries()
+    const maxAgeMs = getErcConfig().refreshIntervalMin * 60 * 1000
+    return await fetchCountriesWithCache(maxAgeMs)
   })
 
   // 读取 ERC 配置（地址/key/刷新频率）

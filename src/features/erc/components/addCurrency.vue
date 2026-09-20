@@ -35,7 +35,17 @@
         <!-- 左列：国旗（上）/ 中文国家名（下） -->
         <div class="col-left">
           <div class="flag">
-            <img :src="`/flags/${item.alpha2Code}.png`" :alt="item.translations?.common || item.name">
+            <img
+              v-if="!failedFlags[item.alpha2Code]"
+              :src="`/flags/${item.alpha2Code}.png`"
+              :alt="item.translations?.common || item.name"
+              @error="failedFlags[item.alpha2Code] = true"
+            >
+            <svg v-else class="flag-broken" viewBox="0 0 24 18" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2" y="2" width="20" height="14" rx="1"/>
+              <circle cx="8" cy="6.5" r="1.5"/>
+              <path d="M3 15l5-5 3 3 4-4 6 6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </div>
           <span class="country-zh">{{ item.translations?.common || item.name }}</span>
         </div>
@@ -56,13 +66,16 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useDataStore } from '../stores/data.js'
 import { matchCurrencyByKeyword, getCurrencyZhName } from '../shared/searchIndex.js'
 
 const store = useDataStore()
 
 const searchCode = ref('')
+
+// 国旗图片加载失败记录：key = alpha2Code，值为 true 表示该国旗加载失败
+const failedFlags = reactive({})
 
 // 多维度模糊过滤：三字码 / 中文名(translations) / 币种英文名 / 国家英文名 / 硬编码别名
 const filteredCurrencies = computed(() => {
@@ -188,6 +201,13 @@ function selectCurrency(currency) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+}
+.flag-broken {
+  width: 100%;
+  height: 100%;
+  color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.04);
   display: block;
 }
 .country-zh {

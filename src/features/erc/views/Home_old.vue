@@ -43,32 +43,14 @@
           </n-spin>
         </n-modal>
 
-        <!-- 币种列表加载失败提示条：API 拉取失败时醒目提示，附重试按钮 -->
-        <div v-if="store.loadError" class="erc-load-error">
-          <span class="erc-load-error-text">币种数据加载失败，请检查网络或 API 配置后重试</span>
-          <button class="erc-load-error-retry" :disabled="retrying" @click="retryLoadCountries">重试</button>
-        </div>
-
         <div class="erc-content">
           <n-tabs
             v-model:value="activeTab"
             type="line"
             animated
             class="erc-tabs"
-            :pane-wrapper-style="{
-              flex: '1 1 auto',
-              minHeight: '0',
-              minWidth: '0',
-              overflow: 'hidden'
-            }"
-            :pane-style="{
-              height: '100%',
-              minHeight: '0',
-              minWidth: '0',
-              overflow: 'auto',
-              display: 'flex',
-              flexDirection: 'column'
-            }"
+            :pane-wrapper-style="{ flex: '1', minHeight: '0' }"
+            :pane-style="{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }"
           >
             <!-- 全部币种：展示所有币种网格，点击可加入换算 -->
             <n-tab-pane name="all" tab="全部币种">
@@ -123,43 +105,19 @@ async function refreshRates() {
   }
 }
 
-// 手动重试币种列表拉取：store.loadError 为 true 时由用户点击触发
-//   不复用 store.loading（loading 语义是"汇率拉取中"），用本地 ref 控制 button disabled
-//   重试成功后必须再调 updata_exchangeRates：load 拉的是国家列表（rate=0），
-//   需要单独拉汇率才有 rate，否则 seedDefaultCurrencies 种入的 CNY/USD rate=0 算不出值
-const retrying = ref(false)
-async function retryLoadCountries() {
-  if (retrying.value) return
-  retrying.value = true
-  try {
-    await store.load_all_countries_list()
-    if (store.loadError) return
-    await store.updata_exchangeRates()
-    // 重试成功后联动种入默认币种（若之前因 loadError 未执行）
-    store.seedDefaultCurrencies()
-  } finally {
-    retrying.value = false
-  }
-}
-
-// 初始化：拉国家列表 → 拉汇率 → 种入默认 CNY/USD
-// 关键：currencies_list 不再持久化（改由主进程 fetchCountriesWithCache 管理），
-//   冷启动 fresh 数据里 rate 全是 0，必须每次都拉一次 rate；旧逻辑用 syncDate
-//   判断"今天是否拉过"已失效，因为 currencies_list 持久化的前提不存在了。
+// 初始化：若币种列表空则拉国家列表，若今日未同步汇率则更新
 onMounted(async () => {
   store.loading = true
-  try {
-    if (store.currencies_list.length === 0) {
-      await store.load_all_countries_list()
-    }
-    // 加载失败：loadError=true 已驱动顶部错误条，后续步骤无意义，早 return
-    if (store.loadError) return
-    await store.updata_exchangeRates()
-    // 首次加载种入默认 CNY/USD（仅 activeCurrency 为空时生效）
-    store.seedDefaultCurrencies()
-  } finally {
-    store.loading = false
+  const today = new Date().toISOString().substring(0, 10)
+  if (store.currencies_list.length === 0) {
+    await store.load_all_countries_list()
   }
+  if (store.syncDate !== today) {
+    await store.updata_exchangeRates()
+  }
+  // 首次加载种入默认 CNY/USD（仅 activeCurrency 为空时生效）
+  store.seedDefaultCurrencies()
+  store.loading = false
   // 订阅主进程定时刷新推送（间隔在 ERC 设置页配置，默认 30 分钟）
   // 主进程单点调度，渲染层只接收，无需本地 setInterval
   api.erc.onRateUpdated((res) => {
@@ -172,12 +130,10 @@ onMounted(async () => {
 .erc-home {
   width: 100%;
   height: 100vh;
-  min-height: 0;
   background: #1e1e1e;
   color: #fff;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 .erc-header {
   padding: 16px 24px;
@@ -244,76 +200,20 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
 }
-/* 币种列表加载失败提示条：紧贴 header 下方，红底白字醒目 */
-.erc-load-error {
-  flex-shrink: 0;
-  padding: 10px 24px;
-  background: rgba(220, 50, 50, 0.92);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 13px;
-}
-.erc-load-error-text {
-  flex: 1 1 auto;
-}
-.erc-load-error-retry {
-  flex: 0 0 auto;
-  padding: 4px 14px;
-  background: #fff;
-  color: #d63232;
-  border: none;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.12s;
-}
-.erc-load-error-retry:hover:not(:disabled) {
-  background: #f0f0f0;
-}
-.erc-load-error-retry:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
 .erc-content {
   padding: 16px 24px;
-  flex: 1 1 auto;
+  flex: 1;
   min-height: 0;
-  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-sizing: border-box;
 }
-/*
- * 整个页面不滚动，只让当前 Tab 的内容区域滚动。
- * 页面 -> content -> tabs -> pane wrapper -> pane，每一级都允许 flex 子项收缩。
- */
+/* n-tabs 根元素占满剩余高度（scoped class 直接作用于组件根 div） */
 .erc-tabs {
-  flex: 1 1 auto;
+  flex: 1;
   min-height: 0;
-  min-width: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-}
-.erc-tabs :deep(.n-tabs-nav) {
-  flex: 0 0 auto;
-}
-.erc-tabs :deep(.n-tabs-pane-wrapper) {
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
-}
-.erc-tabs :deep(.n-tab-pane) {
-  min-height: 0;
-  min-width: 0;
-  overflow: auto;
-  box-sizing: border-box;
 }
 .loading-spin {
   width: 280px;
