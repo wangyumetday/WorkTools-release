@@ -91,16 +91,16 @@ function safeCallProcess(fn, ctx, fallbackMaker) {
 // ---------- QueryParam → GetList 映射（§4.2.1.3）----------
 
 /**
- * QueryParam { dep, arr, airline, date } → 锦绣 GetList query
+ * QueryParam { dep, arr, airline, date } → 锦绣 GetList POST body
+ * 分页由 fetchList(query, 1, 200) 的第 3 参注入，这里不传 pageSize
  */
 function buildJinXiuQuery(qp) {
   const q = {
     depAirPort: qp.dep,
     arrAirPort: qp.arr,
-    PageSize:   200,
   }
   if (qp.airline) q.carrier = qp.airline // 空字符串/null → 不传
-  if (qp.date)    q.depDate = `${qp.date}T00:00:00`
+  if (qp.date)    q.depDate = qp.date    // 新接口日期格式 YYYY-MM-DD（不再带 T00:00:00）
   return q
 }
 

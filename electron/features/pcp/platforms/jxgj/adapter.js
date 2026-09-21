@@ -1,6 +1,6 @@
 // ============================================================
 // JXGJ（锦绣国际）平台 adapter
-// 数据源接口：spider.xxklf.com/taskresult/api/TaskResult/GetList
+// 数据源接口：spider.xxklf.com/TaskResult/api/TaskResult/GetList（POST JSON）
 // 语义：JXGJ 是源数据平台，a1 → a2（含航班 + date_obj），不产出政策 xlsx
 // 调用链（PlatformAdapter 接口，按执行顺序排列）：
 //   compileConfig → login → prepareRequest → request → mergeResult
