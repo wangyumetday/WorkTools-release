@@ -30,7 +30,7 @@
             size="small"
           />
         </div>
-        <div class="form-row">
+        <div class="form-row" v-if="!p.hideKey">
           <label>Key</label>
           <n-input
             v-model:value="form.providers[p.id].key"
@@ -122,7 +122,9 @@ const ZOOM_MAX = 1.5
 const FLOATING_SAVE_DEBOUNCE_MS = 500
 
 // 展示顺序与标签（值与 configManager.js DEFAULT_CONFIG.providers 对应）
+//   hideKey=true 的源无需 Key（如锦绣国际汇率接口），卡片不渲染 Key 输入行
 const providerDefs = [
+  { id: 'xxklf', label: '锦绣国际汇率接口（默认汇率源，无需 Key）', hideKey: true },
   { id: 'exchangerate', label: 'ExchangeRate-API（汇率源）' },
   { id: 'restcountries', label: '币种富信息源API（中文名、国旗图标）' }
 ]
@@ -132,10 +134,11 @@ const saving = ref(false)
 
 const form = reactive({
   providers: {
+    xxklf: { baseUrl: '', key: '' },
     exchangerate: { baseUrl: '', key: '' },
     restcountries: { baseUrl: '', key: '' }
   },
-  refreshIntervalMin: 30,
+  refreshIntervalMin: 180,
   floating: { opacity: 1.0, zoom: 1.0, dimOpacity: 0.1 }
 })
 
@@ -197,8 +200,12 @@ onUnmounted(() => {
 })
 
 // 渲染层预校验（与主进程 validate 规则一致，提前拦截、少一次 IPC 往返）
-// exchangerate 必填（汇率唯一源）；restcountries 允许留空（留空则用默认值）
+// xxklf（默认源）与 exchangerate 地址必填；xxklf 无需 Key；restcountries 允许留空（留空则用默认值）
 function validateForm() {
+  const xxBaseUrl = form.providers.xxklf.baseUrl.trim()
+  if (!/^https?:\/\/.+/.test(xxBaseUrl)) {
+    return '锦绣国际汇率接口的地址必须以 http:// 或 https:// 开头'
+  }
   const exBaseUrl = form.providers.exchangerate.baseUrl.trim()
   if (!/^https?:\/\/.+/.test(exBaseUrl)) {
     return 'ExchangeRate-API 的地址必须以 http:// 或 https:// 开头'
@@ -227,6 +234,10 @@ async function onSave() {
   try {
     const payload = {
       providers: {
+        xxklf: {
+          baseUrl: form.providers.xxklf.baseUrl.trim(),
+          key: ''
+        },
         exchangerate: {
           baseUrl: form.providers.exchangerate.baseUrl.trim(),
           key: form.providers.exchangerate.key.trim()

@@ -135,18 +135,17 @@
             <span class="rbl-item"><i class="rbl-dot rbl-dot--ownHidden" />我方未显</span>
             <span class="rbl-item"><i class="rbl-dot rbl-dot--lost" />比输</span>
             <span class="rbl-item"><i class="rbl-dot rbl-dot--other" />未匹配/无对应</span>
-            <span class="rbl-hint">每块=官网行（我方官价/底价+行李）+ 其下携程行（携程价+行李）· 标签 hover 看明细</span>
+            <span class="rbl-hint">每块=官网行（官网/OTA 列显官价/底价 + 行李信息列显锦绣行李）+ 其下携程行（价格/行李进同列对照）· 数据归属列：蓝=官网、橙=携程 · 标签 hover 看明细</span>
           </div>
           <table v-if="tripGroups.length > 0" class="rb-table rb-table--quotes">
             <thead>
               <tr>
                 <th>匹配结果</th>
+                <th>数据归属</th>
                 <th>航线</th>
                 <th>舱位</th>
-                <th>我方</th>
-                <th>我方行李</th>
-                <th>携程价</th>
-                <th>携程行李</th>
+                <th>官网/OTA</th>
+                <th>行李信息</th>
               </tr>
             </thead>
             <tbody v-for="g in tripGroups" :key="g.key">
@@ -162,24 +161,26 @@
                     :title="f.unmatchedReason?.detail || f.note || ''"
                   >{{ f.statusText }}</span>
                 </td>
+                <!-- 数据归属：官网=蓝 / 携程=橙（字体+背景+边框三色一眼区分） -->
+                <td>
+                  <span class="rb-owner" :class="`rb-owner--${f.role === 'official' ? 'official' : 'ctrip'}`">{{ f.ownerLabel }}</span>
+                </td>
                 <td class="qm-route-cell">
                   <div class="qm-flight">{{ f.flightNo }}</div>
                   <div class="qm-route">{{ g.route }}</div>
                 </td>
                 <td>{{ f.cabinLabel }}</td>
+                <!-- 官网/OTA：官网行=官价+底价（无人投放的未匹配行加提示）；携程行/附加行=该报价价 -->
                 <td class="rb-price">
                   <template v-if="f.role === 'official'">
                     <div>{{ f.ourPrice == null ? '—' : `¥${f.ourPrice}` }} 官</div>
                     <div>{{ f.ourFloor == null ? '—' : `¥${f.ourFloor}` }} 底</div>
+                    <span v-if="f.kind !== 'other' && f.status === 'unmatched'" class="rb-nodrop">无人投放</span>
                   </template>
-                  <template v-else>—</template>
+                  <template v-else>{{ f.xcPrice == null || f.xcPrice === '—' ? '—' : `¥${f.xcPrice}` }}</template>
                 </td>
-                <td class="rb-baggage">{{ f.role === 'official' ? (f.ourBaggageShort || '—') : '—' }}</td>
-                <td class="rb-price">
-                  <span v-if="f.role === 'official' && f.kind !== 'other' && f.status === 'unmatched'" class="rb-nodrop">无人投放</span>
-                  <template v-else>{{ f.xcPrice == null ? '—' : `¥${f.xcPrice}` }}</template>
-                </td>
-                <td class="rb-baggage" :title="f.xcBaggage">{{ f.xcBaggageShort || '—' }}</td>
+                <!-- 行李信息：官网行=锦绣行李；携程行/附加行=携程行李 -->
+                <td class="rb-baggage" :title="f.role !== 'official' ? f.xcBaggage : ''">{{ (f.role === 'official' ? f.ourBaggageShort : f.xcBaggageShort) || '—' }}</td>
               </tr>
             </tbody>
           </table>
@@ -440,6 +441,8 @@ const tripRows = computed(() => {
     const role = q.role ?? 'other'
     return {
       role,
+      // 数据归属：官网行=官网（锦绣官方数据）；携程行/附加行=携程（报价来源）
+      ownerLabel: role === 'official' ? '官网' : '携程',
       unitKey: q.unitKey ?? null,
       kind: q.kind ?? 'other',
       status: q.status,
@@ -823,17 +826,40 @@ const tripStats = computed(() => {
   border: 1px dashed #d9d9d9;
 }
 
+/* 数据归属列标识：字体色+背景色+边框色三合一，一眼区分数据来源（蓝=官网/橙=携程，
+   与平台色呼应：锦绣卡片蓝 #1890ff、携程卡片橙 #fa8c16） */
+.rb-owner {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.rb-owner--official {
+  color: #0958d9;
+  background: #e6f4ff;
+  border-color: #91caff;
+}
+
+.rb-owner--ctrip {
+  color: #d46b08;
+  background: #fff1de;
+  border-color: #ffbb96;
+}
+
 /* ===== 套餐对套餐对比表 ===== */
 .rb-table--quotes {
   table-layout: fixed;
 
   th:nth-child(1) { width: 76px; }
-  th:nth-child(2) { width: 18%; }
-  th:nth-child(3) { width: 68px; }
-  th:nth-child(4) { width: 68px; }
-  th:nth-child(5) { width: 56px; }
-  th:nth-child(6) { width: 64px; }
-  th:nth-child(7) { width: 56px; }
+  th:nth-child(2) { width: 64px; }
+  th:nth-child(3) { width: 18%; }
+  th:nth-child(4) { width: 60px; }
+  th:nth-child(5) { width: 90px; }
+  th:nth-child(6) { width: 96px; }
 
   th,
   tr.qrow > td {

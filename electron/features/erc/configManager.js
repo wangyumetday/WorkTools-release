@@ -1,9 +1,10 @@
 // ============================================================
 // ERC ConfigManager - 汇率源、币种富信息源、刷新频率与悬浮窗外观配置管理器
-// 职责：管理汇率源（exchangerate）与币种富信息源（restcountries）的地址/key、
-//       全局自动刷新频率、悬浮窗缩放/透明度
+// 职责：管理汇率源（xxklf 默认 / exchangerate）与币种富信息源（restcountries）的
+//       地址/key、全局自动刷新频率、悬浮窗缩放/透明度
 //
 // 持久化：userData/config/ercConfig.json
+//   - 文件带 schemaVersion；与当前版本不一致（接入新汇率源等结构变更）→ 整文件失效回默认
 //   - 加载时与默认配置深合并，兼容老用户配置缺字段（地址/key 变更时自动补默认）
 //   - 仅做格式校验后落盘；网络连通性由保存后的立即拉取验证，失败不回滚
 //
@@ -19,6 +20,9 @@ import { app } from 'electron'
 export const REFRESH_INTERVAL_MIN = 1
 export const REFRESH_INTERVAL_MAX = 1440
 
+// ercConfig.json 结构版本：汇率源集合/默认刷新频率变更时递增，旧文件整体失效回默认
+const ERC_CONFIG_SCHEMA = 2
+
 // 悬浮窗缩放/透明度边界（与 floatingWindow.js 的 OPACITY_MIN/MAX、ZOOM_MIN/MAX 对齐）
 export const FLOATING_OPACITY_MIN = 0.1
 export const FLOATING_OPACITY_MAX = 1.0
@@ -31,12 +35,18 @@ export const FLOATING_DIM_OPACITY_MAX = 1.0
 
 // 默认配置（原硬编码在 service.js 的地址与 key 下沉至此）
 //   providers.<id>.baseUrl 语义：
-//     exchangerate  : 不含 key 的基础地址，适配者拼 `${baseUrl}/${key}/latest/USD`
+//     xxklf        : 锦绣国际汇率接口（默认汇率源，CNY 基准，无需 Key）
+//     exchangerate : 不含 key 的基础地址，适配者拼 `${baseUrl}/${key}/latest/USD`
 //     restcountries : 币种富信息源（中文名、国旗图标），完整批量国家列表地址，key 走 Bearer 请求头
+//   refreshIntervalMin：全局汇率自动刷新频率默认 180 分钟（3 小时）
 //   floating：悬浮窗外观（缩放/透明度），由 ERC 设置页统一配置，持久化在主进程
 //     （悬浮窗独立 session partition，localStorage 与主窗不共享，故放主进程配置）
 const DEFAULT_CONFIG = {
   providers: {
+    xxklf: {
+      baseUrl: 'https://ticket-int.xxklf.com/api/ExchangeRate/all',
+      key: ''
+    },
     exchangerate: {
       baseUrl: 'https://v6.exchangerate-api.com/v6',
       key: '966d147f84377b39f732f221'
@@ -46,7 +56,7 @@ const DEFAULT_CONFIG = {
       key: 'rc_live_f4b2574cecc9494dad9a9452e2d05752'
     }
   },
-  refreshIntervalMin: 30,
+  refreshIntervalMin: 180,
   floating: {
     opacity: 1.0,
     zoom: 1.0,
@@ -62,6 +72,7 @@ function getConfigFile() {
 function cloneDefaults() {
   return {
     providers: {
+      xxklf: { ...DEFAULT_CONFIG.providers.xxklf },
       exchangerate: { ...DEFAULT_CONFIG.providers.exchangerate },
       restcountries: { ...DEFAULT_CONFIG.providers.restcountries }
     },
@@ -111,7 +122,11 @@ function load() {
   if (cache) return cache
   try {
     const raw = fs.readFileSync(getConfigFile(), 'utf-8')
-    cache = mergeWithDefaults(JSON.parse(raw))
+    const parsed = JSON.parse(raw)
+    // schemaVersion 不一致（接入新汇率源等结构变更）→ 旧文件整体失效，回默认配置
+    cache = (parsed && parsed.schemaVersion === ERC_CONFIG_SCHEMA)
+      ? mergeWithDefaults(parsed)
+      : mergeWithDefaults(null)
   } catch {
     // 文件不存在或解析失败：用默认值（不主动写盘，首次保存时创建）
     cache = mergeWithDefaults(null)
@@ -122,13 +137,21 @@ function load() {
 function persist() {
   const file = getConfigFile()
   fs.mkdirSync(path.dirname(file), { recursive: true })
-  fs.writeFileSync(file, JSON.stringify(cache, null, 2), 'utf-8')
+  fs.writeFileSync(file, JSON.stringify({ schemaVersion: ERC_CONFIG_SCHEMA, ...cache }, null, 2), 'utf-8')
 }
 
 // 保存前格式校验；不通过抛 Error（controller 捕获后回传渲染层提示）
-// exchangerate 为必填（汇率唯一源）；restcountries 允许留空（留空则用默认值）
+// xxklf（默认源）与 exchangerate 地址必填；xxklf 无需 Key；restcountries 允许留空（留空则用默认值）
 function validate(patch) {
   if (!patch || typeof patch !== 'object') throw new Error('配置内容为空')
+
+  const xx = patch.providers?.xxklf
+  if (!xx || typeof xx !== 'object') throw new Error('缺少汇率源 xxklf 的配置')
+  const xxBaseUrl = String(xx.baseUrl ?? '').trim()
+  if (!/^https?:\/\/.+/.test(xxBaseUrl)) {
+    throw new Error('锦绣国际汇率接口的地址必须以 http:// 或 https:// 开头')
+  }
+
   const ex = patch.providers?.exchangerate
   if (!ex || typeof ex !== 'object') throw new Error('缺少汇率源 exchangerate 的配置')
   const exBaseUrl = String(ex.baseUrl ?? '').trim()
@@ -138,6 +161,7 @@ function validate(patch) {
   if (!String(ex.key ?? '').trim()) {
     throw new Error('ExchangeRate-API 的 Key 不能为空')
   }
+
   const rc = patch.providers?.restcountries
   if (rc && typeof rc === 'object') {
     const rcBaseUrl = String(rc.baseUrl ?? '').trim()
@@ -158,6 +182,7 @@ export function getErcConfig() {
   const c = load()
   return {
     providers: {
+      xxklf: { ...c.providers.xxklf },
       exchangerate: { ...c.providers.exchangerate },
       restcountries: { ...c.providers.restcountries }
     },

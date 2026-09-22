@@ -3,12 +3,14 @@
 // 职责：从外部 API 拉取汇率和国家信息，供 controller 调用
 //
 // 数据源：
-//   - exchangerate  : exchangerate-api.com（唯一汇率源，USD 锚定）
+//   - xxklf        : 锦绣国际汇率接口（默认源，CNY 基准，无需 Key）
+//   - exchangerate : exchangerate-api.com（USD 锚定，需 Key）
 //   - restcountries : 币种富信息源（中文名、国旗图标、币种代码/符号）
 //
 // 统一输出结构（与 exchangerate-api 原生结构对齐）：
 //   { result: 'success', provider, conversion_rates: { CODE: rate }, time_last_update_unix }
 //   - conversion_rates 语义恒为「1 USD 兑 X 个该币种」，USD 自身恒为 1
+//   - xxklf 源返回「1 单位外币 = X CNY」的 CNY 基准表，由适配者换算成统一语义
 //
 // 国家列表本地缓存：
 //   - 文件路径：userData/cache/countries.json
@@ -28,8 +30,9 @@ import { app } from 'electron'
 import { getErcConfig } from './configManager.js'
 
 // 汇率源标识（渲染层 rateProvider / IPC 参数共用）
-export const RATE_PROVIDERS = ['exchangerate']
-export const DEFAULT_RATE_PROVIDER = 'exchangerate'
+//   xxklf：锦绣国际汇率接口（默认源，CNY 基准，无需 Key）
+export const RATE_PROVIDERS = ['xxklf', 'exchangerate']
+export const DEFAULT_RATE_PROVIDER = 'xxklf'
 
 // 国家列表本地缓存的 schema 版本：字段结构升级时递增，旧版缓存自动失效重拉
 const COUNTRIES_CACHE_SCHEMA = 1
@@ -109,7 +112,7 @@ function getJson(url, { timeoutMs = 15000, headers = {}, retries = 3 } = {}) {
 }
 
 /**
- * 适配者：exchangerate-api（唯一汇率源）
+ * 适配者：exchangerate-api
  * 原生结构即 { result, conversion_rates, time_last_update_unix }，补 provider 字段即可
  * 地址由配置拼装：${baseUrl}/${key}/latest/USD
  */
@@ -124,12 +127,47 @@ async function fetchExchangeRateIO() {
 }
 
 /**
+ * 适配者：锦绣国际汇率接口（默认源，CNY 基准，无需 Key）
+ * 原生结构 { Content: { 币种码: 1单位外币=X CNY }, Status: 1, Msg: 'OK' }，CNY 恒为 1
+ * 换算成统一语义（1 USD = X 该币种）：
+ *   1 USD = Content[USD] CNY → 1 USD = Content[USD] / Content[code] 个 code
+ * 只保留标准三字币种码（Content 混有 CNY_LJ / USD_NS 等分渠道变体码，剔除）；
+ * 接口不带更新时间，time_last_update_unix 用本次拉取时间近似
+ */
+async function fetchExchangeRateXXKLF() {
+  const { baseUrl } = getErcConfig().providers.xxklf
+  const url = baseUrl.replace(/\/+$/, '')
+  const res = await getJson(url)
+  if (!res || res.Status !== 1 || !res.Content || typeof res.Content !== 'object') {
+    throw new Error('锦绣国际汇率接口返回异常')
+  }
+  const usdToCny = Number(res.Content['USD'])
+  if (!Number.isFinite(usdToCny) || usdToCny <= 0) {
+    throw new Error('锦绣国际汇率接口缺少 USD 基准汇率')
+  }
+  const conversion_rates = {}
+  for (const [code, v] of Object.entries(res.Content)) {
+    if (!/^[A-Z]{3}$/.test(code)) continue
+    const toCny = Number(v)
+    if (!Number.isFinite(toCny) || toCny <= 0) continue
+    conversion_rates[code] = usdToCny / toCny
+  }
+  return {
+    result: 'success',
+    provider: 'xxklf',
+    conversion_rates,
+    time_last_update_unix: Math.floor(Date.now() / 1000)
+  }
+}
+
+/**
  * 拉取最新汇率（以 USD 为锚定）
- * provider 参数保留兼容性但唯一源为 exchangerate
+ * @param {string} provider  数据源标识（xxklf | exchangerate），缺省用默认源 xxklf
  * 返回 { result, provider, conversion_rates, time_last_update_unix }
  */
 export async function fetchExchangeRate(provider = DEFAULT_RATE_PROVIDER) {
-  return fetchExchangeRateIO()
+  if (provider === 'exchangerate') return fetchExchangeRateIO()
+  return fetchExchangeRateXXKLF()
 }
 
 // 三页查询：每页 100 条，offset 0/100/200，共约 300 个国家

@@ -19,8 +19,8 @@ export const useDataStore = defineStore('erc-data', () => {
   // ==================== 币种与汇率数据 ====================
   // 锚定货币（汇率以 USD 为基准拉取）
   const AnchorCurrency = ref('USD')
-  // 汇率数据源标识（唯一源 exchangerate），持久化
-  const rateProvider = ref('exchangerate')
+  // 汇率数据源标识（xxklf 锦绣国际汇率接口为默认源；exchangerate 备选），持久化
+  const rateProvider = ref('xxklf')
   // 参与换算的币种列表（用户从全部币种里点选加入）
   const activeCurrency = ref([])
   // 全部国家信息（原始数据，含重复币种）
@@ -248,10 +248,10 @@ export const useDataStore = defineStore('erc-data', () => {
   //   - activeCurrency 会持久化，但 load_all_countries_list 末尾调 rehydrateActiveCurrency
   //     把旧引用替换为 fresh currencies_list 中的同 code 引用，保证后续 applyRateUpdate
   //     走 currencies_list 时能同步更新 activeCurrency 中的项
-  // key 保留 erc-data-v3：pick 限定的字段集与旧版兼容，旧 localStorage 中已废弃字段
-  //   会被自动忽略（pinia-persistedstate v4 反序列化时只读 pick 中的项）
+  // key 升级为 erc-data-v4：接入锦绣国际汇率接口后默认源改为 xxklf，
+  //   旧版持久化的 rateProvider='exchangerate' 一律作废，回新默认（旧用户数据不保留）
   persist: {
-    key: 'erc-data-v3',
+    key: 'erc-data-v4',
     pick: ['activeCurrency', 'rateProvider', 'syncDate', 'lastUpdateTime']
   }
 })

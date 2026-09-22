@@ -135,18 +135,32 @@ export const useTaskStore = defineStore('pcp-task', () => {
   }
 
   // ==================== 刷新方法 ====================
+  // ★ 合并式刷新（不整体替换）：任务列表跨轮累积，只有「清空」按钮清已结束任务。
+  //   后端队列在一次运行 reset 后只含本轮任务，此处按 id 合并——
+  //   已展示任务原地更新、新任务追加，后端队列已不存在的历史任务保留展示（用户可回看）；
+  //   （stagger 与 push 语义同 handleTaskState，取消未完成的 stagger 防 stale 重复）
   async function refreshTasks() {
-    // ★ 取消未完成的 stagger：refreshTasks 做整体替换，
-    //   若 staggerTimer 还在跑，25ms 后会把闭包里的 stale 任务 push 到新数组末尾 → 重复显示
     if (staggerTimer) { clearTimeout(staggerTimer); staggerTimer = null; staggerGen++ }
     const state = await api.pcp.taskGetState()
-    tasks.value = state.tasks || []
     isRunning.value = state.isRunning
     isPaused.value = state.isPaused
     currentStage.value = state.currentStage
     concurrency.value = state.concurrency ?? 1
     activeCount.value = state.activeCount ?? 0
+
+    const incoming = state.tasks || []
+    const incomingMap = new Map(incoming.map(t => [t.id, t]))
+    const knownIds = new Set(tasks.value.map(t => t && t.id).filter(Boolean))
+    // 1. 已展示任务按 id 原地更新（保留对象引用，不触发列表 reflow）
+    for (const t of tasks.value) {
+      const fresh = t && incomingMap.get(t.id)
+      if (fresh) Object.assign(t, fresh)
+    }
+    // 2. 新任务追加到末尾（task.id 全局递增，追加序 = 时间序）
+    const newTasks = incoming.filter(t => t && !knownIds.has(t.id))
+    if (newTasks.length > 0) tasks.value.push(...newTasks)
     rebuildTaskIndexMap()
+
     if (activeCount.value < 0 || activeCount.value > tasks.value.length) {
       activeCount.value = tasks.value.filter(t => t && t.status === 'running').length
       isRunning.value = activeCount.value > 0
@@ -178,9 +192,9 @@ export const useTaskStore = defineStore('pcp-task', () => {
 
   // ==================== 步骤1：上传 xlsx ====================
   async function handleUploadXlsx() {
-    // 先重置 Pipeline：清空旧 a1/a2/a3 + 状态回到 idle/upload + 清空任务队列
+    // 先重置 Pipeline：清空旧 a1/a2/a3 + 状态回到 idle/upload
     //   防止上一个流程的 a2/a3 残留导致 StepFlow 误判步骤为「已完成」
-    //   ★ tasks 清空后 jxgjTasks/tripTasks computed 自动变空，面板2/3 自动清空
+    //   ★ 任务列表不清空：跨轮累积，只有「清空」按钮清已结束任务（refreshTasks 合并式保留历史）
     await api.pcp.pipelineReset()
 
     const result = await api.pcp.fileUploadXlsx()
@@ -247,14 +261,15 @@ export const useTaskStore = defineStore('pcp-task', () => {
 
   /**
    * 切换业务模式（政策导入/底价检查，TopToolbar 按钮调用）
-   *   后端校验 + 切换即全清（a1/a2/a3/任务/阶段），随后推送 pipeline:state 刷新本地状态
+   *   后端校验 + 切换即全清（a1/a2/a3/阶段），随后推送 pipeline:state 刷新本地状态；
+   *   ★ 任务列表不清空：跨轮累积，只有「清空」按钮清已结束任务
    */
   async function setBusinessMode(mode) {
     const result = await api.pcp.pipelineSetBusinessMode(mode)
     if (result?.success) {
       const label = BUSINESS_MODE_LABELS[result.businessMode] || result.businessMode
       message.info(`已切换业务模式：${label}`)
-      // 切换会清空全部数据，同步刷新 a1 预览与计数
+      // 后端已清 a1/a2/a3，同步刷新 a1 预览与计数（任务列表保留历史）
       await refreshDataCounts()
       await refreshTasks()
     } else if (result?.message) {
@@ -367,12 +382,18 @@ export const useTaskStore = defineStore('pcp-task', () => {
   // ==================== 任务监控器操作 ====================
   async function handleDeleteTask(taskId) {
     await api.pcp.taskDelete(taskId)
-    await refreshTasks()
+    // 本地同步移除（refreshTasks 是合并式刷新，不会删历史任务，须显式移除）
+    tasks.value = tasks.value.filter(t => t && t.id !== taskId)
+    rebuildTaskIndexMap()
   }
 
+  // ★ 清空按钮是任务列表唯一的清理入口：后端清已结束任务（保留 pending/paused/running），
+  //   本地同口径同步清（含前几轮累积的历史任务）
   async function handleClearTasks() {
     await api.pcp.taskClear()
-    await refreshTasks()
+    const keepStatus = new Set(['pending', 'paused', 'running'])
+    tasks.value = tasks.value.filter(t => t && keepStatus.has(t.status))
+    rebuildTaskIndexMap()
     message.info('已清理已结束任务')
   }
 
@@ -439,20 +460,18 @@ export const useTaskStore = defineStore('pcp-task', () => {
     activeCount.value = state.activeCount ?? 0
 
     const incoming = state.tasks || []
-    const incomingIds = new Set(incoming.map(t => t && t.id).filter(Boolean))
     const currentIds = new Set(tasks.value.map(t => t && t.id).filter(Boolean))
 
-    // 1. 移除不在 incoming 的旧任务（阶段衔接时清掉上一阶段已完成任务）
-    tasks.value = tasks.value.filter(t => incomingIds.has(t.id))
-    // 2. 已存在的任务 in-place 更新（保留响应式对象引用，不触发列表 reflow）
+    // ★ 不再移除不在 incoming 的旧任务：任务列表跨轮累积，只有「清空」按钮清已结束任务
+    // 1. 已存在的任务 in-place 更新（保留响应式对象引用，不触发列表 reflow）
     const incomingMap = new Map(incoming.map(t => [t.id, t]))
     for (const t of tasks.value) {
-      const fresh = incomingMap.get(t.id)
+      const fresh = t && incomingMap.get(t.id)
       if (fresh) Object.assign(t, fresh)
     }
     rebuildTaskIndexMap()
 
-    // 3. 新任务（addBatch 后入队）→ stagger 增量追加
+    // 2. 新任务（addBatch 后入队）→ stagger 增量追加
     const newTasks = incoming.filter(t => t && !currentIds.has(t.id))
     if (newTasks.length === 0) return
     // 大批量直接一次性追加，避免 stagger 过长卡住界面

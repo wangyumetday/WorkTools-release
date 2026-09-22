@@ -3,10 +3,12 @@
 //
 // 功能：
 //   1. AnyToCny(BIZHONG, JINE) —— 任意币种金额 → 人民币金额（同步调用）
-//   2. 汇率数据从 exchangerate-api 拉取，CNY 为基准币
+//   2. 汇率数据从锦绣国际汇率接口拉取（ticket-int.xxklf.com/api/ExchangeRate/all）
+//      返回结构 { Content: { 币种码: 汇率 }, Status: 1, Msg: 'OK' }，
+//      语义为「1 单位外币 = X CNY」，CNY 恒为 1（CNY 基准汇率表）
 //   3. 汇率缓存到本地 JSON 文件，有效期 1 小时（3600s）
 //   4. 过期时不阻塞同步调用：先用旧值算，后台异步刷新下次生效
-//   5. 首次运行无缓存：内置常见币种默认汇率做底线兜底
+//   5. 首次运行无缓存：内置常见币种默认汇率做底线兜底（与接口同语义）
 //   6. 金额精确计算使用 decimal.js（杜绝浮点误差，钱不能算错）
 //
 // 注：本模块在主进程被 import，不能在模块顶层调 electron.app.getPath()
@@ -18,12 +20,15 @@ import path from 'node:path'
 import os from 'node:os'
 import Decimal from 'decimal.js'
 
-// ---------- 配置：API key、URL、缓存有效期 ----------
-const ExchangeRate_KEY = '966d147f84377b39f732f221'
-const ExchangeRate_URL = `https://v6.exchangerate-api.com/v6/${ExchangeRate_KEY}/latest/CNY`
+// ---------- 配置：汇率接口 URL、缓存有效期 ----------
+const ExchangeRate_URL = 'https://ticket-int.xxklf.com/api/ExchangeRate/all'
 
 // 缓存有效期（毫秒）= 1 小时
 const CACHE_TTL_MS = 60 * 60 * 1000
+
+// 缓存格式标记：接入锦绣国际汇率接口后与旧缓存（1 CNY = x 外币 语义）不兼容，
+// 旧文件无本标记 → 视为无缓存（回兜底表 + 后台重拉）
+const CACHE_SCHEMA = 'xxklf'
 
 // ---------- 配置：本地缓存路径 ----------
 // Windows 下：C:\Users\<用户名>\.worktools\exchange_rate_cache.json
@@ -32,44 +37,44 @@ const CACHE_DIR = path.join(os.homedir(), '.worktools')
 const CACHE_FILE = path.join(CACHE_DIR, 'exchange_rate_cache.json')
 
 // ---------- 常见币种兜底汇率（首次无缓存时使用）----------
-// 含义：1 CNY = x 外币（与 exchangerate-api /latest/CNY 返回语义一致）
-// 定期人工更新，仅作底线，真实运行 1-2 秒后就会被 API 拉取的真值覆盖
+// 语义：1 单位外币 = X CNY（与锦绣国际汇率接口 Content 语义一致），CNY 恒为 1
+// 取值与接口近期返回值一致，仅作底线，真实运行 1-2 秒后就会被 API 拉取的真值覆盖
 const FALLBACK_RATES = {
   CNY: 1,
-  USD: 0.138,
-  EUR: 0.126,
-  JPY: 23.82,
-  HKD: 1.078,
-  GBP: 0.107,
-  KRW: 190.5,
-  AUD: 0.215,
-  CAD: 0.191,
-  SGD: 0.185,
-  CHF: 0.122,
-  THB: 4.73,
-  MYR: 0.65,
-  IDR: 2165,
-  VND: 3520,
-  PHP: 7.92,
-  INR: 11.6,
-  MXN: 2.38,
-  BRL: 0.69,
-  RUB: 13.1,
-  ZAR: 2.55,
-  SEK: 1.51,
-  NOK: 1.47,
-  DKK: 0.94,
-  PLN: 0.55,
-  TRY: 4.75,
-  AED: 0.507,
-  SAR: 0.518,
-  NZD: 0.233,
-  TWD: 4.55,
-  MOP: 1.11
+  USD: 6.6979,
+  EUR: 7.684,
+  JPY: 0.0425,
+  HKD: 0.8538,
+  GBP: 8.9638,
+  KRW: 0.0049,
+  AUD: 4.7733,
+  CAD: 4.7755,
+  SGD: 5.2493,
+  CHF: 8.1639,
+  THB: 0.2015,
+  MYR: 1.6442,
+  IDR: 0.000375,
+  VND: 0.000257,
+  PHP: 0.1069,
+  INR: 0.0699,
+  MXN: 0.3891,
+  BRL: 1.3101,
+  RUB: 0.0799,
+  ZAR: 0.4123,
+  SEK: 0.6816,
+  NOK: 0.7102,
+  DKK: 1.028,
+  PLN: 1.768,
+  TRY: 0.1372,
+  AED: 1.8235,
+  SAR: 1.7828,
+  NZD: 3.8442,
+  TWD: 0.2115,
+  MOP: 0.8291
 }
 
 // ---------- 内存状态 ----------
-/** @type {Record<string, number> | null} 内存中的汇率表（1 CNY = ? 外币） */
+/** @type {Record<string, number> | null} 内存中的汇率表（1 单位外币 = ? CNY） */
 let _rates = null
 /** @type {number} 上次拉取时间戳（ms，Date.now()） */
 let _fetchedAt = 0
@@ -99,8 +104,8 @@ function _loadCacheSync() {
   try {
     const raw = fs.readFileSync(CACHE_FILE, 'utf-8')
     const obj = JSON.parse(raw)
-    // 简单结构校验：必须有 rates（object）和 fetchedAt（number）
-    if (obj && typeof obj.rates === 'object' && obj.rates && typeof obj.fetchedAt === 'number') {
+    // 结构校验：必须有格式标记（src）、rates（object）和 fetchedAt（number）
+    if (obj && obj.src === CACHE_SCHEMA && typeof obj.rates === 'object' && obj.rates && typeof obj.fetchedAt === 'number') {
       return obj
     }
     return null
@@ -115,7 +120,7 @@ function _loadCacheSync() {
 // ============================================================
 function _saveCacheAsync(rates, fetchedAt) {
   _ensureCacheDirSync()
-  const obj = { rates, fetchedAt, savedAt: Date.now() }
+  const obj = { src: CACHE_SCHEMA, rates, fetchedAt, savedAt: Date.now() }
   // 异步写，失败不抛（磁盘满/权限等不影响主流程）
   fs.promises.writeFile(CACHE_FILE, JSON.stringify(obj, null, 2), 'utf-8').catch(e => {
     console.warn('[HuiLvZhuanHuan] 缓存文件写入失败:', e?.message || e)
@@ -123,7 +128,9 @@ function _saveCacheAsync(rates, fetchedAt) {
 }
 
 // ============================================================
-// 工具：异步拉取最新汇率（exchangerate-api /latest/CNY）
+// 工具：异步拉取最新汇率（锦绣国际汇率接口 /api/ExchangeRate/all）
+//   返回 { Content: { 币种码: 1单位外币=X CNY }, Status, Msg }；
+//   只保留标准三字币种码（Content 混有 CNY_LJ / USD_NS 等分渠道变体码，剔除）
 // ============================================================
 async function _fetchRatesFromApi() {
   const res = await fetch(ExchangeRate_URL, { method: 'GET' })
@@ -131,10 +138,16 @@ async function _fetchRatesFromApi() {
     throw new Error(`HTTP ${res.status}`)
   }
   const data = await res.json()
-  if (data.result !== 'success' || !data.conversion_rates || typeof data.conversion_rates !== 'object') {
-    throw new Error(`返回格式异常: ${data['error-type'] || data.result || 'unknown'}`)
+  if (data.Status !== 1 || !data.Content || typeof data.Content !== 'object') {
+    throw new Error(`返回格式异常: ${data.Msg || data.Status || 'unknown'}`)
   }
-  return data.conversion_rates
+  const rates = {}
+  for (const [code, v] of Object.entries(data.Content)) {
+    if (!/^[A-Z]{3}$/.test(code)) continue
+    const n = Number(v)
+    if (Number.isFinite(n) && n > 0) rates[code] = n
+  }
+  return rates
 }
 
 // ============================================================
@@ -204,8 +217,8 @@ function _ensureRatesSync() {
 // 返回：number —— 折算后的人民币金额，四舍五入保留 2 位小数
 //
 // 换算逻辑：
-//   API 返回 conversion_rates[BIZHONG] = R 表示 "1 CNY = R 外币"
-//   因此：外币金额 JINE → CNY = JINE / R
+//   汇率表 rates[BIZHONG] = R 表示 "1 单位外币 = R CNY"（CNY 恒为 1）
+//   因此：外币金额 JINE → CNY = JINE × R
 // ============================================================
 export function AnyToCny(BIZHONG, JINE) {
   // 先保证内存里至少有一份汇率表（兜底/缓存/新拉 都可）
@@ -228,7 +241,7 @@ export function AnyToCny(BIZHONG, JINE) {
     return Number(amount.toDecimalPlaces(2, Decimal.ROUND_HALF_UP))
   }
 
-  // 精确除法：CNY = JINE / rate，四舍五入 2 位
-  const cny = amount.div(new Decimal(String(rate))).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+  // 精确乘法：CNY = JINE × rate，四舍五入 2 位
+  const cny = amount.times(new Decimal(String(rate))).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
   return Number(cny)
 }

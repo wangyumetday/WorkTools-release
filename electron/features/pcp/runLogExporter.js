@@ -27,7 +27,10 @@ import os from 'node:os'
 import { app } from 'electron'
 
 const LOG_ROOT_DIR = 'work tools运行日志'
-const LOG_FILENAME = 'run-log.html'
+// 分片导出：总览页 + 每任务一个文件 + 失败兜底文件
+const INDEX_FILENAME = 'index.html'
+const TASKS_DIR = 'tasks'
+const ERROR_FILENAME = 'error.txt'
 
 // ========== 工具 ==========
 
@@ -140,6 +143,8 @@ const UNMATCH_REASON_TEXT = {
  *   - 数据源：task.result.quoteRows（trip adapter.js buildQuoteRows 生成）
  *   - 行类型：main=主行对比单元（仅主行参与开启时）、package=套餐对比单元、other=附加行
  *   - 排序：按 flightNo|date|dep|arr 相邻归组，同行自含航班/航线信息
+ *   - 列布局：匹配结果 | 数据归属（官网=蓝/携程=橙三色标识） | 航线 | 舱位
+ *             | 官网/OTA（官网行=官价/底价，携程行=报价价） | 行李信息（官网行=锦绣行李，携程行=携程行李）
  *   - 着色（终端深色版）：
  *       won=透明绿字 / lost=深红 #3a1a1a / ownShown=深绿 #1e3a1a
  *       ownHidden=深黄 #3a3a1a / unmatched=透明灰字 / other=透明灰字
@@ -178,45 +183,50 @@ function renderQuoteBlock(task) {
     unmatched: s.quoteUnmatched ?? rows.filter(r => r.role === 'official' && r.status === 'unmatched').length,
     other: s.otherCount ?? rows.filter(r => r.kind === 'other').length
   }
+  // 匹配数量 = 比赢 + 比输（命中携程报价的对比单元数）；胜出率 = 我方外显 / 携程全部报价
+  // （分母含我方投放，与任务列表 TaskList.vue 胜出率同口径）；0 报价时显示 '—' 避免除零
+  const matchedCount = stats.won + stats.lost
+  const winRateText = stats.total > 0 ? `${Math.round((stats.ownShown / stats.total) * 100)}%` : '—'
 
   const renderRow = (q, route) => {
     const detail = q.unmatchedReason?.detail || q.note || ''
     const titleAttr = detail ? ` title="${escapeHtml(detail)}"` : ''
     const role = q.role ?? 'other'
     const cls = `qrow qrow--${q.status || 'other'} qrow--${role}`
-    // 我方列：only官网行有官方价/底价/行李；携程行/附加行留空
+    // 数据归属：官网行=官网（锦绣官方数据）；携程行/附加行=携程（报价来源）
     const isOfficial = role === 'official'
-    const ourPrice = isOfficial && q.ourPrice != null ? `¥${q.ourPrice} 官` : '—'
-    const ourFloor = isOfficial && q.ourFloor != null ? `¥${q.ourFloor} 底` : '—'
-    const ourBag = isOfficial ? (q.ourBaggageShort || '—') : '—'
+    const ownerClass = isOfficial ? 'official' : 'ctrip'
+    const ownerLabel = isOfficial ? '官网' : '携程'
+    // 官网/OTA 列：官网行=官价+底价（无人投放的未匹配行加提示）；携程行/附加行=该报价价
+    const priceCell = isOfficial
+      ? `<div>${q.ourPrice != null ? `¥${q.ourPrice} 官` : '—'}</div>` +
+        `<div>${q.ourFloor != null ? `¥${q.ourFloor} 底` : '—'}</div>` +
+        (q.kind !== 'other' && q.status === 'unmatched' ? '<span class="rb-nodrop">无人投放</span>' : '')
+      : (q.xcPrice == null ? '—' : `¥${q.xcPrice}`)
+    // 行李信息列：官网行=锦绣行李；携程行/附加行=携程行李
+    const baggageCell = isOfficial ? (q.ourBaggageShort || '—') : (q.xcBaggageShort || '—')
     const cabinLabel = role === 'ctrip'
       ? '↳ 携程'
       : (q.kind === 'main'
         ? `${q.seatClass ?? '—'}·主行`
         : (q.kind === 'package' ? `${q.seatClass ?? '—'}${q.pkgIndex != null ? `·套餐${q.pkgIndex}` : ''}` : (q.seatClass ?? '—')))
-    const xcCell = (isOfficial && q.kind !== 'other' && q.status === 'unmatched')
-      ? `<span class="rb-nodrop">无人投放</span>`
-      : (q.xcPrice == null ? '—' : `¥${q.xcPrice}`)
     return `<tr class="${cls}">
       <td><span class="rb-outcome rb-outcome--${q.status || 'other'}"${titleAttr}>${escapeHtml(quoteStatusText(q))}</span></td>
+      <td><span class="rb-owner rb-owner--${ownerClass}">${ownerLabel}</span></td>
       <td class="qm-route-cell">
         <div class="qm-flight">${escapeHtml(q.flightNo ?? '—')}</div>
         <div class="qm-route">${escapeHtml(route)}</div>
       </td>
       <td>${escapeHtml(cabinLabel)}</td>
-      <td class="rb-price">
-        <div>${escapeHtml(ourPrice)}</div>
-        <div>${escapeHtml(ourFloor)}</div>
-      </td>
-      <td>${escapeHtml(ourBag)}</td>
-      <td class="rb-price">${xcCell}</td>
-      <td>${escapeHtml(q.xcBaggageShort ?? '—')}</td>
+      <td class="rb-price">${priceCell}</td>
+      <td>${escapeHtml(baggageCell)}</td>
     </tr>`
   }
 
-  const groupsHtml = [...map.entries()].flatMap(([, group]) => {
+  // 每个 unitKey 一个 <tbody>：每套餐成一块（官网行 + 其携程行），与任务列表同款分块
+  const groupsHtml = [...map.entries()].map(([, group]) => {
     const route = (group[0].depAirport && group[0].arrAirport) ? `${group[0].depAirport}→${group[0].arrAirport}` : ''
-    return group.map(q => renderRow(q, route))
+    return `<tbody>${group.map(q => renderRow(q, route)).join('')}</tbody>`
   }).join('')
 
   return `
@@ -225,6 +235,7 @@ function renderQuoteBlock(task) {
       <div class="block-body">
         <div class="rb-summary-line">
           报价 ${stats.total} · 对比单元 ${stats.compareTotal}
+          · 匹配 ${matchedCount} · 胜出率 ${winRateText}
           · 比赢 ${stats.won} · 比输 ${stats.lost}
           · 外显 ${stats.ownShown} · 未显 ${stats.ownHidden}
           · 未匹配 ${stats.unmatched} · 无对应 ${stats.other}
@@ -234,21 +245,20 @@ function renderQuoteBlock(task) {
           <span class="rbl-item"><i class="rbl-dot rbl-dot--ownHidden"></i>我方未显</span>
           <span class="rbl-item"><i class="rbl-dot rbl-dot--lost"></i>比输</span>
           <span class="rbl-item"><i class="rbl-dot rbl-dot--other"></i>未匹配/无对应</span>
-          <span class="rbl-hint">每块=官网行（官方价/底价+行李）+ 其下携程行（携程价+行李）· 标签 hover 看明细</span>
+          <span class="rbl-hint">每块=官网行（官网/OTA 列显官价/底价 + 行李信息列显锦绣行李）+ 其下携程行（价格/行李进同列对照）· 数据归属列：蓝=官网、橙=携程 · 标签 hover 看明细</span>
         </div>
         <table class="rb-table rb-table--quotes">
           <thead>
             <tr>
               <th>匹配结果</th>
+              <th>数据归属</th>
               <th>航线</th>
               <th>舱位</th>
-              <th>我方</th>
-              <th>我方行李</th>
-              <th>携程价</th>
-              <th>携程行李</th>
+              <th>官网/OTA</th>
+              <th>行李信息</th>
             </tr>
           </thead>
-          <tbody>${groupsHtml}</tbody>
+          ${groupsHtml}
         </table>
       </div>
     </div>`
@@ -306,25 +316,13 @@ function renderTaskCard(task) {
   </div>`
 }
 
-function buildHtml({ tasks, meta }) {
-  const jxgjTasks = tasks.filter(t => t.type === 'jxgj')
-  const tripTasks = tasks.filter(t => t.type === 'trip' || t.type === 'reserved')
-  const otherTasks = tasks.filter(t => t.type !== 'jxgj' && t.type !== 'trip' && t.type !== 'reserved')
-
-  const completed = tasks.filter(t => t.status === 'completed').length
-  const failed = tasks.filter(t => t.status === 'failed').length
-  const aborted = tasks.filter(t => t.status === 'aborted').length
-  const other = tasks.length - completed - failed - aborted
-
-  const jxgjHtml = jxgjTasks.map(renderTaskCard).join('\n')
-  const tripHtml = tripTasks.map(renderTaskCard).join('\n')
-  const otherHtml = otherTasks.length ? otherTasks.map(renderTaskCard).join('\n') : ''
-
+/** 页面外壳：深色终端风格 + 共用的全部样式 + 折叠交互脚本 */
+function pageShell(title, bodyHtml) {
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <title>PCP 运行日志 - ${escapeHtml(meta.airline)} ${meta.routeCount}航线 - ${escapeHtml(meta.datetimeStr)}</title>
+  <title>${escapeHtml(title)}</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -451,14 +449,97 @@ function buildHtml({ tasks, meta }) {
     .rb-outcome--unmatched { background: transparent; color: #888; border-color: #555; }
     .rb-outcome--other { background: transparent; color: #9e9e9e; border-color: #555; }
     .rb-nodrop { color: #8a8a8a; font-size: 10px; }
+    /* 数据归属列标识：字体色+背景色+边框色三合一，一眼区分数据来源 */
+    .rb-owner {
+      display: inline-block; padding: 1px 6px;
+      border-radius: 2px; font-size: 10px;
+      border: 1px solid #555; white-space: nowrap;
+    }
+    .rb-owner--official { color: #4fc3f7; background: #12293a; border-color: #4fc3f7; }
+    .rb-owner--ctrip { color: #ffb74d; background: #3a2c10; border-color: #ffb74d; }
     .qrow--lost td { background: #3a1a1a; }
     .qrow--ownShown td { background: #1e3a1a; }
     .qrow--ownHidden td { background: #3a3a1a; }
     .qrow--other td { color: #9e9e9e; }
+    .idx-row {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 5px 8px; border-bottom: 1px solid #2a2a2a; font-size: 11px;
+    }
+    .idx-row:hover { background: #242424; }
+    .idx-id { color: #4fc3f7; font-weight: 600; }
+    .idx-type { color: #b0bec5; }
+    .idx-route { color: #fff; flex: 1; min-width: 160px; }
+    .idx-meta { color: #888; }
+    .idx-link { color: #4fc3f7; text-decoration: none; }
+    .idx-link:hover { text-decoration: underline; }
     .foot { color: #555; font-size: 11px; margin-top: 24px; padding-top: 8px; border-top: 1px dashed #333; }
   </style>
 </head>
 <body>
+${bodyHtml}
+  <script>
+    (function () {
+      var titles = document.querySelectorAll('.block-title');
+      titles.forEach(function (t) {
+        t.addEventListener('click', function () {
+          var body = t.nextElementSibling;
+          if (!body) return;
+          var hidden = body.style.display === 'none';
+          body.style.display = hidden ? 'block' : 'none';
+          t.firstChild.textContent = hidden ? '▼ ' : '▶ ';
+        });
+      });
+    })();
+  </script>
+</body>
+</html>`
+}
+
+function renderTaskHtml(task) {
+  return pageShell(`任务 ${String(task?.id ?? '')} ${task?.type ?? ''}`, renderTaskCard(task))
+}
+
+/**
+ * 总览页：meta/统计/任务列表（每任务一行，点击进 tasks/task-XXXX.html）
+ */
+function renderIndexHtml({ tasks, meta, taskLinks, failedTaskIds }) {
+  const jxgjTasks = tasks.filter(t => t.type === 'jxgj')
+  const tripTasks = tasks.filter(t => t.type === 'trip' || t.type === 'reserved')
+  const otherTasks = tasks.filter(t => t.type !== 'jxgj' && t.type !== 'trip' && t.type !== 'reserved')
+
+  const completed = tasks.filter(t => t.status === 'completed').length
+  const failed = tasks.filter(t => t.status === 'failed').length
+  const aborted = tasks.filter(t => t.status === 'aborted').length
+  const other = tasks.length - completed - failed - aborted
+
+  const tripSummary = (t) => {
+    const s = t?.result?.summary
+    if (!s) return ''
+    const won = s.quoteWon ?? 0
+    const lost = s.quoteLost ?? 0
+    const total = s.quoteTotal ?? 0
+    const winRate = total > 0 ? `${Math.round(((s.quoteOwnShown ?? 0) / total) * 100)}%` : '—'
+    return ` · 匹配 ${won + lost} · 胜出率 ${winRate} · 比赢 ${won} · 比输 ${lost} · 未匹配 ${s.quoteUnmatched ?? 0} · 无对应 ${s.otherCount ?? 0}`
+  }
+
+  const renderIndexRows = (list) => list.map((t, i) => {
+    const cls = statusToClass(t.status)
+    const route = escapeHtml(extractRoute(t))
+    const link = taskLinks.get(t.id)
+    const failMark = failedTaskIds.has(t.id) ? '<span class="stat fail">导出失败</span>' : ''
+    return `<div class="idx-row">
+      <span class="dot dot--${cls}"></span>
+      <span class="idx-id">${escapeHtml(t.id || '')}</span>
+      <span class="idx-type">[${escapeHtml(t.type || '')}]</span>
+      <span class="idx-route">${route}</span>
+      <span class="idx-meta">${Math.round(t.progress || 0)}% · ${escapeHtml(t.stage || '')}</span>
+      ${t.type === 'trip' ? `<span class="idx-meta">${tripSummary(t)}</span>` : ''}
+      ${failMark}
+      ${link ? `<a class="idx-link" href="${escapeHtml(link)}">详情 ↗</a>` : ''}
+    </div>`
+  }).join('')
+
+  const bodyHtml = `
   <h1>PCP 运行日志</h1>
   <div class="meta">
     <div><span class="k">运行结束时间</span><span class="v">${escapeHtml(meta.datetimeStr)}</span></div>
@@ -477,31 +558,16 @@ function buildHtml({ tasks, meta }) {
   </div>
 
   <h2>锦绣请求 (${jxgjTasks.length})</h2>
-  ${jxgjHtml || '<div class="empty">无任务</div>'}
+  ${jxgjTasks.length ? renderIndexRows(jxgjTasks) : '<div class="empty">无任务</div>'}
 
   <h2>携程请求 (${tripTasks.length})</h2>
-  ${tripHtml || '<div class="empty">无任务</div>'}
+  ${tripTasks.length ? renderIndexRows(tripTasks) : '<div class="empty">无任务</div>'}
 
-  ${otherTasks.length ? `<h2>其它任务 (${otherTasks.length})</h2>${otherHtml}` : ''}
+  ${otherTasks.length ? `<h2>其它任务 (${otherTasks.length})</h2>${renderIndexRows(otherTasks)}` : ''}
 
-  <div class="foot">由 PCP Pipeline 自动生成 · 目录名格式: 日期_时间_航司_航线数量</div>
+  <div class="foot">由 PCP Pipeline 自动生成 · 分片目录：index.html 总览 + tasks/ 每任务详情 · 目录名格式: 日期_时间_航司_航线数量</div>`
 
-  <script>
-    (function () {
-      var titles = document.querySelectorAll('.block-title');
-      titles.forEach(function (t) {
-        t.addEventListener('click', function () {
-          var body = t.nextElementSibling;
-          if (!body) return;
-          var hidden = body.style.display === 'none';
-          body.style.display = hidden ? 'block' : 'none';
-          t.firstChild.textContent = hidden ? '▼ ' : '▶ ';
-        });
-      });
-    })();
-  </script>
-</body>
-</html>`
+  return pageShell(`PCP 运行日志 - ${meta.airline} ${meta.routeCount}航线 - ${meta.datetimeStr}`, bodyHtml)
 }
 
 // ========== 导出主入口 ==========
@@ -526,7 +592,7 @@ function resolveDesktopPath() {
 }
 
 /**
- * 导出运行日志 HTML 文件到桌面
+ * 导出运行日志（分片 HTML：index.html 总览 + tasks/task-XXXX.html 每任务一张）
  * @param {object} opts
  *   - tasks:        Array  任务快照（来自 taskManager.getState().tasks）
  *   - fileManager:  FileManager 实例（取航司 + 航线数）
@@ -535,6 +601,8 @@ function resolveDesktopPath() {
  * @returns {{ success: boolean, dir?: string, file?: string, error?: string }}
  */
 export function exportRunLog({ tasks, fileManager, pipeline, trigger }) {
+  const taskList = tasks || []
+  let subDir = null
   try {
     const now = new Date()
     const pad = (n) => String(n).padStart(2, '0')
@@ -552,14 +620,14 @@ export function exportRunLog({ tasks, fileManager, pipeline, trigger }) {
     const mode = pipeline?.mode || 'auto'
     const businessMode = pipeline?.businessMode || 'policy'
 
-    // 创建日志根目录 + 子目录
+    // 创建日志根目录 + 子目录 + tasks 目录
     const desktopPath = resolveDesktopPath()
     const rootDir = path.join(desktopPath, LOG_ROOT_DIR)
     if (!fs.existsSync(rootDir)) fs.mkdirSync(rootDir, { recursive: true })
 
     // 子目录名：YYYYMMDD_HHMM_<airline>_<routeCount>，重名追加 _1/_2
     let subDirName = `${datePart}_${timePart}_${airline}_${routeCount}`
-    let subDir = path.join(rootDir, subDirName)
+    subDir = path.join(rootDir, subDirName)
     let suffix = 1
     while (fs.existsSync(subDir)) {
       subDirName = `${datePart}_${timePart}_${airline}_${routeCount}_${suffix}`
@@ -568,18 +636,50 @@ export function exportRunLog({ tasks, fileManager, pipeline, trigger }) {
       if (suffix > 999) break // 安全上限
     }
     fs.mkdirSync(subDir, { recursive: true })
+    const tasksDir = path.join(subDir, TASKS_DIR)
+    fs.mkdirSync(tasksDir, { recursive: true })
+    const errorPath = path.join(subDir, ERROR_FILENAME)
 
-    // 生成 HTML 并写入
-    const html = buildHtml({
-      tasks: tasks || [],
-      meta: { datetimeStr, airline, routeCount, trigger, mode, businessMode }
+    // 分片写入：逐任务生成小 HTML（单任务字符串很小，不会触 V8 字符串上限）；
+    // 单个任务失败 → 记 error.txt 并继续导出其它任务
+    const taskLinks = new Map()
+    const failedTaskIds = new Set()
+    let idx = 1
+    for (const t of taskList) {
+      const fname = `task-${String(idx).padStart(4, '0')}.html`
+      try {
+        const html = renderTaskHtml(t)
+        fs.writeFileSync(path.join(tasksDir, fname), html, 'utf-8')
+        taskLinks.set(t.id, `${TASKS_DIR}/${fname}`)
+      } catch (e) {
+        failedTaskIds.add(t.id)
+        taskLinks.delete(t.id)
+        try {
+          fs.appendFileSync(errorPath, `[${new Date().toISOString()}] 任务 ${t?.id ?? ''} 渲染失败: ${e?.stack || e?.message}\n`, 'utf-8')
+        } catch { /* 连错误文件都写不进就不阻塞主体流程 */ }
+      }
+      idx++
+    }
+
+    // 写总览页（小字符串）
+    const indexHtml = renderIndexHtml({
+      tasks: taskList,
+      meta: { datetimeStr, airline, routeCount, trigger, mode, businessMode },
+      taskLinks,
+      failedTaskIds
     })
-    const filePath = path.join(subDir, LOG_FILENAME)
-    fs.writeFileSync(filePath, html, 'utf-8')
+    const indexPath = path.join(subDir, INDEX_FILENAME)
+    fs.writeFileSync(indexPath, indexHtml, 'utf-8')
 
-    return { success: true, dir: subDir, file: filePath }
+    return { success: true, dir: subDir, file: indexPath }
   } catch (e) {
     console.error('[runLogExporter] 导出失败:', e)
-    return { success: false, error: e.message }
+    // 兜底：把失败原因落进目录，避免再次出现"沉默的空文件夹"
+    if (subDir) {
+      try {
+        fs.appendFileSync(path.join(subDir, ERROR_FILENAME), `[${new Date().toISOString()}] 导出失败: ${e?.stack || e?.message}\n`, 'utf-8')
+      } catch { /* ignore */ }
+    }
+    return { success: false, dir: subDir || undefined, error: e?.message }
   }
 }
