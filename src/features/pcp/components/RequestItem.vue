@@ -129,15 +129,14 @@
             · 外显 {{ tripStats.ownShown }} · 未显 {{ tripStats.ownHidden }}
             · 未匹配 {{ tripStats.unmatched }} · 无对应 {{ tripStats.other }}
           </div>
-          <!-- 配色图例：绿=我方投放且外显，黄=我方投放未外显，红=比输；其余标签见「结果」列 -->
+          <!-- 每套餐一块：第 1 行官网数据，其后为该套餐匹配到的全部携程报价行，列一一对齐 -->
           <div v-if="!isResultFail" class="rb-legend">
             <span class="rbl-item"><i class="rbl-dot rbl-dot--ownShown" />我方外显</span>
             <span class="rbl-item"><i class="rbl-dot rbl-dot--ownHidden" />我方未显</span>
             <span class="rbl-item"><i class="rbl-dot rbl-dot--lost" />比输</span>
             <span class="rbl-item"><i class="rbl-dot rbl-dot--other" />未匹配/无对应</span>
-            <span class="rbl-hint">套餐对套餐：我方（官网价/底价+行李） vs 携程（报价+行李）· 标签 hover 看明细</span>
+            <span class="rbl-hint">每块=官网行（我方官价/底价+行李）+ 其下携程行（携程价+行李）· 标签 hover 看明细</span>
           </div>
-          <!-- 每行自含航班/航线；同一行程（航班|日期|起|降）相邻展示 -->
           <table v-if="tripGroups.length > 0" class="rb-table rb-table--quotes">
             <thead>
               <tr>
@@ -154,7 +153,7 @@
               <tr
                 v-for="(f, i) in g.rows"
                 :key="`${g.key}-${i}`"
-                :class="['qrow', `qrow--${f.status}`, `qrow--${f.kind}`]"
+                :class="['qrow', `qrow--${f.status}`, `qrow--${f.role}`]"
               >
                 <td>
                   <span
@@ -169,11 +168,17 @@
                 </td>
                 <td>{{ f.cabinLabel }}</td>
                 <td class="rb-price">
-                  <div>{{ f.ourPrice == null ? '—' : `¥${f.ourPrice}` }} 官</div>
-                  <div>{{ f.ourFloor == null ? '—' : `¥${f.ourFloor}` }} 底</div>
+                  <template v-if="f.role === 'official'">
+                    <div>{{ f.ourPrice == null ? '—' : `¥${f.ourPrice}` }} 官</div>
+                    <div>{{ f.ourFloor == null ? '—' : `¥${f.ourFloor}` }} 底</div>
+                  </template>
+                  <template v-else>—</template>
                 </td>
-                <td class="rb-baggage">{{ f.kind === 'other' ? '—' : (f.ourBaggageShort || '—') }}</td>
-                <td class="rb-price">{{ f.xcPrice === '—' || f.xcPrice == null ? '—' : `¥${f.xcPrice}` }}</td>
+                <td class="rb-baggage">{{ f.role === 'official' ? (f.ourBaggageShort || '—') : '—' }}</td>
+                <td class="rb-price">
+                  <span v-if="f.role === 'official' && f.kind !== 'other' && f.status === 'unmatched'" class="rb-nodrop">无人投放</span>
+                  <template v-else>{{ f.xcPrice == null ? '—' : `¥${f.xcPrice}` }}</template>
+                </td>
                 <td class="rb-baggage" :title="f.xcBaggage">{{ f.xcBaggageShort || '—' }}</td>
               </tr>
             </tbody>
@@ -432,7 +437,10 @@ const tripRows = computed(() => {
   if (!Array.isArray(r?.quoteRows)) return []
   return r.quoteRows.map(q => {
     const reason = q.unmatchedReason?.reason
+    const role = q.role ?? 'other'
     return {
+      role,
+      unitKey: q.unitKey ?? null,
       kind: q.kind ?? 'other',
       status: q.status,
       // 未匹配行：标签直接写首个不通过的参数；无诊断信息时回退「未匹配」
@@ -443,12 +451,14 @@ const tripRows = computed(() => {
       date: q.date ?? '—',
       dep: q.depAirport ?? '—',
       arr: q.arrAirport ?? '—',
-      // 舱位列：主行/套餐对比单元带单元标记；附加行只显携程舱位
-      cabinLabel: q.kind === 'main'
-        ? `${q.seatClass ?? '—'}·主行`
-        : (q.kind === 'package'
-          ? `${q.seatClass ?? '—'}${q.pkgIndex != null ? `·套餐${q.pkgIndex}` : ''}`
-          : (q.seatClass ?? '—')),
+      // 舱位列：官网行=舱位+单元标记；携程行=侧标记；附加行=携程舱位
+      cabinLabel: role === 'ctrip'
+        ? '↳ 携程'
+        : (q.kind === 'main'
+          ? `${q.seatClass ?? '—'}·主行`
+          : (q.kind === 'package'
+            ? `${q.seatClass ?? '—'}${q.pkgIndex != null ? `·套餐${q.pkgIndex}` : ''}`
+            : (q.seatClass ?? '—'))),
       ourBaggageShort: q.ourBaggageShort ?? '—',
       ourPrice: q.ourPrice ?? null,
       ourFloor: q.ourFloor ?? null,
@@ -464,12 +474,11 @@ const tripRows = computed(() => {
   })
 })
 
-// ===== trip 相邻归组：同一行程（航班号|日期|出发|到达）的行相邻展示 =====
-//   组顺序=行首次出现顺序（对比单元在前、附加行在后）
+// ===== trip 分块归组：按 unitKey（每套餐一块=官网行+其携程行；附加行各自成块）=====
 const tripGroups = computed(() => {
   const map = new Map()
   for (const row of tripRows.value) {
-    const key = `${row.flightNo}|${row.date}|${row.dep}|${row.arr}`
+    const key = row.unitKey || `other|${row.flightNo}|${row.date}|${row.dep}|${row.arr}`
     if (!map.has(key)) {
       map.set(key, {
         key,
@@ -837,6 +846,11 @@ const tripStats = computed(() => {
 .rb-baggage {
   color: #999 !important;
   font-size: 11px !important;
+}
+
+.rb-nodrop {
+  color: #bbb;
+  font-size: 11px;
 }
 
 /* ===== 航班块（tbody）层级分隔 =====

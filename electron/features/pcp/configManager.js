@@ -32,7 +32,6 @@ export const POLICY_FIELDS_SCHEMA = [
   { key: 'Remark', label: 'Remark', default: '出官网-王宇。用美元支。\n有付费行李，和套餐对比出。' },
   { key: 'Y优先级', label: 'Y优先级', default: 90 },
   { key: 'OTAConfigID', label: 'OTAConfigID', default: 11 },
-  { key: '航程类型', label: '航程类型', default: '单程' },
   { key: '数据有效期End', label: '数据有效期End', default: 45 },
   { key: '航司名', label: '航司名', default: 'XQ' },
   { key: '销售天数', label: '销售天数', default: '2-999' },

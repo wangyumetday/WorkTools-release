@@ -157,39 +157,46 @@ function renderQuoteBlock(task) {
   const rows = result && Array.isArray(result.quoteRows) ? result.quoteRows : []
   if (rows.length === 0) return ''
 
-  // 相邻归组（flightNo|date|dep|arr，仅影响展示顺序，不改变行数据）
+  // 按 unitKey 分块（每套餐一块=官网行+其携程行；附加行各自成块，仅影响展示顺序）
   const map = new Map()
   for (const q of rows) {
-    const key = `${q.flightNo ?? '—'}|${q.date ?? '—'}|${q.depAirport ?? '—'}|${q.arrAirport ?? '—'}`
+    const key = q.unitKey || `other|${q.flightNo ?? '—'}|${q.date ?? '—'}|${q.depAirport ?? '—'}|${q.arrAirport ?? '—'}`
     if (!map.has(key)) map.set(key, [])
     map.get(key).push(q)
   }
 
-  // 统计（优先 summary，回退本地计数）
+  // 统计（优先 summary，回退本地计数；对比单元口径按 role='official'）
   const s = result.summary || {}
   const stats = {
     lowPriceCount: s.lowPriceCount ?? 0,
     total: s.quoteTotal ?? rows.length,
-    compareTotal: s.compareTotal ?? rows.filter(r => r.kind === 'main' || r.kind === 'package').length,
-    won: s.quoteWon ?? rows.filter(r => r.status === 'won').length,
-    lost: s.quoteLost ?? rows.filter(r => r.status === 'lost').length,
+    compareTotal: s.compareTotal ?? rows.filter(r => r.role === 'official').length,
+    won: s.quoteWon ?? rows.filter(r => r.role === 'official' && r.status === 'won').length,
+    lost: s.quoteLost ?? rows.filter(r => r.role === 'official' && r.status === 'lost').length,
     ownShown: s.quoteOwnShown ?? rows.filter(r => r.status === 'ownShown').length,
     ownHidden: s.quoteOwnHidden ?? rows.filter(r => r.status === 'ownHidden').length,
-    unmatched: s.quoteUnmatched ?? rows.filter(r => r.status === 'unmatched').length,
+    unmatched: s.quoteUnmatched ?? rows.filter(r => r.role === 'official' && r.status === 'unmatched').length,
     other: s.otherCount ?? rows.filter(r => r.kind === 'other').length
   }
 
   const renderRow = (q, route) => {
     const detail = q.unmatchedReason?.detail || q.note || ''
     const titleAttr = detail ? ` title="${escapeHtml(detail)}"` : ''
-    const cls = `qrow qrow--${q.status || 'other'} qrow--${q.kind || 'other'}`
-    // 我方列（仅对比单元有官网价/底价/行李；附加行留空）
-    const ourPrice = q.ourPrice == null ? '—' : `¥${q.ourPrice} 官`
-    const ourFloor = q.ourFloor == null ? '—' : `¥${q.ourFloor} 底`
-    const ourBag = q.kind === 'other' ? '—' : (q.ourBaggageShort || '—')
-    const cabinLabel = q.kind === 'main'
-      ? `${q.seatClass ?? '—'}·主行`
-      : (q.kind === 'package' ? `${q.seatClass ?? '—'}${q.pkgIndex != null ? `·套餐${q.pkgIndex}` : ''}` : (q.seatClass ?? '—'))
+    const role = q.role ?? 'other'
+    const cls = `qrow qrow--${q.status || 'other'} qrow--${role}`
+    // 我方列：only官网行有官方价/底价/行李；携程行/附加行留空
+    const isOfficial = role === 'official'
+    const ourPrice = isOfficial && q.ourPrice != null ? `¥${q.ourPrice} 官` : '—'
+    const ourFloor = isOfficial && q.ourFloor != null ? `¥${q.ourFloor} 底` : '—'
+    const ourBag = isOfficial ? (q.ourBaggageShort || '—') : '—'
+    const cabinLabel = role === 'ctrip'
+      ? '↳ 携程'
+      : (q.kind === 'main'
+        ? `${q.seatClass ?? '—'}·主行`
+        : (q.kind === 'package' ? `${q.seatClass ?? '—'}${q.pkgIndex != null ? `·套餐${q.pkgIndex}` : ''}` : (q.seatClass ?? '—')))
+    const xcCell = (isOfficial && q.kind !== 'other' && q.status === 'unmatched')
+      ? `<span class="rb-nodrop">无人投放</span>`
+      : (q.xcPrice == null ? '—' : `¥${q.xcPrice}`)
     return `<tr class="${cls}">
       <td><span class="rb-outcome rb-outcome--${q.status || 'other'}"${titleAttr}>${escapeHtml(quoteStatusText(q))}</span></td>
       <td class="qm-route-cell">
@@ -202,7 +209,7 @@ function renderQuoteBlock(task) {
         <div>${escapeHtml(ourFloor)}</div>
       </td>
       <td>${escapeHtml(ourBag)}</td>
-      <td class="rb-price">${q.xcPrice == null ? '—' : `¥${q.xcPrice}`}</td>
+      <td class="rb-price">${xcCell}</td>
       <td>${escapeHtml(q.xcBaggageShort ?? '—')}</td>
     </tr>`
   }
@@ -227,7 +234,7 @@ function renderQuoteBlock(task) {
           <span class="rbl-item"><i class="rbl-dot rbl-dot--ownHidden"></i>我方未显</span>
           <span class="rbl-item"><i class="rbl-dot rbl-dot--lost"></i>比输</span>
           <span class="rbl-item"><i class="rbl-dot rbl-dot--other"></i>未匹配/无对应</span>
-          <span class="rbl-hint">套餐对套餐：我方（官网价/底价+行李） vs 携程（报价+行李）· 标签 hover 看明细</span>
+          <span class="rbl-hint">每块=官网行（官方价/底价+行李）+ 其下携程行（携程价+行李）· 标签 hover 看明细</span>
         </div>
         <table class="rb-table rb-table--quotes">
           <thead>
@@ -443,6 +450,7 @@ function buildHtml({ tasks, meta }) {
     .rb-outcome--ownHidden { background: #3a3a1a; color: #ffca28; border-color: #ffca28; }
     .rb-outcome--unmatched { background: transparent; color: #888; border-color: #555; }
     .rb-outcome--other { background: transparent; color: #9e9e9e; border-color: #555; }
+    .rb-nodrop { color: #8a8a8a; font-size: 10px; }
     .qrow--lost td { background: #3a1a1a; }
     .qrow--ownShown td { background: #1e3a1a; }
     .qrow--ownHidden td { background: #3a3a1a; }

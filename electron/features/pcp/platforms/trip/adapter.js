@@ -306,6 +306,32 @@ function sortedValidPrices(cands) {
 //     - 关闭：主行只作为套餐的公用信息来源（机场/城市/航班号/时间等）；
 //       仅匹配到携程报价的套餐各生成一条结果行（公用信息继承主行，舱位用套餐
 //       自己的，调价金额用该套餐差值），主行本身不参与比价、不进入结果
+/**
+ * 共用套餐政策行构造（主行关闭/开启两模式复用）：
+ *   {...acai} + 主行公用信息（航班/航司/机场/城市/时间）+ 去程套餐索引v2 + 航程类型 + 舱位 fallback
+ * 命中行由调用方再补 XC_dijia / CUT_VALUE / isOwn；原价行再打 _原价政策=true（不写调价三字段）
+ */
+function buildPackagePolicyEntry(acai, item) {
+  const itemFlightNo = item[A3_FIELDS.H航班号]
+  const entry = { ...acai }
+  // ★ 去程套餐索引v2：值 = 该套餐自带的「套餐索引」（文本写入由导出模板统一转字符串）
+  entry['去程套餐索引v2'] = acai['套餐索引']
+  // ★ 航程类型：中转=多程、直飞=单程（{...acai} 不含主行字段，须显式拷贝）
+  entry['航程类型'] = item['航程类型']
+  entry[A3_FIELDS.H航班号] = itemFlightNo
+  entry[A3_FIELDS.H航司名] = item[A3_FIELDS.H航司名]
+  entry[A3_FIELDS.C出发机场] = item[A3_FIELDS.C出发机场]
+  entry[A3_FIELDS.D到达机场] = item[A3_FIELDS.D到达机场]
+  entry[A3_FIELDS.C出发城市] = item[A3_FIELDS.C出发城市]
+  entry[A3_FIELDS.D到达城市] = item[A3_FIELDS.D到达城市]
+  entry[A3_FIELDS.C出发时间_Date] = item[A3_FIELDS.C出发时间_Date]
+  entry[A3_FIELDS.D到达时间_Date] = item[A3_FIELDS.D到达时间_Date]
+  entry[A3_FIELDS.C舱位] = (acai.舱位 != null && String(acai.舱位).trim() !== '') ? acai.舱位 : item[A3_FIELDS.C舱位]
+  entry[A3_FIELDS.仓等] = acai.舱等 ?? item[A3_FIELDS.仓等]
+  entry[A3_FIELDS.C成人总票价_CNY] = acai.套餐价格_CNY
+  return entry
+}
+
 function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowEnabled = false, consumedQuotes = null) {
   const resArr = []
   const forData = Array.isArray(originalData?.dateValue) ? originalData.dateValue : []
@@ -363,23 +389,44 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
       return
     }
 
+    // ★ 中转判定（数据驱动）：Z中转机场 三字码优先；否则取 分段信息 首段到达（段间机场）；
+    //   分段信息 ≥2 段 或 组合航班号拆段 ≥2 → 视为中转（多程）
+    const fenduan = Array.isArray(item['分段信息']) ? item['分段信息'] : []
+    const myTransitCode = normalizeTransitCode(item['Z中转机场']) ?? normalizeTransitCode(fenduan[0]?.ap)
+    const isTransit = fenduan.length >= 2 || splitCombinedFlightNo(itemFlightNo).length >= 2
+    // 航程类型自动口径：中转=多程、直飞=单程（政策导入文件「航程类型」列；主行/套餐行共用）
+    item['航程类型'] = isTransit ? '多程' : '单程'
+
     // ★ 收集与该行程相关的全部携程套餐报价（prices 是平级套餐列表，可能分散在多个 lowPrices 组里）
     //   直飞：沿用原四元组全等 + flightId 关联（结果与改造前一致）；
-    //   联程：我方组合航班号拆分后与携程航段序列逐段全等（全部匹配上才算同一行程）
-    //     + 首起末降一致 + 首段日期一致
+    //   中转/联程：航段号序列逐段全等（两端连接符归一）+ 中转三字码一致
+    //     + 首起末降一致 + 首段日期一致（全部满足才算同一行程）
     const oursNos = splitCombinedFlightNo(itemFlightNo)
     const relatedPrices = []
-    if (oursNos.length >= 2) {
+    if (isTransit || oursNos.length >= 2) {
       for (const j of journeys) {
         const segs = j.segments
-        if (segs.length !== oursNos.length) continue
-        if (!segs.every((s, i) => s.no === oursNos[i])) continue
+        // 连接符归一：携程单条组合号（XQ152-XQ4162）也拆成多段号再逐段比
+        const flatNos = segs.flatMap(s => splitCombinedFlightNo(s.no))
+        if (flatNos.length !== oursNos.length) continue
+        if (!flatNos.every((n, i) => n === oursNos[i])) continue
         if (String(segs[0].dep) !== String(itemDepAirport)) continue
         if (String(segs[segs.length - 1].arr) !== String(itemArrAirport)) continue
         if (segs[0].date == null || String(segs[0].date) !== String(itemDate)) continue
+        // 中转三字码校验（我方有码才校验）：多段旅程取首段到达（段间机场）；
+        //   携程把多段坍缩进单 flightRef 时无法从航段边界取码 → 逐报价用 baggage 前缀兜底
+        let segTransit = null
+        if (myTransitCode) {
+          if (segs.length >= 2) {
+            segTransit = normalizeTransitCode(segs[0].arr)
+            if (segTransit !== myTransitCode) continue
+          }
+        }
         matchedFlights++
         for (const pr of (Array.isArray(j.lp?.[F.prices]) ? j.lp[F.prices] : [])) {
-          if (pr) relatedPrices.push(pr)
+          if (!pr) continue
+          if (myTransitCode && segTransit == null && extractTripTransitCode(pr[F.baggage]) !== myTransitCode) continue
+          relatedPrices.push(pr)
         }
       }
     } else {
@@ -414,11 +461,14 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
       const acaiSig = parseOurBaggage(acai.行李信息)
       if (!acaiSig) {
         acai['套餐数据说明'] = '套餐无行李信息，无法匹配携程报价'
+        acai._matchedQuotes = [] // 展示用候选（无行李 → 空；原价判定依赖此字段）
         continue
       }
       const pkgCands = relatedPrices.filter(p =>
         p && baggageMatchs(acaiSig, parseTripBaggage(p[F.baggage]))
       )//&& !p[F.isOwn]
+      // ★ 展示用候选：行李匹配上的全部携程报价（含比不过的），分块展示的携程行来源
+      acai._matchedQuotes = pkgCands
       // ★ 展示消耗登记：行李匹配上的报价（含比不过的）都被本单元「消费」，不再落附加行
       if (consumedQuotes) for (const c of pkgCands) consumedQuotes.add(c)
       if (pkgCands.length === 0) {
@@ -454,25 +504,22 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
     }
 
     if (!mainRowEnabled) {
-      // ===== 主行不参与（开关关闭）：匹配到携程报价的套餐各生成一条结果行 =====
-      //   公用信息（机场/城市/航班号/时间等）继承主行；舱位用套餐自己的（无则用主行舱位）；
-      //   调价金额 = 该套餐差值（写文件时再按截断-1规则取整）；未匹配套餐跳过
+      // ===== 主行不参与（开关关闭）：套餐级产出政策行 =====
+      //   命中（有比得过的携程报价）→ 正常政策行（调价金额 = 该套餐差值）；
+      //   真未匹配（无任何行李匹配报价，含无行李信息）→ 原价政策行（官网价、调价 0）；
+      //   匹配到但全部低于底价（有候选无命中）→ 不产（维持现状）
       for (const acai of taocan) {
-        if (!acai || typeof acai !== 'object' || acai['携程底价'] == null) continue
-        const entry = { ...acai }
-        // ★ 去程套餐索引v2：值 = 该套餐自带的「套餐索引」（文本写入由导出模板统一转字符串）
-        entry['去程套餐索引v2'] = acai['套餐索引']
-        entry[A3_FIELDS.H航班号] = itemFlightNo
-        entry[A3_FIELDS.H航司名] = item[A3_FIELDS.H航司名]
-        entry[A3_FIELDS.C出发机场] = itemDepAirport
-        entry[A3_FIELDS.D到达机场] = itemArrAirport
-        entry[A3_FIELDS.C出发城市] = item[A3_FIELDS.C出发城市]
-        entry[A3_FIELDS.D到达城市] = item[A3_FIELDS.D到达城市]
-        entry[A3_FIELDS.C出发时间_Date] = item[A3_FIELDS.C出发时间_Date]
-        entry[A3_FIELDS.D到达时间_Date] = item[A3_FIELDS.D到达时间_Date]
-        entry[A3_FIELDS.C舱位] = (acai.舱位 != null && String(acai.舱位).trim() !== '') ? acai.舱位 : itemCangWei
-        entry[A3_FIELDS.仓等] = acai.舱等 ?? item[A3_FIELDS.仓等]
-        entry[A3_FIELDS.C成人总票价_CNY] = acai.套餐价格_CNY
+        if (!acai || typeof acai !== 'object') continue
+        if (acai['携程底价'] == null) {
+          const hasCands = (acai._matchedQuotes ?? []).length > 0
+          if (hasCands) continue // 低底价：有人投放但比不过 → 不产政策
+          // ★ 原价政策：没人在携程投放此套餐 → 按官网价卖、调价固定加减钱=0
+          const entry = buildPackagePolicyEntry(acai, item)
+          entry['_原价政策'] = true
+          resArr.push(entry)
+          continue
+        }
+        const entry = buildPackagePolicyEntry(acai, item)
         entry[A3_FIELDS.XC_dijia] = acai['携程底价']
         entry[A3_FIELDS.CUT_VALUE] = acai['差值']
         entry[A3_FIELDS.isOwn] = acai['isOwn']
@@ -494,6 +541,8 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
     )
     // ★ 展示消耗登记：主行行李匹配上的报价（含比不过的）都被本单元「消费」，不再落附加行
     if (consumedQuotes) for (const c of rowCands) consumedQuotes.add(c)
+    // ★ 展示用候选：分块展示的主行单元携程行来源
+    item._matchedQuotes = rowCands
     const sortedRow = sortedValidPrices(rowCands)
     const rowHit = dijia > 0 ? sortedRow.find(x => dijia <= x.price) : null
     const rowPrice = rowHit ? rowHit.quote : null
@@ -529,6 +578,16 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
     if (item[A3_FIELDS._outcome] === 'won') {
       item[A3_FIELDS.CUT_VALUE] = new Decimal(sortIndicator).minus(totalCNY || 0).toNumber()
     }
+    // ★ 主行参与开启同样适用：真未匹配（无任何行李匹配报价）的套餐产「原价政策」行；
+    //   命中套餐在开启模式下仍不产政策行（维持现状，仅底价检查展示）
+    for (const acai of taocan) {
+      if (!acai || typeof acai !== 'object') continue
+      if (acai['携程底价'] != null) continue
+      if ((acai._matchedQuotes ?? []).length > 0) continue // 低底价不产
+      const entry = buildPackagePolicyEntry(acai, item)
+      entry['_原价政策'] = true
+      resArr.push(entry)
+    }
   })
 
   // [debug] 每个任务的比价计数：定位"processedData=0"是哪一步断了
@@ -551,10 +610,28 @@ function formatOurBaggageShort(sig) {
 
 /**
  * 组合航班号拆航段：'XQ9291-X0123' / 'XQ947,XQ7293' → ['XQ9291','X0123'] / ['XQ947','XQ7293']
- *   兼容 - – — / 与中英文逗号分隔符（锦绣联程 H航班号 常见 `,` 拼接）
+ *   兼容 - – — / 与中英文逗号分隔符（锦绣联程 H航班号 常见 `,` 拼接；
+ *   携程侧组合号或含其它连接符，两端都过这里归一，避免连接符差异导致匹配不上）
  */
 function splitCombinedFlightNo(v) {
   return String(v ?? '').split(/[-–—/，,]/).map(s => s.trim()).filter(Boolean)
+}
+
+/**
+ * 中转三字码归一：trim + 大写 + 严格三字码（单中转点口径），否则 null
+ */
+function normalizeTransitCode(v) {
+  const s = String(v ?? '').trim().toUpperCase()
+  return /^[A-Z]{3}$/.test(s) ? s : null
+}
+
+/**
+ * 携程中转报价 baggage 前缀提中转码：'AYT-STR-LON:成人:20.0KG' → 'STR'
+ *   （到达位容忍 3-4 字母，兼容城市码 LON；取不到返回 null）
+ */
+function extractTripTransitCode(baggage) {
+  const m = String(baggage ?? '').match(/^([A-Z]{3})-([A-Z]{3})-([A-Z]{3,4}):/)
+  return m ? m[2].toUpperCase() : null
 }
 
 /**
@@ -668,7 +745,71 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
 
   const rows = []
 
-  // ===== 我方对比单元行 =====
+  // ★ 对比单元分块产出：官方行（role=official，我方数据+总体判定）+ 逐条携程行（role=ctrip，
+  //   该单元行李匹配到的全部携程报价：能比过的 won / 比不过的 lost / 我方投放 own 态）
+  const emitUnit = (base, unit) => {
+    const { kind, seatClass, cabinClass, pkgIndex, ourBaggageShort, ourPrice, ourFloor, status, unmatchedReason, note, matched } = unit
+    const unitKey = `${base.flightNo}|${base.date}|${base.depAirport}|${base.arrAirport}|${kind}|${seatClass}|${pkgIndex ?? ''}`
+    rows.push({
+      ...base,
+      role: 'official',
+      unitKey,
+      kind,
+      seatClass,
+      cabinClass,
+      pkgIndex,
+      ourBaggageShort,
+      ourPrice,
+      ourFloor,
+      xcPrice: null,
+      xcBaggage: '',
+      xcBaggageShort: '—',
+      isOwn: false,
+      shown: false,
+      flagRemark: '',
+      isInit: false,
+      status,
+      unmatchedReason,
+      note
+    })
+    const floorN = Number(ourFloor)
+    for (const q of (Array.isArray(matched) ? matched : [])) {
+      if (!q) continue
+      const rawPrice = Number(q[F.sortIndicator])
+      const qPrice = Number.isFinite(rawPrice) ? Math.floor(rawPrice) : null
+      const isOwn = !!q[F.isOwn]
+      const shown = Number(q[F.showState]) === 1
+      const flagRemark = q[F.quantifyFlagRemark] ?? priceParentRemark.get(q) ?? ''
+      // 携程行判定：我方投放按外显/未显；他人报价按能否比过（≥ 我方底价 = 能赢）
+      const qStatus = isOwn
+        ? (shown ? 'ownShown' : 'ownHidden')
+        : (Number.isFinite(floorN) && floorN > 0 && qPrice != null && qPrice >= floorN ? 'won' : 'lost')
+      rows.push({
+        ...base,
+        role: 'ctrip',
+        unitKey,
+        kind,
+        seatClass: '—',
+        cabinClass: '—',
+        pkgIndex: null,
+        ourBaggageShort: '—',
+        ourPrice: null,
+        ourFloor: null,
+        xcPrice: qPrice,
+        xcBaggage: q[F.baggage] ?? '',
+        xcBaggageShort: formatBaggageShort(q[F.baggage]),
+        isOwn,
+        shown,
+        flagRemark: String(flagRemark ?? ''),
+        isInit: /initSelected/i.test(String(flagRemark ?? '')),
+        status: qStatus,
+        unmatchedReason: null,
+        note: ''
+      })
+    }
+  }
+
+  // ===== 我方对比单元 =====
   for (const item of forData) {
     if (!item || item[A3_FIELDS.H航班号] == null) continue
     const itemDate = item[JXGJ_RESPONSE_FIELDS.C出发日期]
@@ -682,11 +823,8 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
 
     // 主行对比单元（仅开启时）
     if (mainRowEnabled) {
-      const hit = item._hitQuote || null
       const outcome = item[A3_FIELDS._outcome] // won/lost/undefined
-      const flagRemark = hit ? (hit[F.quantifyFlagRemark] ?? priceParentRemark.get(hit) ?? '') : ''
-      rows.push({
-        ...base,
+      emitUnit(base, {
         kind: 'main',
         seatClass: String(item[A3_FIELDS.C舱位] ?? '—'),
         cabinClass: item[A3_FIELDS.仓等] != null ? String(item[A3_FIELDS.仓等]) : '—',
@@ -694,18 +832,12 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
         ourBaggageShort: formatOurBaggageShort(parseOurBaggage(item.行李信息)),
         ourPrice: item[A2_FIELDS.C成人总票价_CNY_INT] ?? null,
         ourFloor: item[A2_FIELDS.dijia] ?? null,
-        xcPrice: hit ? Math.floor(Number(hit[F.sortIndicator])) : null,
-        xcBaggage: hit ? (hit[F.baggage] ?? '') : '',
-        xcBaggageShort: hit ? formatBaggageShort(hit[F.baggage]) : '—',
-        isOwn: hit ? !!hit[F.isOwn] : false,
-        shown: hit ? Number(hit[F.showState]) === 1 : false,
-        flagRemark: String(flagRemark ?? ''),
-        isInit: /initSelected/i.test(String(flagRemark ?? '')),
         status: outcome || 'unmatched',
         unmatchedReason: outcome
           ? null
           : { reason: 'price', detail: '未进入胜负判定（携程价无效或我方底价为0）' },
-        note: ''
+        note: '',
+        matched: item._matchedQuotes ?? []
       })
     }
 
@@ -714,20 +846,21 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
     for (const acai of taocan) {
       if (!acai || typeof acai !== 'object') continue
       const hit = acai._hitQuote || null
-      const note = acai['套餐数据说明'] || ''
-      const isBelowFloor = /低于我方底价|无可比过的价格/.test(note)
+      const note0 = acai['套餐数据说明'] || ''
+      const isBelowFloor = /低于我方底价|无可比过的价格/.test(note0)
       let status = 'unmatched'
       if (hit) status = 'won'
       else if (isBelowFloor) status = 'lost'
       let unmatchedReason = null
+      let note = note0
       if (!hit && !isBelowFloor) {
-        unmatchedReason = /无行李信息/.test(note)
-          ? { reason: 'baggage', detail: note }
-          : { reason: 'flight', detail: note || '未匹配到携程报价' }
+        unmatchedReason = /无行李信息/.test(note0)
+          ? { reason: 'baggage', detail: note0 }
+          : { reason: 'flight', detail: note0 || '未匹配到携程报价' }
+        // ★ 无人投放 → 将产出原价政策
+        note = note0 ? `${note0}；将产出原价政策` : '将产出原价政策'
       }
-      const flagRemark = hit ? (hit[F.quantifyFlagRemark] ?? priceParentRemark.get(hit) ?? '') : ''
-      rows.push({
-        ...base,
+      emitUnit(base, {
         kind: 'package',
         seatClass: (acai.舱位 != null && String(acai.舱位).trim() !== '') ? String(acai.舱位) : String(item[A3_FIELDS.C舱位] ?? '—'),
         cabinClass: acai.舱等 != null ? String(acai.舱等) : (item[A3_FIELDS.仓等] != null ? String(item[A3_FIELDS.仓等]) : '—'),
@@ -735,16 +868,10 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
         ourBaggageShort: formatOurBaggageShort(parseOurBaggage(acai.行李信息)),
         ourPrice: acai['套餐价格_CNY'] ?? null,
         ourFloor: acai['我方底价'] ?? null,
-        xcPrice: hit ? Math.floor(Number(hit[F.sortIndicator])) : null,
-        xcBaggage: hit ? (hit[F.baggage] ?? '') : '',
-        xcBaggageShort: hit ? formatBaggageShort(hit[F.baggage]) : '—',
-        isOwn: hit ? !!hit[F.isOwn] : false,
-        shown: hit ? Number(hit[F.showState]) === 1 : false,
-        flagRemark: String(flagRemark ?? ''),
-        isInit: /initSelected/i.test(String(flagRemark ?? '')),
         status,
         unmatchedReason,
-        note
+        note,
+        matched: acai._matchedQuotes ?? []
       })
     }
   }
@@ -773,6 +900,8 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
         }
       }
       rows.push({
+        role: 'other',
+        unitKey: `${segments.length > 0 ? segments.map(s => s.no).join('-') : '—'}|${segments[0]?.date || '—'}|${segments[0]?.dep || '—'}|${segments[segments.length - 1]?.arr || '—'}|other`,
         kind: 'other',
         flightNo: segments.length > 0 ? segments.map(s => s.no).join('-') : '—',
         date: segments[0]?.date || '—',
@@ -917,13 +1046,13 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
       quoteOwn: ownPrices.length,
       quoteOwnShown: ownPrices.filter(p => Number(p.showState) === 1).length,
       quoteOwnHidden: ownPrices.filter(p => Number(p.showState) !== 1).length,
-      // 对比单元口径
-      compareTotal: quoteRows.filter(r => r.kind === 'main' || r.kind === 'package').length,
-      compareMain: quoteRows.filter(r => r.kind === 'main').length,
-      comparePackage: quoteRows.filter(r => r.kind === 'package').length,
-      quoteWon: quoteRows.filter(r => r.status === 'won').length,
-      quoteLost: quoteRows.filter(r => r.status === 'lost').length,
-      quoteUnmatched: quoteRows.filter(r => r.status === 'unmatched').length,
+      // 对比单元口径（role='official' 官方行：一单元一行，携程子行不计数）
+      compareTotal: quoteRows.filter(r => r.role === 'official').length,
+      compareMain: quoteRows.filter(r => r.role === 'official' && r.kind === 'main').length,
+      comparePackage: quoteRows.filter(r => r.role === 'official' && r.kind === 'package').length,
+      quoteWon: quoteRows.filter(r => r.role === 'official' && r.status === 'won').length,
+      quoteLost: quoteRows.filter(r => r.role === 'official' && r.status === 'lost').length,
+      quoteUnmatched: quoteRows.filter(r => r.role === 'official' && r.status === 'unmatched').length,
       // 附加行口径
       otherCount: quoteRows.filter(r => r.kind === 'other').length,
       otherOwnShown: quoteRows.filter(r => r.kind === 'other' && r.status === 'ownShown').length,
@@ -943,8 +1072,9 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
 //     - 其余全部为字符串；留空列写空字符串（t:'s' v:''，与样例一致，不用 null）
 //   列值来源分四类：
 //     A. 锦绣政策字段配置传入：from(item, ctx) 经 resolvePolicyField 解析 ${变量} 拼接
-//        （11 个文本字段：Name/Remark/Y优先级/OTAConfigID/航程类型/数据有效期End/航司名/销售天数/座位数/爬虫名/创建人id；
-//         其中 Y优先级/OTAConfigID/数据有效期End/创建人id 是数字列，配置字符串转 Number）
+//        （10 个文本字段：Name/Remark/Y优先级/OTAConfigID/数据有效期End/航司名/销售天数/座位数/爬虫名/创建人id；
+//         其中 Y优先级/OTAConfigID/数据有效期End/创建人id 是数字列，配置字符串转 Number；
+//         「航程类型」已取消配置，改为按数据自动判定：中转=多程、直飞=单程）
 //     B. 对接旧格式字段：from(item) 取 a3 行字段
 //        （机场航线匹配=出发机场-到达机场 / 舱位 / 调价固定加减钱=CUT_VALUE / UpdateTime=导出行生成时刻）
 //     C. 固定值：value 写死（必填项按样例取值：是否启用=是 / 退改模式=不退不改 /
@@ -986,7 +1116,8 @@ export const exportTemplate = {
     { key: 'Y优先级', ...numPf('Y优先级') },
     e('去程班期'), e('返程班期'),
     { key: 'OTAConfigID', ...numPf('OTAConfigID') },
-    { key: '航程类型', ...pf('航程类型') },
+    // 航程类型：自动判定（priceComparisonPolicy 写入 item['航程类型']），中转=多程、直飞=单程
+    { key: '航程类型', from: (item) => item['航程类型'] ?? '单程' },
     // 9-21：留空
     e('最长停留时间'), e('最短停留时间'),
     e('儿童人数最小'), e('儿童人数最大'),
@@ -1056,7 +1187,8 @@ export const exportTemplate = {
     // 93-96：调价（固定 0 + CUT_VALUE 对接）
     { key: '调价增加百分比', value: 0 },
     // ★ 写入前统一「向下取整再 −1」（计算阶段保留精确价差，见 policyAdjust.js）
-    { key: '调价固定加减钱', from: (item) => formatPolicyAdjust(item[A3_FIELDS.CUT_VALUE]) },
+    // 原价政策（无人在携程投放此套餐）→ 不调价，直接写 0；正常行按差值的 floor−1 口径
+    { key: '调价固定加减钱', from: (item) => item['_原价政策'] === true ? 0 : formatPolicyAdjust(item[A3_FIELDS.CUT_VALUE]) },
     { key: '儿童调价增加百分比', value: 0 },
     { key: '儿童调价固定加减钱', value: 0 },
     // 97-99：留空

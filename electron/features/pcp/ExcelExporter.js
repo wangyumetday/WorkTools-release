@@ -394,6 +394,9 @@ export class ExcelExporter {
     const outRows = []
     const rowBgColors = [] // 与 outRows 对齐，记录每行背景色（null = 不着色）
     for (const r of rows) {
+      // ★ 原价政策行（未匹配套餐、无携程对比数据）不进入底价检查展示：
+      //   主行开启模式会与主行下套餐子行重复；关闭模式无对比基准，展示无意义
+      if (r['_原价政策'] === true) continue
       // ===== 主行：舱位级数据（本身就是一种"套餐"） =====
       const parent = {}
       // 本行参与比例/减价计算的基准价：官网价 = 成人总票价_CNY，携程价 = {平台}底价
