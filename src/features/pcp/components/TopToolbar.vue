@@ -15,7 +15,7 @@
   display: flex;
   /* ★ wrap：窗口较窄（右栏加宽后左栏被压缩）时三组按钮自动换行，
      避免溢出浮到右栏下方造成重叠；宽屏下仍是同一行三栏 */
-  flex-flow: row wrap;
+  flex-flow: row nowrap;
   justify-content: space-between;
   align-items: stretch;
   gap: 16px;
@@ -30,7 +30,7 @@
   }
 
   .tt-left {
-    /* ★ 固定宽度：航司/舱位/航线内容再长也只在框内换行，不得反推撑宽左栏破坏布局
+    /* ★ 固定宽度：航司/舱位/航线内容再长也只显示一行（超出省略号截断），不得反推撑宽左栏破坏布局
        宽度 = label 42 + gap 8 + 按钮 160 + 左右内边距 32 + 余量 */
     flex: 0 0 248px;
     width: 248px;
@@ -53,7 +53,7 @@
     .ttb-label {
       width: 42px;
       font-size: 14px;
-      text-align: right;
+      text-align: left;
       white-space: nowrap;
     }
 
@@ -84,7 +84,10 @@
       flex: 1 1 auto;
       min-width: 0;
       color: #333;
-      word-break: break-all;
+      /* ★ 单行显示，超长内容用省略号截断（航司/舱位/航线共用） */
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     /* 航线多条逗号连接，等宽字体便于辨识机场码 */

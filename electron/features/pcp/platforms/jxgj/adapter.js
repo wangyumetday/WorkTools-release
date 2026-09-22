@@ -83,9 +83,9 @@ export function mergeResult(rawResponse, a1Item, compiledConfig = {}) {
       rawResult: fp.rawResult
     }
     findItem[JXGJ_RESPONSE_FIELDS.C出发日期] = findItem[JXGJ_RESPONSE_FIELDS.C出发时间_Date].split(' ')[0]
-    // 机场三字码 → 城市三字码（TaskResult API 不返回城市码，由 airportToCity 转换）
-    findItem[A3_FIELDS.C出发城市] = airportToCity(findItem.C出发机场)
-    findItem[A3_FIELDS.D到达城市] = airportToCity(findItem.D到达机场)
+    // 城市三字码：优先取接口返回的 C出发城市/D到达城市；接口缺失时用 机场码→城市码 兜底
+    findItem[A3_FIELDS.C出发城市] = findItem.C出发城市 || airportToCity(findItem.C出发机场)
+    findItem[A3_FIELDS.D到达城市] = findItem.D到达城市 || airportToCity(findItem.D到达机场)
     return findItem
   }
 
@@ -105,6 +105,13 @@ export function mergeResult(rawResponse, a1Item, compiledConfig = {}) {
   a2Item[A2_FIELDS.cangwei_arr] = []
   a2Item[A2_FIELDS.date_obj] = {}
   for (const rawItem of selectedItems) {
+    // ★ 套餐数据异常说明（不报错）：缺失/格式异常/为空时在数据上标注「套餐数据说明」，
+    //   单品异常（无效项/价格缺失/价格无效）在 enrichTaocanFloorPrice 里逐套餐标注
+    const taocanRaw = rawItem.套餐信息
+    if (taocanRaw === undefined || taocanRaw === null) rawItem['套餐数据说明'] = '无套餐数据'
+    else if (!Array.isArray(taocanRaw)) rawItem['套餐数据说明'] = '套餐数据格式异常'
+    else if (taocanRaw.length === 0) rawItem['套餐数据说明'] = '套餐数组为空'
+
     // ★ 业务模式重构：舱位级数据不拆套餐（同原逻辑）。
     enrichTaocanFloorPrice(rawItem, floorPriceFormula)
 
@@ -156,10 +163,18 @@ export const exportTemplate = null
  */
 function enrichTaocanFloorPrice(findItem, floorPriceFormula) {
   const taocan = findItem.套餐信息
-  if (!Array.isArray(taocan) || !floorPriceFormula) return
+  if (!Array.isArray(taocan) || !floorPriceFormula) return // 缺失/格式异常/为空已由调用方标注「套餐数据说明」
+  let invalidCount = 0
   for (const acai of taocan) {
-    if (!acai || acai.套餐价格 == null) continue
-    const cnyPrice = AnyToCny(findItem.H货币种类, acai.套餐价格)
+    if (!acai || typeof acai !== 'object') { invalidCount++; continue }
+    if (acai.套餐价格 == null) { acai['套餐数据说明'] = '套餐价格缺失'; continue }
+    let cnyPrice
+    try {
+      cnyPrice = AnyToCny(findItem.H货币种类, acai.套餐价格)
+    } catch (e) {
+      acai['套餐数据说明'] = '套餐价格无效，无法换算'
+      continue
+    }
     acai['套餐价格_CNY'] = cnyPrice
     // acai['差值_CNY'] = ''
     const fp = floorPriceFormula(cnyPrice)
@@ -171,6 +186,10 @@ function enrichTaocanFloorPrice(findItem, floorPriceFormula) {
       rangeHit: fp?.rangeHit,
       cost: fp?.cost
     }
+  }
+  if (invalidCount > 0) {
+    const prev = findItem['套餐数据说明']
+    findItem['套餐数据说明'] = (prev ? prev + '；' : '') + '含无效套餐项'
   }
 }
 

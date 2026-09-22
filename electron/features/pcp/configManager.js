@@ -19,9 +19,13 @@ import { POLICY_FIELD_VARS } from './policyFieldResolver.js'
 
 /**
  * 「锦绣政策字段配置」字段元数据（单一事实来源）
- *   新格式政策导入文件里标注「由锦绣政策字段配置传入」的 10 个字段：
+ *   新格式政策导入文件里标注「由锦绣政策字段配置传入」的 12 项（11 个文本字段 + 1 个开关）：
  *   用户在 PCP 独立配置板块填写，支持 ${变量} 拼接，导出时逐行替换。
  *   default 取示例值原样（用户首次进入时的初始值，可自行改为变量拼接）。
+ *   数字列（Y优先级/OTAConfigID/数据有效期End/创建人id）导出时由 adapter numPf 转 Number。
+ *   「主行参与」开关（默认关闭）不写入政策文件，只在比价时生效：
+ *     关闭 → 主行只作套餐公用信息来源，仅匹配到携程报价的套餐各生成一条政策行；
+ *     开启 → 主行参与比价并产出政策行。
  */
 export const POLICY_FIELDS_SCHEMA = [
   { key: 'Name', label: 'Name', default: 'XQ/AYT-HAJ/U/直飞/王宇' },
@@ -33,7 +37,9 @@ export const POLICY_FIELDS_SCHEMA = [
   { key: '航司名', label: '航司名', default: 'XQ' },
   { key: '销售天数', label: '销售天数', default: '2-999' },
   { key: '座位数', label: '座位数', default: '2-999' },
-  { key: '爬虫名', label: '爬虫名', default: 'XQ' }
+  { key: '爬虫名', label: '爬虫名', default: 'XQ' },
+  { key: '创建人id', label: '创建人id', default: 139 },
+  { key: '主行参与', label: '主行参与', type: 'switch', default: false }
 ]
 
 /** 从 schema 构建默认 policyFields（首次进入或字段缺失时回退） */
@@ -67,7 +73,7 @@ export class ConfigManager {
   }
 
   // ========== 锦绣政策字段配置（独立于平台配置，单独文件持久化）==========
-  // 职责：管理新格式政策导入文件里 10 个「锦绣配置传入」字段的用户填写值
+  // 职责：管理新格式政策导入文件里 12 项「锦绣配置」字段（11 文本 + 1 主行参与开关）的用户填写值
   //   - 加载时与 POLICY_FIELDS_SCHEMA 默认值合并（兼容老用户缺字段 + 新增字段）
   //   - 只保留 schema 定义的键：废弃字段自动剔除
   //   - 导出时由 ExcelExporter 注入 ctx.policyFields，逐行 resolvePolicyField 替换变量

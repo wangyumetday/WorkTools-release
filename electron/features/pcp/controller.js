@@ -180,7 +180,7 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
     return { merged, runtimeInfo }
   })
 
-  // ========== 锦绣政策字段配置 IPC（新格式政策导入文件的 10 个配置字段）==========
+  // ========== 锦绣政策字段配置 IPC（新格式政策导入文件的 12 项配置：11 文本 + 1 主行参与开关）==========
   //   - get：返回 { fields, schema }，渲染层据此列出输入框 + 默认值
   //   - set：运行中禁止保存（与平台配置同源 failIfInProgress，避免 saveA3 读到前后不一致值）
   //   - 持久化在 userData/config/policyFields.json（独立于平台配置）

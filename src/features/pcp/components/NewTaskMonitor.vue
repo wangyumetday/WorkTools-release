@@ -311,8 +311,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 const typeMap = {
   jxgj: '锦绣国际',
   trip: '携程OTA',
-  o2: 'O2',
-  o3: 'O3',
+  reserved: '预留拓展位',
   o_combo: 'O组合',
   process: '处理'
 }

@@ -65,7 +65,7 @@ export class PlatformRunner {
 
   /**
    * 按 task.type 分发
-   * @param {string} taskType  'jxgj' | 'trip' | 'o2' | 'o3' | 'o_combo'
+   * @param {string} taskType  'jxgj' | 'trip' | 'reserved' | 'o_combo'
    * @param {object} data       任务数据
    * @param {function} onStep  (progress:number | {progress, stage, error?, reason?}) => void
    *                          ★ 升级为可携带 stage 的对象形式（旧数字形式向后兼容）
@@ -74,8 +74,7 @@ export class PlatformRunner {
     switch (taskType) {
       case 'jxgj':
       case 'trip':
-      case 'o2':
-      case 'o3':
+      case 'reserved':
         return this.run(taskType, data, { onStep })
       case 'o_combo':
         return this.runCombo(data, { onStep })
@@ -86,7 +85,7 @@ export class PlatformRunner {
 
   /**
    * 单平台执行：账密 → 登录 → 前置 → 请求 → 交叉
-   * @param {string} platform  'jxgj' | 'trip' | 'o2' | 'o3'
+   * @param {string} platform  'jxgj' | 'trip' | 'reserved'
    * @param {object} data      业务数据
    * @param {function} onStep  (progress) | ({progress, stage, error?, reason?}) => void
    *                          ★ 状态机：每个进度档位带 stage 名，scheduler 用 transition() 校验
@@ -181,7 +180,7 @@ export class PlatformRunner {
    *   单平台失败不影响其他平台（Promise.allSettled）
    *
    * @deprecated O 平台组合请求已拆分为独立单平台任务（pipeline._invokeAddBatchByStage
-   *   现按 task.type=trip/o2/o3 直接走 run()，各平台独立入队、独立进度、独立结果）
+   *   现按 task.type=trip/reserved 直接走 run()，各平台独立入队、独立进度、独立结果）
    *   此方法仅保留向后兼容，当前 pipeline 不再生成 type='o_combo' 任务，不会走到这里。
    * @param {object} data  业务数据
    * @param {function} onStep

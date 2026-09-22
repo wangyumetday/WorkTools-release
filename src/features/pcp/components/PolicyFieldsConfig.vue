@@ -1,7 +1,9 @@
 <!-- ============================================================
      PCP PolicyFieldsConfig.vue - 锦绣政策字段配置组件
-     职责：配置新格式政策导入文件里 10 个「锦绣配置传入」字段
+     职责：配置新格式政策导入文件里 12 项「锦绣配置」字段（11 个文本 + 1 个主行参与开关）
        - 字段值支持 ${变量} 拼接（如 ${出发机场}-${到达机场}）
+       - 「主行参与」开关：关闭=主行只作套餐公用信息来源，套餐各生成一条政策行；
+         开启=主行参与比价并产出政策行
        - 右侧列出可用变量供参考
        - 进行中锁定（与平台配置同源 disabled）
      数据流：onMounted 拉 policyFieldsGet → 输入 → 保存 policyFieldsSet
@@ -23,11 +25,19 @@
       <!-- 左：字段输入区 -->
       <div class="pfc-fields">
         <div class="pfc-hint">
-          新格式政策导入文件的 10 个字段在此配置。值支持用 <code>${变量名}</code> 拼接运行时数据（如 <code>${航司名}/${出发机场}-${到达机场}</code>），导出时逐行替换。
+          新格式政策导入文件的 11 个字段在此配置。值支持用 <code>${变量名}</code> 拼接运行时数据（如 <code>${航司名}/${出发机场}-${到达机场}</code>），导出时逐行替换。
+          「主行参与」开关：关闭时主行只作为套餐的公用信息来源（机场/城市/航班号等），仅套餐参与比价并各生成一条政策行；开启时主行参与比价并产出政策行。
         </div>
         <div v-for="f in schema" :key="f.key" class="pfc-row">
           <label class="pfc-label" :title="f.key">{{ f.label }}</label>
+          <n-switch
+            v-if="f.type === 'switch'"
+            v-model:value="form[f.key]"
+            :disabled="disabled"
+            class="pfc-switch"
+          />
           <n-input
+            v-else
             v-model:value="form[f.key]"
             :placeholder="`默认：${f.default ?? ''}`"
             :disabled="disabled"
@@ -47,12 +57,18 @@
         </div>
       </div>
 
-      <!-- 右：可用变量参考 -->
+      <!-- 右：可用变量参考（左键单击复制 ${变量名} 引用格式） -->
       <div class="pfc-vars">
         <div class="pfc-vars-title">可用变量</div>
-        <div class="pfc-vars-hint">在字段值里用 ${变量名} 引用，导出时替换为该行实际数据</div>
-        <div v-for="v in vars" :key="v.name" class="pfc-var">
-          <code class="pfc-var-name">${{ v.name }}</code>
+        <div class="pfc-vars-hint">在字段值里用 ${变量名} 引用，导出时替换为该行实际数据；左键单击变量即可复制</div>
+        <div
+          v-for="v in vars"
+          :key="v.name"
+          class="pfc-var pfc-var--clickable"
+          :title="`点击复制 \${${v.name}}`"
+          @click="copyVar(v.name)"
+        >
+          <code class="pfc-var-name">{{ '${' + v.name + '}' }}</code>
           <span class="pfc-var-desc">{{ v.desc }}</span>
         </div>
       </div>
@@ -62,7 +78,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { NInput, NButton, NAlert } from 'naive-ui'
+import { NInput, NButton, NAlert, NSwitch } from 'naive-ui'
 import message from '@/shared/message.js'
 import api from '@/shared/api.js'
 
@@ -106,6 +122,17 @@ async function handleSave() {
 function handleReset() {
   for (const f of schema.value) {
     form.value[f.key] = f.default
+  }
+}
+
+// 左键单击变量名 → 复制 ${变量名} 引用格式到剪贴板，方便直接粘贴到左侧输入框
+async function copyVar(name) {
+  const text = '${' + name + '}'
+  try {
+    await navigator.clipboard.writeText(text)
+    message.success(`已复制 ${text}`)
+  } catch (e) {
+    message.error('复制失败：' + (e?.message || e))
   }
 }
 
@@ -170,6 +197,7 @@ onMounted(load)
   white-space: nowrap;
 }
 .pfc-input { flex: 1; }
+.pfc-switch { margin-top: 6px; }
 .pfc-actions {
   display: flex;
   gap: 8px;
@@ -208,6 +236,9 @@ onMounted(load)
   border-bottom: 1px dashed #eee;
 }
 .pfc-var:last-child { border-bottom: none; }
+/* 可点击复制：手型 + hover 浅底提示 */
+.pfc-var--clickable { cursor: pointer; }
+.pfc-var--clickable:hover { background: #f0f7f4; }
 .pfc-var-name {
   font-size: 12px;
   color: #0a7;

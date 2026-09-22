@@ -125,7 +125,7 @@ const emit = defineEmits([])
 
 // 阶段3：门禁失败闪烁引导
 //   jxgj_credential → 抖动 jxgj 卡片
-//   o_credential    → 抖动第一个"未选中账号"的 O 平台卡片（trip→o2→o3 顺序）
+//   o_credential    → 抖动第一个"未选中账号"的 O 平台卡片（trip→reserved 顺序）
 //   逻辑：o_credential 表示已启用 O 但都没选中账号，第一个无 selection 的 O 就是用户该去选的
 function shouldBlinkPlatform(platform) {
   const t = store.blinkTarget
@@ -133,8 +133,8 @@ function shouldBlinkPlatform(platform) {
   if (t === `${platform}_credential`) return true
   if (t === 'o_credential') {
     // 仅 O 平台参与；找到第一个未选中的 O，与当前 platform 匹配
-    if (!['trip', 'o2', 'o3'].includes(platform)) return false
-    const firstMissingO = ['trip', 'o2', 'o3'].find(p => {
+    if (!['trip', 'reserved'].includes(platform)) return false
+    const firstMissingO = ['trip', 'reserved'].find(p => {
       const g = platformGroups.value.find(x => x.platform === p)
       return g && !g.currentSelected
     })
@@ -144,14 +144,13 @@ function shouldBlinkPlatform(platform) {
 }
 
 // ============================================================
-// 基础配置：4 个平台（代码 key 用简称，UI 显示用中文名）
-//   锦绣国际 JXGJ  /  携程OTA TRIP  /  O2  /  O3
+// 基础配置：平台列表（代码 key 用简称，UI 显示用中文名）
+//   锦绣国际 JXGJ  /  携程OTA TRIP  /  预留拓展位 RESERVED（未实现 stub）
 // ============================================================
 const PLATFORM_LIST = [
   { platform: 'jxgj', label: '锦绣国际' },
   { platform: 'trip', label: '携程OTA' },
-  { platform: 'o2',   label: 'O2 平台' },
-  { platform: 'o3',   label: 'O3 平台' }
+  { platform: 'reserved', label: '预留拓展位' }
 ]
 
 const platformOptions = PLATFORM_LIST.map(p => ({ label: p.label, value: p.platform }))
@@ -164,7 +163,7 @@ function platformLabel(platform) {
 // 状态变量
 // ============================================================
 const credentials = ref([])
-// 各平台选中关系：{ jxgj: id|null, trip: id|null, o2: id|null, o3: id|null }
+// 各平台选中关系：{ jxgj: id|null, trip: id|null, reserved: id|null }
 const selectedMap = ref({})
 
 // 添加账号弹窗

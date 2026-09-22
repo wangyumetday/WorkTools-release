@@ -3,7 +3,7 @@
 // 职责：管理多平台多账号的账密存储 + 每个平台独立的"当前选中账号"
 //
 // 业务模型（与 frontend 的 CredentialManager.vue 一致）：
-//   - 一个账号 (credential) 只属于一个平台（g1/o1/o2/o3）
+//   - 一个账号 (credential) 只属于一个平台（jxgj/trip/reserved）
 //   - 每个平台独立维护"当前选中的账号 id"（而非全局单一 selectedId）
 //   - 请求某平台时，通过 getSelected(platform) 拿到该平台当前账号
 //
@@ -22,11 +22,11 @@ import * as registry from './platforms/registry.js'
  * 与前端 PLATFORM_LIST、主进程各 dispatch 映射保持一致。
  * 新增加平台只需在这里同步加入数组即可。
  */
-const ALL_PLATFORMS = ['jxgj', 'trip', 'o2', 'o3']
+const ALL_PLATFORMS = ['jxgj', 'trip', 'reserved']
 
 /**
  * 构造一个"全平台默认未选中"的对象
- * 数据形态: { jxgj: null, trip: null, o2: null, o3: null }
+ * 数据形态: { jxgj: null, trip: null, reserved: null }
  */
 function buildDefaultSelectedMap() {
   const result = {}
@@ -137,8 +137,8 @@ export class CredentialManager {
    * 返回形态：
    *   {
    *     credentials: [...],
-   *     selectedMap: { g1: id|null, o1: id|null, o2: id|null, o3: id|null },
-   *     platforms: ['g1','o1','o2','o3']   // 方便前端直接用
+   *     selectedMap: { jxgj: id|null, trip: id|null, reserved: id|null },
+   *     platforms: ['jxgj','trip','reserved']   // 方便前端直接用
    *   }
    */
   list() {

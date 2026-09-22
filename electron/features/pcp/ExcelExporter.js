@@ -20,13 +20,16 @@ import ExcelJS from 'exceljs'
 import * as registry from './platforms/registry.js'
 import { O_PLATFORM_KEYS as O_PLATFORMS } from './platforms/registry.js'
 import { A3_FIELDS } from './fieldNames.js'
+import { formatPolicyAdjust } from './policyAdjust.js'
 
 // 「底价检查」人看文件需要保留的原始字段（附加在 a3 每行上）
 //   exportResult 只按 template.columns 的 key 导列，这些附加字段不会被写进系统导入文件
 export const HR_FIELDS = [
   A3_FIELDS.H航班号, A3_FIELDS.C舱位, A3_FIELDS.C成人总票价_CNY, A3_FIELDS.XC_dijia, A3_FIELDS.CUT_VALUE,
   A3_FIELDS.C出发机场, A3_FIELDS.D到达机场, A3_FIELDS.C出发城市, A3_FIELDS.D到达城市, A3_FIELDS.H航司名,
-  A3_FIELDS.C出发时间_Date, A3_FIELDS.D到达时间_Date, A3_FIELDS.仓等, A3_FIELDS.isOwn
+  A3_FIELDS.C出发时间_Date, A3_FIELDS.D到达时间_Date, A3_FIELDS.仓等, A3_FIELDS.isOwn,
+  // 套餐索引：仅套餐政策行有值（底价检查文件「套餐索引」列；主行参与开启的主行行留空）
+  A3_FIELDS.套餐索引
 ]
 
 /** 平台中文名（用于导出文件名和底价列名），未注册/未定义时回退为大写 key */
@@ -47,12 +50,31 @@ function dateStamp() {
 }
 
 /**
- * 「底价检查」预计减价列的展示值：四舍五入成整数（-24.14 → -24），非数字/缺失 → 空字符串
+ * 「底价检查」预计减价列的展示值：与政策导入文件「调价固定加减钱」同值（policyAdjust.js）
+ *   计算阶段保留精确价差，此处统一「向下取整再 −1」；非数字/缺失原样透传
  */
-function roundForDisplay(v) {
-  if (v == null || v === '') return ''
-  const n = Number(v)
-  return Number.isNaN(n) ? '' : Math.round(n)
+const roundForDisplay = formatPolicyAdjust
+
+/**
+ * 「底价检查」携程减价比例列：100 − (携程价 / 官网价 × 100)，保留 2 位小数（数值，无 % 号）
+ *   携程价/官网价任一缺失、非数字或非正数 → null（列留空，避免除零）
+ */
+function cutRatePct(xcPrice, gwPrice) {
+  const x = Number(xcPrice)
+  const g = Number(gwPrice)
+  if (!Number.isFinite(x) || !Number.isFinite(g) || x <= 0 || g <= 0) return null
+  return Math.round((100 - (x / g) * 100) * 100) / 100
+}
+
+/**
+ * 「底价检查」-2%后的减价数值列：携程价 − 官网价 × 0.98，保留 2 位小数（数值）
+ *   携程价/官网价任一缺失、非数字或非正数 → null（列留空）
+ */
+function cutValueMinus2Pct(xcPrice, gwPrice) {
+  const x = Number(xcPrice)
+  const g = Number(gwPrice)
+  if (!Number.isFinite(x) || !Number.isFinite(g) || x <= 0 || g <= 0) return null
+  return Math.round((x - g * 0.98) * 100) / 100
 }
 
 /**
@@ -64,7 +86,8 @@ function formatBaggageText(list) {
   if (!Array.isArray(list) || list.length === 0) return '托运：0'
   let kg = 0
   for (const x of list) {
-    if (x && x['类型'] == '2' && x['重量'] != null) {
+    // 只汇总托运（手提不展示）；锦绣源数据为中文「托运」，兼容 '2' 写法
+    if (x && (x['类型'] == '2' || x['类型'] == '托运') && x['重量'] != null) {
       const w = Number(x['重量'])
       if (!Number.isNaN(w)) kg += w
     }
@@ -198,7 +221,7 @@ export class ExcelExporter {
   /**
    * 导出 a3 最终数据（阶段4：每 O 平台一个系统导入 xlsx + 每个有数据的平台一份「底价检查」人看 xlsx）
    *   - a3 每行带 _platform 标签 → 按 _platform 分组
-   *   - 系统导入文件导出全部比价行（won 调价打到携程底价-1；lost 不丢弃、调价应用我方底价）；底价检查文件全量导出（主行 + 套餐子行）
+   *   - 系统导入文件仅导出 won 行（调价打到携程底价-1）；lost 行不贴底价卖、不导出；底价检查文件全量导出（主行 + 套餐子行，含 lost）
    *   - 每组用该平台 adapter.exportTemplate.columns 决定列顺序
    *     （_platform 与 HR_FIELDS 附加列不写入系统导入文件）
    *   - 嵌套对象扁平化为 JSON 字符串，避免 Excel 显示成 [object Object]
@@ -251,10 +274,10 @@ export class ExcelExporter {
       const files = []
       for (let i = 0; i < platformKeys.length; i++) {
         const p = platformKeys[i]
-        // 导入政策文件导出全部行（won + lost）：won 行调价打到携程底价-1；
-        //   lost 行不再丢弃，调价固定加减钱 = 我方底价 - 官网价（trip adapter 已按 _outcome 算好）
+        // 导入政策文件仅导出 won 行（调价打到携程底价-1）；lost 行（比输）不贴底价卖，
+        //   不出现在政策导入文件，只在底价检查文件展示
         //   老 a3 无 _outcome 标记的数据视为胜出，兼容已持久化数据
-        const rows = groups[p]
+        const rows = groups[p].filter(r => r[A3_FIELDS._outcome] !== 'lost')
 
         // 取该平台 exportTemplate.columns 决定列顺序；无模板则用行自身键序
         let template = null
@@ -317,10 +340,13 @@ export class ExcelExporter {
    * 生成「底价检查」人看文件（业务模式重构：每平台独立一份，主行 + 套餐子行）
    *   - 每个有 a3 数据的平台各出一份文件：{平台中文名}底价检查{日期}.xlsx
    *   - 行布局（对齐模板 docs/pcp/携程底价检查*.xlsx）：
-   *       主行 = 舱位级数据（航班号/舱位/机场/城市/时间/仓等 + 票价/底价/公式/行李额全填）
-   *       主行下方紧跟该舱位行的套餐子行（只填 成人总票价_CNY / {平台}底价 / 预计减价 / 底价公式命中 / 行李额）
-   *   - 套餐没有匹配到携程价的也列出（携程底价/预计减价留空），其余照写
-   *   - 预计减价：主行 = CUT_VALUE（携程底价 - 官网价取整 - 1）；套餐行 = 差值（携程底价 - 官网套餐我方底价 - 1）
+   *       主行 = 舱位级数据（航班号/舱位/套餐索引/机场/城市/时间/仓等 + 票价/底价/公式/行李额全填）
+   *       主行下方紧跟该舱位行的套餐子行（只填 舱位/套餐索引/isOwn/成人总票价_CNY/{平台}底价/预计减价/携程减价比例(%)/-2%后的减价数值(元)/底价公式命中/行李额）
+   *   - 套餐没有匹配到携程价的也列出（携程底价/预计减价/减价两列留空），其余照写
+   *   - 预计减价：主行 = CUT_VALUE（携程底价 - 官网价取整 - 1；lost 行留空）；套餐行 = 差值（携程底价 - 官网套餐我方底价 - 1）
+   *   - 携程减价比例(%) = 100 − 携程价/官网价×100；-2%后的减价数值(元) = 携程价 − 官网价×0.98
+   *     （两列均保留 2 位小数；官网价 = 成人总票价_CNY 列值，携程价 = {平台}底价 列值；
+   *      任一价格缺失或非正数 → 留空；lost 行有值也算）
    */
   async buildHumanReadableFiles(dir, dateStr, seq = null) {
     const out = []
@@ -350,13 +376,14 @@ export class ExcelExporter {
   /** 单个平台的底价检查文件：按模板列组装主行 + 套餐子行 */
   async _buildHumanFileForPlatform(p, rows, dir, dateStr, seq) {
     const pName = platformDisplayName(p)
-    // 表头（对齐模板：主键列 + 本平台底价三列 + 行李额 + 航班详情列尾）
-    const header = ['航班号', '舱位', '出发机场', '到达机场', 'isOwn', '成人总票价_CNY',
-      `${pName}底价`, '预计减价', '底价公式命中', '行李额',
+    // 表头（对齐模板：主键列 + 本平台底价三列 + 减价两列 + 行李额 + 航班详情列尾）
+    const header = ['航班号', '舱位', '套餐索引', '出发机场', '到达机场', 'isOwn', '成人总票价_CNY',
+      `${pName}底价`, '预计减价', '携程减价比例(%)', '-2%后的减价数值(元)', '底价公式命中', '行李额',
       '出发城市', '到达城市', '航司名', '出发时间', '到达时间', '仓等']
     // 中文表头 → 行级原始字段（仅主行填充）
     const fieldMap = {
       '航班号': A3_FIELDS.H航班号, '舱位': A3_FIELDS.C舱位,
+      '套餐索引': A3_FIELDS.套餐索引,
       '出发机场': A3_FIELDS.C出发机场, '到达机场': A3_FIELDS.D到达机场,
       'isOwn': A3_FIELDS.isOwn,
       '出发城市': A3_FIELDS.C出发城市, '到达城市': A3_FIELDS.D到达城市,
@@ -369,6 +396,9 @@ export class ExcelExporter {
     for (const r of rows) {
       // ===== 主行：舱位级数据（本身就是一种"套餐"） =====
       const parent = {}
+      // 本行参与比例/减价计算的基准价：官网价 = 成人总票价_CNY，携程价 = {平台}底价
+      const pXc = r[A3_FIELDS.XC_dijia]
+      const pGw = r[A3_FIELDS.C成人总票价_CNY]
       for (const h of header) {
         if (fieldMap[h] != null) {
           parent[h] = r[fieldMap[h]]
@@ -378,6 +408,10 @@ export class ExcelExporter {
           parent[h] = r[A3_FIELDS.XC_dijia]
         } else if (h === '预计减价') {
           parent[h] = roundForDisplay(r[A3_FIELDS.CUT_VALUE])
+        } else if (h === '携程减价比例(%)') {
+          parent[h] = cutRatePct(pXc, pGw)
+        } else if (h === '-2%后的减价数值(元)') {
+          parent[h] = cutValueMinus2Pct(pXc, pGw)
         } else if (h === '底价公式命中') {
           parent[h] = formatFloorMeta(r[A3_FIELDS._floorMeta])
         } else if (h === '行李额') {
@@ -389,17 +423,20 @@ export class ExcelExporter {
       outRows.push(parent)
       rowBgColors.push(r[A3_FIELDS.isOwn] ?? null)
 
-      // ===== 套餐子行：主行下方展开，只填 5 列，其余留空 =====
+      // ===== 套餐子行：主行下方展开，其余列留空 =====
       const taocan = Array.isArray(r['套餐信息']) ? r['套餐信息'] : []
       for (const acai of taocan) {
         if (!acai) continue
         const child = {}
         for (const h of header) child[h] = ''
         child['舱位'] = acai['舱位'] ?? ''
+        child['套餐索引'] = acai['套餐索引'] ?? ''
         child['isOwn'] = acai['isOwn'] ?? ''
         child['成人总票价_CNY'] = acai['套餐价格_CNY'] ?? ''
         child[`${pName}底价`] = acai['携程底价'] ?? ''
         child['预计减价'] = roundForDisplay(acai['差值'])
+        child['携程减价比例(%)'] = cutRatePct(acai['携程底价'], acai['套餐价格_CNY'])
+        child['-2%后的减价数值(元)'] = cutValueMinus2Pct(acai['携程底价'], acai['套餐价格_CNY'])
         child['底价公式命中'] = formatFloorMeta(acai._floorMeta)
         child['行李额'] = formatBaggageText(acai['行李信息'])
         outRows.push(child)

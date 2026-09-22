@@ -33,7 +33,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
   const routesInfo = ref({ hangsi: '', cangwei: '', routes: [] })
 
   // ==================== 任务监控数据 ====================
-  //   ★ 单一数据源：所有 task（jxgj + trip + o2 + o3）都在这里
+  //   ★ 单一数据源：所有 task（jxgj + trip + reserved）都在这里
   //   ★ RequestItem 直接读 task.stage / task.preRequest / task.progress / task.error
   //   ★ 列表项 id = task.id（task_1、task_2...），与 panel1 航线通过 task.data.id 关联
   const tasks = ref([])
@@ -86,7 +86,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
   //   jxgjTasks → 面板2「锦绣请求」/ tripTasks → 面板3「携程请求」
   //   task 自带 stage/preRequest/result/error，RequestItem 直接读
   const jxgjTasks = computed(() => tasks.value.filter(t => t.type === 'jxgj'))
-  const tripTasks = computed(() => tasks.value.filter(t => t.type === 'trip' || t.type === 'o2' || t.type === 'o3'))
+  const tripTasks = computed(() => tasks.value.filter(t => t.type === 'trip' || t.type === 'reserved'))
 
   /**
    * 真实步骤流是否进行中（前端统一判定，与后端 Pipeline.isInProgress 规则一致）

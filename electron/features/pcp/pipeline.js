@@ -14,7 +14,8 @@
 //        startedAt?, finishedAt?                // 时间戳
 //      }
 //    stageKey 顺序（也是依赖顺序）：
-//      upload → jxgj → trip → o2 → o3 → a3_merge → export
+//      upload → jxgj → trip → reserved → a3_merge → export
+//      （reserved 是预留拓展位，未实现 stub，默认不启用）
 //
 // ===== 向后兼容（老字段保留，从 stages 派生）=====
 //  status: 'idle'|'running'|'paused'|'waiting_next'|'done'   （全局粗状态）
@@ -40,8 +41,7 @@ const STAGE_DEFS = [
   { key: 'upload',   title: '导入 Excel 原始数据' },
   { key: 'jxgj',     title: '锦绣国际获取官网票价' },
   { key: 'trip',     title: '携程获取底价' },
-  { key: 'o2',       title: 'O2 平台比价' },
-  { key: 'o3',       title: 'O3 平台比价' },
+  { key: 'reserved', title: '预留拓展位' },
   { key: 'a3_merge', title: '交叉合并生成政策' },
   { key: 'export',   title: '导出结果 Excel' }
 ]
@@ -50,7 +50,7 @@ const STAGE_DEFS = [
 const LEGACY_STEP_ORDER = ['upload', 'jxgj', 'o_combo', 'export']
 
 // 哪些新 stage 属于"老 o_combo 粗阶段"（用于 legacy step 派生）
-const O_STAGE_KEYS = new Set(['trip', 'o2', 'o3', 'a3_merge'])
+const O_STAGE_KEYS = new Set(['trip', 'reserved', 'a3_merge'])
 
 export class Pipeline {
   constructor({ taskManager, fileManager, configManager, credentialManager, getMainWindow, userDataPath }) {
@@ -555,7 +555,7 @@ export class Pipeline {
       // ★ 入队时挂 preRequest（与 jxgj 同一设计）：
       //   用平台 adapter.prepareRequest(taskData, dateKey, compiledConfig) 预算请求参数，
       //   前端 RequestItem 直接读 task.preRequest 渲染「请求参数」，零计算。
-      //   trip：{segments, validatingCarrier, cfg}；o2/o3 未实现（prepareRequest 抛错）→ null
+      //   trip：{segments, validatingCarrier, cfg}；reserved 未实现（prepareRequest 抛错）→ null
       //   dateValue=null（无日期分支）→ null（runner 也会直接跳过请求）
       const buildOTask = (p, taskData) => {
         let preRequest = null
@@ -565,7 +565,7 @@ export class Pipeline {
             const compiledConfig = this.taskManager?.compiledConfigs?.[p] || {}
             preRequest = adapter.prepareRequest(taskData, taskData.dateKey, compiledConfig)
           } catch (e) {
-            // 未实现/组参失败不阻塞入队（如 o2/o3 stub），运行时 runner 会按原逻辑报错
+            // 未实现/组参失败不阻塞入队（如 reserved stub），运行时 runner 会按原逻辑报错
           }
         }
         return { type: p, data: taskData, preRequest }
@@ -649,8 +649,8 @@ export class Pipeline {
         this._exportRunLog('dev-jxgj-complete')
       }
     } else if (stage === 'o_combo') {
-      // ★ 按 task.type 拆分 trip/o2/o3 统计
-      const byPlatform = { trip: [], o2: [], o3: [] }
+      // ★ 按 task.type 拆分 O 平台统计
+      const byPlatform = { trip: [], reserved: [] }
       for (const t of results) {
         const type = t.type || (t.result?._usedCredential?.platform)
         if (byPlatform[type]) byPlatform[type].push(t)

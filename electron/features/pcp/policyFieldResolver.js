@@ -3,9 +3,10 @@
 // 职责：把「锦绣政策字段配置」里用户填写的字符串中的 ${变量名}
 //       替换成 a3 比价结果行（item）对应字段的实际值。
 //
-// 背景：新格式政策导入文件的 10 个字段（Name/Remark/Y优先级 等）
+// 背景：新格式政策导入文件的 11 个文本字段（Name/Remark/Y优先级 等）
 //       由用户在「锦绣政策字段配置」板块填写，支持用 ${出发机场}-${到达机场}
 //       这样的占位符拼接运行时变量，导出时逐行替换。
+//       （「主行参与」开关不属于文本字段，不经过本解析器）
 //
 // 设计要点（对齐项目约束）：
 //   1. 纯函数：输入 (字符串, item) → 输出替换后的字符串，无副作用
@@ -33,8 +34,9 @@ export const POLICY_FIELD_VARS = [
   { name: '出发时间', key: A3_FIELDS.C出发时间_Date, desc: '出发时间完整字符串' },
   { name: '到达时间', key: A3_FIELDS.D到达时间_Date, desc: '到达时间完整字符串' },
   { name: '成人总票价CNY', key: A3_FIELDS.C成人总票价_CNY, desc: '成人总票价（人民币）' },
-  { name: '携程底价', key: A3_FIELDS.XC_dijia, desc: '携程底价（won/lost 都有值）' },
-  { name: '预计减价', key: A3_FIELDS.CUT_VALUE, desc: 'won: 携程底价 - 官网价 - 1；lost: 我方底价 - 官网价（应用最低底价）' }
+  { name: '携程底价', key: A3_FIELDS.XC_dijia, desc: '携程底价（won: 命中报价；lost: 全场最低有效报价，仅在底价检查文件展示）' },
+  { name: '预计减价', key: A3_FIELDS.CUT_VALUE, desc: 'won: 携程底价 - 官网价 - 1；lost 不参与调价（留空）' },
+  { name: '套餐索引', key: A3_FIELDS.套餐索引, desc: '套餐索引（仅套餐政策行有值；主行政策行留空）' }
 ]
 
 // 变量名 → field key 的查找表（O(1)）

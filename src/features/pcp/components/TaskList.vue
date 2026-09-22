@@ -54,7 +54,7 @@
         </span>
       </header>
       <div v-show="openIdx === 1" ref="tripScrollEl" class="vis-body">
-        <!-- ★ 虚拟列表（同锦绣面板）；platform 取 task.type（trip/o2/o3） -->
+        <!-- ★ 虚拟列表（同锦绣面板）；platform 取 task.type（trip/reserved） -->
         <div v-if="store.tripTasks.length > 0" class="vis-virtual-viewport"
              :style="{ height: tripVirt.getTotalSize() + 'px' }">
           <div
@@ -136,28 +136,22 @@ const tripVirt = useVirtualizer(computed(() => ({
 })))
 
 // ★ 本次任务全部携程请求的汇总胜出率
-//   分母 = 所有 trip 请求项返回的航班总数（按 航班号|日期|出发|到达 分组，与 RequestItem tripGroups 一致）
-//   分子 = 组内至少一条 isOwn && shown（= showState===1 外显）的航班数
-//   仅投放未外显（ownHidden 黄）不算胜出；0 航班时显示 '—' 避免除零
+//   分母 = 所有携程报价（价格）总数，含我方自己的投放（isOwn 也计入）
+//   分子 = 我方投放且外显（isOwn && shown）的报价条数（仅投放未外显不算胜出）
+//   0 报价时显示 '—' 避免除零
 const tripWinRateText = computed(() => {
-  let totalFlights = 0
-  let wonFlights = 0
+  let totalPrices = 0
+  let wonShownPrices = 0
   for (const t of store.tripTasks) {
     const rows = t.result?.quoteRows
     if (!Array.isArray(rows)) continue
-    const map = new Map()
     for (const q of rows) {
-      const key = `${q.flightNo}|${q.date}|${q.depAirport}|${q.arrAirport}`
-      if (!map.has(key)) map.set(key, [])
-      map.get(key).push(q)
-    }
-    for (const group of map.values()) {
-      totalFlights++
-      if (group.some(q => q.isOwn && q.shown)) wonFlights++
+      totalPrices++
+      if (q.isOwn && q.shown) wonShownPrices++
     }
   }
-  if (totalFlights === 0) return '—'
-  return `${Math.round((wonFlights / totalFlights) * 100)}%`
+  if (totalPrices === 0) return '—'
+  return `${Math.round((wonShownPrices / totalPrices) * 100)}%`
 })
 </script>
 

@@ -7,17 +7,17 @@
 
 import jxgj from './jxgj/adapter.js'
 import trip from './trip/adapter.js'
-import o2 from './o2/adapter.js'
-import o3 from './o3/adapter.js'
+import reserved from './reserved/adapter.js'
 
 const _registry = new Map()
 
 /**
- * ARCH-5：O 平台 key 常量（替代散落各处的 ['trip','o2','o3'] 硬编码）
+ * ARCH-5：O 平台 key 常量（替代散落各处的 O 平台 key 硬编码）
  *   新增 O 平台时只需在此数组追加 key + 在下方 register
  *   jxgj 是数据源平台（非 O 平台），不在此列表
+ *   reserved 是预留拓展位（未实现 stub），接入真实平台时替换
  */
-export const O_PLATFORM_KEYS = ['trip', 'o2', 'o3']
+export const O_PLATFORM_KEYS = ['trip', 'reserved']
 
 /** 数据源平台 key（jxgj，非 O 平台） */
 export const SOURCE_PLATFORM_KEYS = ['jxgj']
@@ -36,7 +36,7 @@ export function register(adapter) {
 
 /**
  * 取平台 adapter
- * @param {string} key - 'jxgj' | 'trip' | 'o2' | 'o3'
+ * @param {string} key - 'jxgj' | 'trip' | 'reserved'
  */
 export function get(key) {
   const a = _registry.get(key)
@@ -62,7 +62,6 @@ export function oPlatforms() {
 // ===== 初始化：注册内置平台 =====
 register(jxgj)
 register(trip)
-register(o2)
-register(o3)
+register(reserved)
 
 export default { register, get, all, keys, oPlatforms, O_PLATFORM_KEYS, SOURCE_PLATFORM_KEYS }

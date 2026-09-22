@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCP 比价数据流说明</title>
+<style>
+  :root {
+    --bg: #f7f8fa; --card: #ffffff; --line: #e3e6ea;
+    --ink: #1f2937; --sub: #6b7280; --accent: #2563eb;
+    --green: #16a34a; --orange: #d97706; --purple: #7c3aed; --red: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px 80px; background: var(--bg);
+    font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    color: var(--ink); line-height: 1.7;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .meta { color: var(--sub); font-size: 13px; margin-bottom: 24px; }
+  h2 {
+    font-size: 18px; margin: 40px 0 12px; padding-left: 10px;
+    border-left: 4px solid var(--accent);
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; padding: 16px 20px; margin-bottom: 16px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td {
+    border: 1px solid var(--line); padding: 7px 10px;
+    text-align: left; vertical-align: top;
+  }
+  th { background: #f1f5f9; font-weight: 600; white-space: nowrap; }
+  td.k { font-weight: 600; white-space: nowrap; color: #111827; }
+  code {
+    background: #eef2f7; border-radius: 3px; padding: 1px 5px;
+    font-family: Consolas, "Courier New", monospace; font-size: 12.5px;
+  }
+  .note {
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px;
+    padding: 10px 14px; font-size: 13.5px; margin: 10px 0;
+  }
+  .note.red { background: #fef2f2; border-color: #fecaca; }
+  .tag { display: inline-block; border-radius: 4px; padding: 0 8px; font-size: 12px; color: #fff; }
+  .tag.a1 { background: var(--accent); }
+  .tag.a2 { background: var(--green); }
+  .tag.a3 { background: var(--orange); }
+  .tag.file { background: var(--purple); }
+  .flow-svg { width: 100%; height: auto; display: block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>PCP 比价流程 · 数据流说明</h1>
+  <div class="meta">更新日期：2026-09-22 ｜ 适用范围：政策导入业务模式 ｜ 视角：数据怎么流动、属性怎么产生（不涉及代码实现）</div>
+
+  <!-- ================= 总览图 ================= -->
+  <h2>总览：一条数据的旅程</h2>
+  <div class="card">
+    <svg class="flow-svg" viewBox="0 0 1180 300" xmlns="http://www.w3.org/2000/svg" font-family="Microsoft YaHei, sans-serif">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill="#94a3b8"/>
+        </marker>
+      </defs>
+
+      <!-- 阶段块 -->
+      <g font-size="13">
+        <rect x="10"   y="30" width="150" height="64" rx="8" fill="#eff6ff" stroke="#2563eb"/>
+        <rect x="180"  y="30" width="150" height="64" rx="8" fill="#f0fdf4" stroke="#16a34a"/>
+        <rect x="350"  y="30" width="150" height="64" rx="8" fill="#f0fdf4" stroke="#16a34a"/>
+        <rect x="520"  y="30" width="150" height="64" rx="8" fill="#fff7ed" stroke="#d97706"/>
+        <rect x="690"  y="30" width="150" height="64" rx="8" fill="#fff7ed" stroke="#d97706"/>
+        <rect x="860"  y="30" width="150" height="64" rx="8" fill="#f5f3ff" stroke="#7c3aed"/>
+        <rect x="1030" y="30" width="140" height="64" rx="8" fill="#f5f3ff" stroke="#7c3aed"/>
+      </g>
+      <g text-anchor="middle" font-size="14" font-weight="bold" fill="#111827">
+        <text x="85"   y="58">上传 Excel</text>
+        <text x="255"  y="58">锦绣请求</text>
+        <text x="425"  y="58">锦绣处理</text>
+        <text x="595"  y="58">携程请求</text>
+        <text x="765"  y="58">匹配 + 比价</text>
+        <text x="935"  y="58">政策行组装</text>
+        <text x="1100" y="58">导出 Excel</text>
+      </g>
+      <g text-anchor="middle" font-size="11" fill="#475569">
+        <text x="85"   y="80">第1行航司 第2行舱位串</text>
+        <text x="255"  y="80">每航线 1 个请求</text>
+        <text x="425"  y="80">过滤 + 富化 + 按日期分组</text>
+        <text x="595"  y="80">每个日期 1 个请求</text>
+        <text x="765"  y="80">找同航班 → 同行李报价</text>
+        <text x="935"  y="80">147 列政策字段</text>
+        <text x="1100" y="80">导入政策 + 底价检查</text>
+      </g>
+
+      <!-- 数据物标签 -->
+      <g text-anchor="middle" font-size="12" font-weight="bold">
+        <rect x="20"   y="230" width="130" height="26" rx="13" fill="#2563eb"/>
+        <text x="85"   y="247" fill="#fff">a1 · 航线清单</text>
+        <rect x="190"  y="230" width="130" height="26" rx="13" fill="#16a34a"/>
+        <text x="255"  y="247" fill="#fff">a2 · 日期×舱位条目</text>
+        <rect x="530"  y="230" width="130" height="26" rx="13" fill="#d97706"/>
+        <text x="595"  y="247" fill="#fff">a3 · 政策行(147列)</text>
+        <rect x="870"  y="230" width="130" height="26" rx="13" fill="#7c3aed"/>
+        <text x="935"  y="247" fill="#fff">2 种 xlsx</text>
+      </g>
+
+      <!-- 箭头 -->
+      <g stroke="#94a3b8" stroke-width="1.5" fill="none" marker-end="url(#arrow)">
+        <line x1="160" y1="62" x2="176" y2="62"/>
+        <line x1="330" y1="62" x2="346" y2="62"/>
+        <line x1="500" y1="62" x2="516" y2="62"/>
+        <line x1="670" y1="62" x2="686" y2="62"/>
+        <line x1="840" y1="62" x2="856" y2="62"/>
+        <line x1="1010" y1="62" x2="1026" y2="62"/>
+      </g>
+      <!-- 下行连线：阶段 → 数据物 -->
+      <g stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3,3" fill="none">
+        <line x1="85"  y1="94" x2="85"  y2="228"/>
+        <line x1="355" y1="94" x2="265" y2="228"/>
+        <line x1="765" y1="94" x2="600" y2="228"/>
+        <line x1="1005" y1="94" x2="930" y2="228"/>
+      </g>
+      <!-- 传输内容标注 -->
+      <g font-size="11" fill="#475569" text-anchor="middle">
+        <text x="175" y="30">航线+航司</text>
+        <text x="345" y="30">原始航班数组</text>
+        <text x="515" y="30">城市+日期+航司</text>
+        <text x="685" y="30">航班+报价</text>
+        <text x="855" y="30">比价结果行</text>
+        <text x="1025" y="30">完整政策行</text>
+      </g>
+    </svg>
+    <div style="font-size:13px; color:#475569; margin-top:8px;">
+      核心记忆点：<b>航线</b>是锦绣请求的拆分单位；<b>日期</b>是携程请求的拆分单位；
+      套餐不是"拆"出来的——锦绣返回的航班项<b>自带</b>套餐数组，程序只给它补价格换算和底价。
+      「主行参与」开关<b>默认关闭</b>：主行只作套餐的公用信息来源，政策行由匹配到携程报价的套餐各生成一条。
+    </div>
+  </div>
+
+  <!-- ================= 阶段 0 ================= -->
+  <h2>阶段 0：上传 Excel → a1 航线清单 <span class="tag a1">a1</span></h2>
+  <div class="card">
+    <p style="margin-top:0;">上传文件的格式是一张表，前 3 行是全局设置，第 4 行起每行一条航线：</p>
+    <table>
+      <tr><th>位置</th><th>内容</th><th>作用</th></tr>
+      <tr><td class="k">第 1 行</td><td>航司二字码（如 XQ）</td><td>全局航司，应用到所有航线</td></tr>
+      <tr><td class="k">第 2 行</td><td>舱位串，逗号分隔（如 Y,T,W）</td><td>全局舱位序列，决定后续要匹配哪些舱位</td></tr>
+      <tr><td class="k">第 3 行</td><td>表头（占位）</td><td>不校验内容</td></tr>
+      <tr><td class="k">第 4 行起</td><td>每行一条航线：出发机场、到达机场</td><td>每条航线生成一条 a1 记录 = 一个锦绣请求任务</td></tr>
+    </table>
+    <p>产生的 <b>a1</b>：每条航线一行，携带「出发机场 / 到达机场 / 航司 / 舱位串」四样信息。
+    它是后面一切数据的"根"，锦绣请求的入参就来自它。</p>
+  </div>
+
+  <!-- ================= 阶段 1 ================= -->
+  <h2>阶段 1：锦绣获取官网数据 → a2 日期×舱位条目 <span class="tag a2">a2</span></h2>
+  <div class="card">
+    <p style="margin-top:0;"><b>请求：</b>每个 a1 航线发 1 个锦绣请求，入参只有三个：出发机场、到达机场、航司。</p>
+    <p><b>响应：</b>一份该航线下所有「航班 × 舱位 × 日期」的原始报价数组。
+    每条原始项自带这些字段：舱位、成人总票价（CNY）、出发时间、出发/到达机场、航班号、剩余座位数、货币种类、行李信息数组、套餐信息数组。</p>
+
+    <p><b>处理第 1 步——筛选：</b>两道门槛，不满足直接淘汰：</p>
+    <table>
+      <tr><th>门槛</th><th>规则</th><th>目的</th></tr>
+      <tr><td class="k">座位数</td><td>剩余座位数 ≥ 配置值（默认 3；有套餐时看套餐首个的座位数）</td><td>滤掉没票可售的航班</td></tr>
+      <tr><td class="k">出发日期</td><td>必须 ≥ 3 天后</td><td>政策要生效需要提前量</td></tr>
+    </table>
+
+    <p><b>处理第 2 步——贪心选航班：</b>
+    按用户舱位串的每个舱位各选一条航班，同时让所用<b>出发日期数量最少</b>——因为每个日期后面会拆成 1 个携程请求，日期越少越省携程限流额度。</p>
+
+    <p><b>处理第 3 步——给选中的舱位条目富化属性：</b></p>
+    <table>
+      <tr><th>新增属性</th><th>怎么得来</th></tr>
+      <tr><td class="k">显示价</td><td>成人总票价（CNY）向上取整到元，只在界面显示用</td></tr>
+      <tr><td class="k">底价（我方底价）</td><td>把成人总票价（CNY）代入用户配置的<b>底价公式</b>算出来，保留 2 位小数。
+          公式计算顺序：先看<b>区间配置</b>有没有命中 → 命中用区间公式；没命中用<b>全局公式</b>；公式为空/出错降级为原价。
+          公式里的变量 <code>cost</code> 就是成人总票价（CNY）。</td></tr>
+      <tr><td class="k">底价公式命中标记</td><td>记录这次底价是哪条规则算的（区间 [500,700] / 全局 / 降级原价）+ 公式文本 + 入参 cost，供底价检查文件展示"底价公式命中"列和界面调试</td></tr>
+      <tr><td class="k">出发日期</td><td>从出发时间截取日期部分（YYYY-MM-DD）</td></tr>
+      <tr><td class="k">出发 / 到达城市</td><td>优先取接口返回的 C出发城市 / D到达城市；接口缺失时才用机场三字码→城市码兜底转换</td></tr>
+      <tr><td class="k">托运行李串</td><td>数行李信息里"托运"条目：0 件 → 无免费托运行李；1 件 → 成人:20；N 件 → N件，每件20。
+          这串文字是<b>携程比价时做行李匹配的关键依据</b></td></tr>
+      <tr><td class="k">套餐富化（每个自带套餐）</td><td>① 套餐价_CNY = 套餐价格按汇率（货币种类）换算成人民币；
+          ② 套餐我方底价 = 底价公式（套餐价_CNY）；
+          ③ 套餐同样挂公式命中标记。
+          套餐数据异常<b>一律不报错</b>，只在数据上补「套餐数据说明」属性说明情况（无套餐数据 / 套餐数组为空 / 套餐数据格式异常 / 含无效套餐项 / 套餐价格缺失 / 套餐价格无效）</td></tr>
+    </table>
+
+    <p><b>处理第 4 步——按日期分组：</b>
+    把同一航线下选中的全部舱位条目按出发日期分组：<b>date_obj = { 日期1: [舱位条目…], 日期2: [舱位条目…] }</b>。
+    这就是 <b>a2</b> 的核心结构——每个日期后面会拆成 1 个携程请求。</p>
+  </div>
+
+  <!-- ================= 阶段 2 ================= -->
+  <h2>阶段 2：携程比价 → 给舱位条目补比价属性</h2>
+  <div class="card">
+    <p style="margin-top:0;"><b>请求：</b>a2 里每个「航线 × 日期」组合发 1 个携程请求（同日期多舱位合并到一次请求里）。
+    入参：出发城市、到达城市、出发日期、航司名。</p>
+    <p><b>响应：</b>两部分：
+    ① 航班列表（航班号 / 出发机场 / 到达机场 / 起飞时间 / 航班ID）；
+    ② 报价列表（挂在航班上）：每条报价携带 舱位、<b>携程底价</b>、行李、是否自有报价、平台外显状态等。</p>
+
+    <p><b>匹配规则（找同一条航班 与 命中的报价）——按当前规则，舱位已不参与判定：</b></p>
+    <table>
+      <tr><th>步骤</th><th>判定条件</th></tr>
+      <tr><td class="k">① 航班身份</td><td>航班号一致 + 出发机场一致 + 到达机场一致 + 出发日期一致（联程按航段号序列一致 + 首起/末降 + 首段日期）</td></tr>
+      <tr><td class="k">② 报价关联</td><td>携程报价通过挂接关系指向上面那条航班的航班ID</td></tr>
+      <tr><td class="k">③ 命中报价</td><td>非自有报价（我方自己投放的不算对手） + <b>行李匹配（只比托运，手提不参与）</b>：双方都无托运 → 匹配；否则托运件数相同且单件重量相同<br>
+          ★ 携程价口径：一律<b>向下取整</b>（正常是整数；万一非整数如 19.9 → 19），后续排序、比价、生效价都基于取整后的价格<br>
+          ★ 单个套餐可能匹配到<b>多条</b>携程报价：先按价格从低到高排序，从最低价开始逐条比，
+          命中的是第一个「我方底价 ≤ 该价」的报价（能比过的价格里最低的那条）；
+          全部比不过 → 套餐标记「无可比过」并跳过（主行模式则 lost 贴我方底价卖）</td></tr>
+    </table>
+
+    <p><b>主行参与开关（政策字段配置面板里，默认关闭）——决定"主行还是套餐"产出政策行：</b></p>
+    <table>
+      <tr><th>开关状态</th><th>行为</th></tr>
+      <tr><td class="k">关闭（默认）</td><td>主行只作为套餐的公用信息来源（机场/城市/航班号/时间等取值处），不参与比价；
+          仅匹配到携程报价的套餐各生成一条政策行：公用信息继承主行，舱位用套餐自己的（没有则用主行舱位），
+          调价金额 = 该套餐差值（命中价 = 能比过的报价里价格最低的那条）；
+          未匹配或全部比不过的套餐跳过（套餐上留有「套餐数据说明」）</td></tr>
+      <tr><td class="k">开启</td><td>主行参与比价：多条匹配报价同样从低价到高价逐条比，命中能比过的最低报价（won）；
+          全部比不过 → lost（贴我方底价卖），主行产出政策行；套餐的比价结果只在底价检查文件里体现</td></tr>
+    </table>
+
+    <p><b>比价判定与新增属性（对每条我方舱位条目）：</b></p>
+    <table>
+      <tr><th>新增属性</th><th>怎么得来</th></tr>
+      <tr><td class="k">携程底价</td><td>命中报价里携程返回的底价数值，原样记录</td></tr>
+      <tr><td class="k">比价结果标记</td><td>我方底价 &gt; 0 且 ≤ 携程底价 → <b>可以胜出 won</b>；
+          我方底价 &gt; 携程底价 → <b>无法胜出 lost</b>（不丢弃，改为"贴我方底价卖"）</td></tr>
+      <tr><td class="k">调价金额 CUT_VALUE</td><td>计算阶段只保留<b>精确价差</b>（不含 −1，可带小数）：won = 命中携程价(取整) − 显示价；lost = 我方底价 − 显示价（贴底价）。<br>
+          写入政策文件/底价检查文件前统一「向下取整再 −1」（平台只接受整数）：整数价差 → −1，生效价恰 = 携程价(取整) − 1；小数价差 → floor(v)−1，生效价比携程价(取整) 低 1~2 元</td></tr>
+      <tr><td class="k">是否自有（舱位级）</td><td>命中报价的"是否自有"标记原样带上</td></tr>
+      <tr><td class="k">套餐子项富化</td><td>为每个套餐按行李匹配对应的携程报价（可能多条）：按价格从低到高逐条比，
+          套餐携程底价 = 能比过的报价里最低的那条价格；套餐差值 = 命中价(取整) − 套餐价_CNY（精确价差，不含 −1，写入文件前统一取整减1）；同步记录是否自有。
+          匹配失败或全部比不过的套餐不报错，只在套餐上加「套餐数据说明」（套餐无行李信息 / 未匹配到携程报价 / 无可比过的价格）</td></tr>
+      <tr><td class="k">全部报价明细（界面展示用）</td><td>把携程这次返回的<b>每一条</b>报价都列出来，逐一标注：比赢 won / 比输 lost / 自有外显 / 自有隐藏 / 未匹配（未匹配还会标出第一个不通过的参数：无此航班 / 行李不符 / 价格异常）。只用于界面，不参与比价和导出</td></tr>
+    </table>
+  </div>
+
+  <!-- ================= 阶段 3 ================= -->
+  <h2>阶段 3：政策行组装 → a3（147 列） <span class="tag a3">a3</span></h2>
+  <div class="card">
+    <p style="margin-top:0;">每条比价结果行（won + lost 都要）装成一条 147 列的政策行，列值来自三个渠道：</p>
+    <table>
+      <tr><th>来源</th><th>列</th><th>值怎么来</th></tr>
+      <tr>
+        <td class="k">① 政策字段配置（11 项，支持 ${变量}）</td>
+        <td>Name、Remark、Y优先级、OTAConfigID、航程类型、数据有效期End、航司名、销售天数、座位数、爬虫名、创建人id</td>
+        <td>用户在"政策字段配置"页面填的模板文本，导出时把 <code>${变量}</code> 替换成该行实际数据。
+        可用变量：出发机场、到达机场、出发城市、到达城市、航班号、航司名、舱位、仓等、出发时间、到达时间、成人总票价CNY、携程底价、预计减价</td>
+      </tr>
+      <tr>
+        <td class="k">② 运行时对接字段</td>
+        <td>机场航线匹配、舱位、调价固定加减钱、UpdateTime</td>
+        <td>机场航线匹配 = 出发机场-到达机场 拼接；舱位 = 我方舱位；
+            调价固定加减钱 = CUT_VALUE（整数原样；有小数则<b>去掉小数部分再 −1</b>，如 −45.12 → −46）；
+            UpdateTime = 行生成时刻（YYYY-MM-DD HH:mm:ss）</td>
+      </tr>
+      <tr>
+        <td class="k">③ 固定值</td>
+        <td>是否启用=是、退改模式=不退不改、退票/退税/部分改期标识=未设置、各百分比与加减钱=0、价格基础类型=总价、团体资质=正常票、是否包机产品=否、同程resouceCategory=普通资源、nationality=TR 等</td>
+        <td>与"政导文件样例"的必填项取值对齐，写死</td>
+      </tr>
+    </table>
+    <div class="note">表格格式与样例文件完全对齐：147 列表头一致；数字列（Y优先级、OTAConfigID、数据有效期End、各百分比/加减钱、创建人id 等）保持数字类型，其余为文本；留空列写空字符串。ID / CreateTime 留空。</div>
+  </div>
+
+  <!-- ================= 阶段 4 ================= -->
+  <h2>阶段 4：导出 Excel（点击下载产出的两个文件） <span class="tag file">xlsx</span></h2>
+  <div class="card">
+    <table>
+      <tr><th>文件</th><th>命名</th><th>内容</th><th>给谁用</th></tr>
+      <tr>
+        <td class="k">政策导入文件</td>
+        <td>{平台名}导入政策{日期}.xlsx</td>
+        <td>147 列政策行，全部居中，won 行浅绿底 / lost 行浅红底</td>
+        <td>导入到平台系统执行调价</td>
+      </tr>
+      <tr>
+        <td class="k">底价检查文件</td>
+        <td>{平台名}底价检查{日期}.xlsx</td>
+        <td>人看对照：每条舱位是"主行"，紧跟其下展开套餐子行。
+            主行列：航班号/舱位/机场/城市/时间/仓等/成人总票价/携程底价/预计减价/底价公式命中/行李额；
+            套餐子行只填：舱位/是否自有/成人总票价_CNY/携程底价/预计减价/公式命中/行李额</td>
+        <td>人工核对</td>
+      </tr>
+    </table>
+    <p>底价检查文件里两个列的特殊算法：</p>
+    <table>
+      <tr><th>列</th><th>算法</th></tr>
+      <tr><td class="k">预计减价</td><td>与政策导入文件「调价固定加减钱」同值：写入前统一「向下取整再 −1」（计算阶段保留精确价差，平台只接受整数）；主行来源=CUT_VALUE，套餐行来源=套餐差值</td></tr>
+      <tr><td class="k">底价公式命中</td><td>文本化：「区间 [500,700] cost*0.48」/「全局 cost*0.2」/「降级 原价」</td></tr>
+      <tr><td class="k">行李额</td><td>只汇总托运重量（手提不展示）：「托运：20kg」；没有托运条目 →「托运：0」</td></tr>
+    </table>
+    <div class="note">
+      调价口径：携程价一律向下取整（正常为整数，19.9 → 19）后参与比价；
+      计算阶段只保留精确价差（不含 −1），写入政策文件「调价固定加减钱」与底价检查文件「预计减价」前
+      统一「向下取整再 −1」（平台只接受整数）——整数价差时生效价恰 = 携程价(取整) − 1，
+      小数价差时生效价比携程价(取整) 低 1~2 元。
+      主行参与关闭时，底价检查文件的主行 = 套餐行（公用信息 + 套餐自己的舱位/价格/调价差值）。
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

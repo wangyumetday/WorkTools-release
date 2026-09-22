@@ -17,7 +17,7 @@
 //   - 终端风格深色界面（与 RequestItem.vue 视觉一致）
 //   - 任务卡片可折叠（请求参数 / 返回数据 / 任务数据 三块）
 //   - 状态色点：completed=绿 / failed=红 / aborted=橙 / 其它=灰
-//   - 任务列表分两组：锦绣请求（jxgj）+ 携程请求（trip/o2/o3）
+//   - 任务列表分两组：锦绣请求（jxgj）+ 携程请求（trip/reserved）
 //   - 单一文件，零运行时依赖（除 node:fs / node:path / electron.app）
 // ============================================================
 
@@ -68,7 +68,7 @@ function escapeHtml(s) {
 /**
  * 从 task.data 提取头部路由标签
  *   - jxgj：CF_jichang → DD_jichang  / hangsi
- *   - trip/o2/o3：source.CF_jichang → source.DD_jichang  / dateKey
+ *   - trip/reserved：source.CF_jichang → source.DD_jichang  / dateKey
  */
 function extractRoute(task) {
   const data = task?.data
@@ -80,7 +80,7 @@ function extractRoute(task) {
     if (cf || dd) return `${cf}→${dd}${hs ? '  ' + hs : ''}`
     return '—'
   }
-  // trip/o2/o3：data.source 是 a2 item
+  // trip/reserved：data.source 是 a2 item
   const src = data.source || {}
   const cf = src.CF_jichang || ''
   const dd = src.DD_jichang || ''
@@ -323,8 +323,8 @@ function renderTaskCard(task) {
 
 function buildHtml({ tasks, meta }) {
   const jxgjTasks = tasks.filter(t => t.type === 'jxgj')
-  const tripTasks = tasks.filter(t => t.type === 'trip' || t.type === 'o2' || t.type === 'o3')
-  const otherTasks = tasks.filter(t => t.type !== 'jxgj' && t.type !== 'trip' && t.type !== 'o2' && t.type !== 'o3')
+  const tripTasks = tasks.filter(t => t.type === 'trip' || t.type === 'reserved')
+  const otherTasks = tasks.filter(t => t.type !== 'jxgj' && t.type !== 'trip' && t.type !== 'reserved')
 
   const completed = tasks.filter(t => t.status === 'completed').length
   const failed = tasks.filter(t => t.status === 'failed').length

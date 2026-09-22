@@ -1,7 +1,8 @@
 <!-- ============================================================
      PCP StageFlow.vue - 细粒度阶段状态流（横向版本）
-     7 个阶段（stage.key 顺序与 Pipeline.STAGE_DEFS 保持一致）：
-       upload → jxgj → trip → o2 → o3 → a3_merge → export
+     6 个阶段（stage.key 顺序与 Pipeline.STAGE_DEFS 保持一致）：
+       upload → jxgj → trip → reserved → a3_merge → export
+       （reserved 是预留拓展位，未实现 stub，默认不启用）
 
      关键设计：
        1. 阶段状态的单一事实来源 = store.pipelineState.stages[i]
@@ -11,7 +12,7 @@
           · upload (阶段 0)   → handleUploadXlsx
           · jxgj   (阶段 1)   → dev 模式 + jxgj idle → pipeline.triggerStep('jxgj')
           · trip   (阶段 2)   → dev 模式 + O 组全部 idle → pipeline.triggerStep('o_combo')
-            （trip/o2/o3/a3 仍作为一组整体触发，符合当前 task scheduler 实现）
+            （trip/reserved/a3 仍作为一组整体触发，符合当前 task scheduler 实现）
           · export (阶段 6)   → _exportGate.can → handleDownloadResult
        3. 老 StepFlow.vue 文件保留不删、不在 Home.vue 中 import 即可。
        4. pipelineState 仍带老字段 status/step 兼容；但本组件完全用 stages。
@@ -134,7 +135,7 @@ import { useTaskStore } from '../stores/task.js'
 const store = useTaskStore()
 
 // 细粒度阶段数组：来自 pipelineState.stages（pipeline.getState() 推送）
-// 回退：如果 stages 字段还没推送（pipeline 旧版 / 初始化前），用 7 个空壳占位，避免白屏
+// 回退：如果 stages 字段还没推送（pipeline 旧版 / 初始化前），用空壳占位，避免白屏
 const stages = computed(() => {
   const ps = store.pipelineState
   if (Array.isArray(ps.stages) && ps.stages.length > 0) return ps.stages
@@ -142,8 +143,7 @@ const stages = computed(() => {
     { key: 'upload',   title: '导入 Excel 原始数据',   status: 'idle' },
     { key: 'jxgj',     title: '锦绣国际获取官网票价',   status: 'idle' },
     { key: 'trip',     title: '携程获取底价',           status: 'idle' },
-    { key: 'o2',       title: 'O2 平台比价',            status: 'idle' },
-    { key: 'o3',       title: 'O3 平台比价',            status: 'idle' },
+    { key: 'reserved', title: '预留拓展位',             status: 'idle' },
     { key: 'a3_merge', title: '交叉合并生成政策',       status: 'idle' },
     { key: 'export',   title: '导出结果 Excel',         status: 'idle' }
   ]
@@ -202,10 +202,10 @@ function isClickable(stage, i) {
   if (stage.key === 'trip') {
     if (!isDev.value) return false
     // O 组入口：trip 显示"点击执行 O 组合"
-    // 前置：jxgj completed + O 组 4 个阶段 (trip/o2/o3/a3_merge) 都还没开始
+    // 前置：jxgj completed + O 组各阶段 (trip/reserved/a3_merge) 都还没开始
     // dev 模式下 jxgj 跑完就会停在 waiting_next → 这里必须允许点击才符合设计
     const jxgj = stages.value[1]
-    const oGroup = ['trip','o2','o3','a3_merge'].map(k => stages.value.find(s => s.key === k))
+    const oGroup = ['trip','reserved','a3_merge'].map(k => stages.value.find(s => s.key === k))
     const allIdle = oGroup.every(s => !s || s.status === 'idle')
     return jxgj.status === 'completed' && allIdle
   }

@@ -49,7 +49,7 @@ import { ExcelExporter, HR_FIELDS } from './ExcelExporter.js'
 
 /**
  * @typedef {Object} A3Item - O 平台比价结果行（saveA3FromOTasks 产出：exportTemplate 列 + HR_FIELDS 附加字段）
- * @property {string} _platform - 来源平台（trip / o2 / o3）
+ * @property {string} _platform - 来源平台（trip / reserved）
  * @property {string} H航班号 - 航班号
  * @property {string} H航司名 - 航司名
  * @property {string} C出发机场 - 出发机场三字码
@@ -315,7 +315,7 @@ export class FileManager {
 
   /**
    * O 平台组合任务完成 → 生成 a3（按 O 平台分组，每平台用各自 exportTemplate 生成行）
-   *   阶段4 重构：每 O 平台一份异构 xlsx 列模板（trip/o2/o3 各自 adapter.exportTemplate）
+   *   阶段4 重构：每 O 平台一份异构 xlsx 列模板（trip/reserved 各自 adapter.exportTemplate）
    *     - 行值由 exportTemplate.columns 的 from(item, cfg) / value 计算
    *     - cfg = 该平台配置（agentName/agentRemark 等业务员信息写入政策 Name/Remark 列）
    *     - 每行打 _platform 标签，exportResult 据此分组导出每平台一个 xlsx
@@ -327,7 +327,7 @@ export class FileManager {
    */
   saveA3FromOTasks(tasks) {
     // ★ O 平台任务拆分后：每个 task 是单平台任务，task.type 即平台，task.result 是该平台单次结果
-    //   （旧版 runCombo 返回 { trip:{...}, o2:{...}, o3:{...} } 聚合体，此处按 task.type 直接取）
+    //   （旧版 runCombo 返回 { trip:{...}, ... } 聚合体，此处按 task.type 直接取）
     const a3arr = []
     const stats = {}
     O_PLATFORMS.forEach(p => { stats[p] = { okTasks: 0, failedTasks: 0, processedSum: 0 } })

@@ -50,6 +50,9 @@ export const A3_FIELDS = {
   C成人总票价_CNY: 'C成人总票价_CNY',
   XC_dijia: 'XC_dijia',
   CUT_VALUE: 'CUT_VALUE',
+  // 套餐索引（仅套餐政策行有值）：锦绣套餐信息数组元素自带的「套餐索引」字段，
+  //   主行政策行无此字段；供政策字段 ${套餐索引} 变量解析
+  套餐索引: '套餐索引',
   TuoYunXingLi:'TuoYunXingLi',
   isOwn:'isOwn'
 }

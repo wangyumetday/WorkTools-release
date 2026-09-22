@@ -28,7 +28,7 @@ export class TaskManager {
      * {
      *   jxgj: { enabled:true, floorPriceFormula:fn, floorPrice:{compute, debugInfo}, (用户保存的其他字段)... }
      *   trip: { enabled:true, (trip 平台各字段)... },
-     *   o2:   { ... }, o3: { ... }
+     *   reserved: { ... }
      * }
      * 刷新时机：
      *   a) TaskManager 构造后立刻加载一次（App 启动就有默认/上次保存值可用）
@@ -76,9 +76,14 @@ export class TaskManager {
       console.warn(`[TaskManager:reloadRuntimeConfigs reason=${reason}] 未注入 ConfigManager，保持空栈`)
       return { revision: this._runtimeRevision, summary: {} }
     }
+    // 政策字段配置快照（含「主行参与」开关）：随运行时栈一起注入各平台编译配置，
+    //   比价时从 compiledConfigs 读取，与平台配置同属"任务开始时的快照"（开始后不随页面改动变化）
+    const policyFields = this.configManager.getPolicyFields().fields
     for (const adapter of registry.all()) {
       const rawConfig = this.configManager.getPlatformConfig(adapter.key)
-      this.compiledConfigs[adapter.key] = adapter.compileConfig(rawConfig)
+      const compiled = adapter.compileConfig(rawConfig)
+      compiled.policyFields = policyFields
+      this.compiledConfigs[adapter.key] = compiled
     }
     this._runtimeRevision++
     // 只打非敏感信息：版本号 + 各平台 enabled + jxgj 公式字符串摘要

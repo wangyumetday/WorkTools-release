@@ -48,21 +48,12 @@
           @save="handleSave"
         />
       </n-tab-pane>
-      <n-tab-pane name="o2" tab="O2平台">
+      <n-tab-pane name="reserved" tab="预留拓展位">
         <PlatformConfigForm
-          :config="config.o2"
-          :schema="schema.o2"
+          :config="config.reserved"
+          :schema="schema.reserved"
           :disabled="disabled"
-          platform="o2"
-          @save="handleSave"
-        />
-      </n-tab-pane>
-      <n-tab-pane name="o3" tab="O3平台">
-        <PlatformConfigForm
-          :config="config.o3"
-          :schema="schema.o3"
-          :disabled="disabled"
-          platform="o3"
+          platform="reserved"
           @save="handleSave"
         />
       </n-tab-pane>
@@ -85,19 +76,17 @@ const props = defineProps({
 
 // 当前激活的 tab（代码 key 用简称）
 const activePlatform = ref('jxgj')
-// 4 平台的配置（底价公式 / 上浮比例 / 启用开关）
+// 各平台的配置（底价公式 / 上浮比例 / 启用开关）
 const config = ref({
   jxgj: {},
   trip: {},
-  o2: {},
-  o3: {}
+  reserved: {}
 })
-// 4 平台的配置 schema（驱动 PlatformConfigForm 自动渲染，阶段4）
+// 各平台的配置 schema（驱动 PlatformConfigForm 自动渲染，阶段4）
 const schema = ref({
   jxgj: {},
   trip: {},
-  o2: {},
-  o3: {}
+  reserved: {}
 })
 
 const store = useTaskStore()
@@ -119,7 +108,7 @@ async function handleSave({ platform, data }) {
     message.warning('步骤流进行中，禁止保存平台配置；请先完成或终止')
     return
   }
-  const nameMap = { jxgj: '锦绣国际', trip: '携程OTA', o2: 'O2', o3: 'O3' }
+  const nameMap = { jxgj: '锦绣国际', trip: '携程OTA', reserved: '预留拓展位' }
   const patch = { [platform]: data }
   // console.log(`[PlatformConfig] handleSave: sending patch =`, patch)
   const result = await api.pcp.configSet(patch)
@@ -145,7 +134,7 @@ watch(() => store.blinkTarget, (t) => {
     return
   }
   if (t === 'o_config' || t === 'o_credential') {
-    const oKeys = ['trip', 'o2', 'o3']
+    const oKeys = ['trip', 'reserved']
     const firstEnabled = oKeys.find(k => config.value?.[k]?.enabled)
     activePlatform.value = firstEnabled || 'trip'
   }

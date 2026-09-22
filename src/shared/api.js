@@ -60,7 +60,7 @@ const mockApi = {
 
     credentialList:      () => {
       mockNotReady('pcp.credentialList')
-      return mockDelay({ credentials: [], selectedMap: { jxgj: null, trip: null, o2: null, o3: null }, platforms: ['jxgj', 'trip', 'o2', 'o3'] })
+      return mockDelay({ credentials: [], selectedMap: { jxgj: null, trip: null, reserved: null }, platforms: ['jxgj', 'trip', 'reserved'] })
     },
     credentialAdd:       () => { mockNotReady('pcp.credentialAdd');       return mockDelay({ success: false }) },
     credentialDelete:    () => { mockNotReady('pcp.credentialDelete');    return mockDelay({ success: false }) },
@@ -72,8 +72,7 @@ const mockApi = {
       return mockDelay({
         jxgj: { floorPriceFormula: '', markupPercent: 0, enabled: true },
         trip: { enabled: true, rateLimitPerMin: 200 },
-        o2:   { floorPriceFormula: '', markupPercent: 0, enabled: true },
-        o3:   { floorPriceFormula: '', markupPercent: 0, enabled: true }
+        reserved: { enabled: false }
       })
     },
     configGetSchema:     () => { mockNotReady('pcp.configGetSchema'); return mockDelay({}) },

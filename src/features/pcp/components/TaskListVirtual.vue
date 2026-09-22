@@ -194,11 +194,11 @@
                 </template>
               </template>
 
-              <!-- ===== OTA（trip/o2/o3）：官网 vs 携程 对照(单行一项) =====
+              <!-- ===== OTA（trip/reserved）：官网 vs 携程 对照(单行一项) =====
                    processedData 每条同时含 C成人总票价_CNY_INT(官网/jxgj 链路)
                    和 XC_dijia(携程 OTA 返回底价)。同一任务 dateKey 相同,故仅在表头上方显示一次。
                    差额 = 携程底价 - 官网成人总票价(正=携程高于官网)。 -->
-              <template v-else-if="item.type === 'trip' || item.type === 'o2' || item.type === 'o3'">
+              <template v-else-if="item.type === 'trip' || item.type === 'reserved'">
                 <div v-if="getOtaFlights(item).length === 0" class="tld-empty">无匹配航班</div>
                 <template v-else>
                   <!-- 查询日期(同一任务 dateKey 共享,所有航班同日) -->

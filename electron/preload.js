@@ -70,7 +70,7 @@ const api = {
     configGet:           ()                  => ipcRenderer.invoke('pcp:config:get'),
     configGetSchema:     ()                  => ipcRenderer.invoke('pcp:config:getSchema'),
     configSet:           (config)            => ipcRenderer.invoke('pcp:config:set', config),
-    // 政策字段配置（新格式政策导入文件的 10 个锦绣配置字段，含 ${变量} 拼接）
+    // 政策字段配置（新格式政策导入文件的 12 项锦绣配置：11 个文本字段 + 1 个主行参与开关，含 ${变量} 拼接）
     policyFieldsGet:     ()                  => ipcRenderer.invoke('pcp:config:getPolicyFields'),
     policyFieldsSet:     (fields)            => ipcRenderer.invoke('pcp:config:setPolicyFields', fields),
 

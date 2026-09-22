@@ -10,7 +10,7 @@
        - trip 参数：日期 / 航线 / 航司 / 舱位（preRequest + task.data.dateValue）
        - trip 提要：携程返回的全部报价条目（quoteRows），四态着色
          won 比赢 / lost 比输 / own 自有报价 / unmatched 未匹配，数据展示不丢任何条目
-       - o2/o3 通过 #params / #result 两个 slot 覆盖块内容
+       - reserved 等其他平台通过 #params / #result 两个 slot 覆盖块内容
        - 头部：状态色点 + 预请求摘要 + 进度百分比 + 当前阶段
      数据源：task 对象（自带 stage/preRequest/result/error）
      ============================================================ -->
@@ -25,7 +25,7 @@
           <span class="rh-route">{{ preq.depAirPort }}→{{ preq.arrAirPort }}</span>
           <span class="rh-carrier">{{ preq.carrier }}</span>
         </template>
-        <!-- trip/o2/o3：航线 + 日期 / 航司 -->
+        <!-- trip/reserved：航线 + 日期 / 航司 -->
         <template v-else>
           <span class="rh-route">{{ tripHead.route }}</span>
           <span class="rh-carrier">{{ tripHead.sub }}</span>
@@ -61,7 +61,7 @@
             <span class="rb-group rb-group--cw"><span class="rb-k">舱位</span><span class="rb-v">{{ tripParams.cabins || '—' }}</span></span>
           </div>
         </template>
-        <!-- o2/o3 等其他平台：slot 覆盖，未覆盖时展示 preRequest JSON 或兜底文案 -->
+        <!-- reserved 等其他平台：slot 覆盖，未覆盖时展示 preRequest JSON 或兜底文案 -->
         <template v-else>
           <slot name="params" :task="task" :preRequest="preq">
             <pre v-if="preq && Object.keys(preq).length">{{ JSON.stringify(preq, null, 2) }}</pre>
@@ -214,7 +214,7 @@
           <div v-else class="req-empty">无报价数据</div>
         </template>
 
-        <!-- o2/o3 等其他平台：slot 覆盖，未覆盖时展示 result JSON -->
+        <!-- reserved 等其他平台：slot 覆盖，未覆盖时展示 result JSON -->
         <template v-else>
           <slot name="result" :task="task" :result="task.result">
             <pre v-if="task.result">{{ formatJson(task.result) }}</pre>
@@ -272,7 +272,7 @@ import { computed, ref } from 'vue'
 
 const props = defineProps({
   task: { type: Object, required: true },
-  platform: { type: String, default: 'jxgj' }, // 'jxgj' | 'trip' | 'o2' | 'o3'
+  platform: { type: String, default: 'jxgj' }, // 'jxgj' | 'trip' | 'reserved'
   // 外置 UI 状态 map（虚拟列表场景必填）：{ [taskId]: { params, result, dates, flights: string[] } }
   // 虚拟列表只渲染可见项，滚出视口的组件会被销毁重建，折叠状态必须放外面才能跨回收保持；
   // 为 null 时退回组件本地 ref（组件独立使用不受影响）
@@ -458,7 +458,6 @@ const QUOTE_STATUS_TEXT = {
 // 未匹配首因 → 标签短文案（人话明细在 unmatchedReason.detail，hover 标签看）
 const UNMATCH_REASON_TEXT = {
   flight: '无此航班',
-  cabin: '舱位不符',
   baggage: '行李不符',
   price: '价格异常'
 }
@@ -490,7 +489,7 @@ const tripRows = computed(() => {
         isInit: !!q.isInit,
         // ★ 我方投放标记 + 外显标记：adapter.js 在 quoteRows 已挂 isOwn 和 shown
         //   （shown = showState===1，即该报价在售卖平台实际外显）
-        //   胜出率判定：航班组内至少一条 isOwn && shown 才算有效（仅投放未外显不算胜出）
+        //   胜出率判定（TaskList 标签栏）：isOwn && shown 的报价条数 ÷ 全部报价条数（含我方投放）
         isOwn: !!q.isOwn,
         shown: !!q.shown,
         flagRemark: q.flagRemark ?? '',
@@ -634,8 +633,7 @@ const tripStats = computed(() => {
 /* 平台色条 + 整圈彩色边框 + 卡片浅彩底（远距离即可识别归属）*/
 .req-item--pf-jxgj { border-color: #91caff; border-left: 3px solid #1890ff; background: #f7faff; }
 .req-item--pf-trip { border-color: #ffbb96; border-left: 3px solid #fa8c16; background: #fff9f2; }
-.req-item--pf-o2,
-.req-item--pf-o3 { border-left-color: #bfbfbf; }
+.req-item--pf-reserved { border-left-color: #bfbfbf; }
 
 /* 头部色带：负边距撑满卡片宽度，比卡片体深一档；与块之间留 --gap-block 间距 */
 .req-item--pf-jxgj .req-h {
