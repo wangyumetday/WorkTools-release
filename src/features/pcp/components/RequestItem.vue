@@ -121,93 +121,60 @@
           <div v-else class="req-empty">无航班数据</div>
         </template>
 
-        <!-- trip：携程返回的全部报价条目（won/lost/own/unmatched 四态着色，一条不丢） -->
+        <!-- trip：套餐对套餐对比（我方锦绣套餐/主行 vs 携程按行李额分的报价）+ 无对应附加行 -->
         <template v-else-if="platform === 'trip'">
-          <!-- 标题总览已含 航班/匹配(比赢+比输)/自有，此处只补充：低价套餐 / 报价 / 外显 / 未显 / 未匹配
-               失败时无报价数据，整行不显示（错误原因已在上方状态行） -->
           <div v-if="!isResultFail" class="rb-summary-line">
-            低价套餐 {{ tripStats.lowPriceCount }} · 报价 {{ tripStats.total }}
+            报价 {{ tripStats.total }} · 对比单元 {{ tripStats.compareTotal }}
+            · 比赢 {{ tripStats.won }} · 比输 {{ tripStats.lost }}
             · 外显 {{ tripStats.ownShown }} · 未显 {{ tripStats.ownHidden }}
-            · 未匹配 {{ tripStats.unmatched }}
+            · 未匹配 {{ tripStats.unmatched }} · 无对应 {{ tripStats.other }}
           </div>
-          <!-- 配色图例：仿携程 OTA——绿=我方投放且外显，黄=我方投放未外显，白=他人投放
-               比赢/比输/未匹配写在「结果」列标签里 -->
+          <!-- 配色图例：绿=我方投放且外显，黄=我方投放未外显，红=比输；其余标签见「结果」列 -->
           <div v-if="!isResultFail" class="rb-legend">
             <span class="rbl-item"><i class="rbl-dot rbl-dot--ownShown" />我方外显</span>
             <span class="rbl-item"><i class="rbl-dot rbl-dot--ownHidden" />我方未显</span>
             <span class="rbl-item"><i class="rbl-dot rbl-dot--lost" />比输</span>
-            <span class="rbl-item"><i class="rbl-dot rbl-dot--other" />他人投放</span>
-            <span class="rbl-hint">点击航班行展开：蓝行为锦绣官网对比数据 · 未匹配标签为首个不符参数（hover 看明细）</span>
+            <span class="rbl-item"><i class="rbl-dot rbl-dot--other" />未匹配/无对应</span>
+            <span class="rbl-hint">套餐对套餐：我方（官网价/底价+行李） vs 携程（报价+行李）· 标签 hover 看明细</span>
           </div>
-          <!-- 仿携程 OTA：每个航班一条主行（quantifyFlagRemark=initSelected 那条，
-               无 init 标记则组内首条），列与套餐行完全一致；点主行展开该航班全部套餐 -->
+          <!-- 每行自含航班/航线；同一行程（航班|日期|起|降）相邻展示 -->
           <table v-if="tripGroups.length > 0" class="rb-table rb-table--quotes">
             <thead>
               <tr>
                 <th>匹配结果</th>
                 <th>航线</th>
                 <th>舱位</th>
-                <th>携程底价</th>
-                <th>行李</th>
+                <th>我方</th>
+                <th>我方行李</th>
+                <th>携程价</th>
+                <th>携程行李</th>
               </tr>
             </thead>
             <tbody v-for="g in tripGroups" :key="g.key">
-              <!-- 对比基准：与该航班对比的我方锦绣官网条目（航班块上方，折叠时也常显）
-                   5 列与携程数据行对齐：官网标签 / 航班+航线换行 / 舱位 / 价格+底价换行 / 行李 -->
-              <tr v-if="g.ourBasis" class="qrow-basis">
-                <td><span class="qb-tag">官网</span></td>
-                <td class="qm-route-cell">
-                  <div class="qm-flight">{{ g.ourBasis.flightNo }}</div>
-                  <div class="qm-route">{{ g.ourBasis.route }}</div>
-                </td>
-                <td>{{ g.ourBasis.cabin }}</td>
-                <td class="rb-price qb-price-floor">
-                  <div>{{ g.ourBasis.price == null ? '—' : `¥${g.ourBasis.price}` }} 官 </div>
-                  <div>{{ g.ourBasis.floor == null ? '—' : `¥${g.ourBasis.floor}` }} 底 </div>
-                </td>
-                <td class="rb-baggage">{{ g.ourBasis.baggageShort || '—' }}</td>
-              </tr>
-              <!-- 主行：OTA 展示行本身（普通数据行，点击展开/收起套餐） -->
               <tr
-                class="qrow qrow--main"
-                :class="`qrow--${g.head.status}`"
-                @click="toggleFlight(g.key)"
-              >
-                <td>
-                  <span
-                    class="rb-outcome"
-                    :class="`rb-outcome--${g.head.status}`"
-                    :title="g.head.unmatchedReason?.detail || ''"
-                    @click.stop
-                  >{{ g.head.statusText }}</span>
-                </td>
-                <td class="qm-route-cell">
-                  <div class="qm-flight">{{ g.head.flightNo }}</div>
-                  <div class="qm-route">{{ g.route }}</div>
-                </td>
-                <td>{{ g.head.cw }}</td>
-                <td class="rb-price">{{ g.head.xcPrice === '—' ? '—' : `¥${g.head.xcPrice}` }}</td>
-                <td class="rb-baggage" :title="g.head.baggage">{{ g.head.baggageShort }}</td>
-              </tr>
-              <!-- 套餐子行：该航班除主行（OTA 选中行）外的其余套餐；航线列留空体现层级 -->
-              <tr
-                v-for="(f, i) in g.children"
-                v-show="!flightCollapsed.has(g.key)"
+                v-for="(f, i) in g.rows"
                 :key="`${g.key}-${i}`"
-                :class="['qrow', 'qrow-child', `qrow--${f.status}`]"
+                :class="['qrow', `qrow--${f.status}`, `qrow--${f.kind}`]"
               >
                 <td>
-                  <!-- 未匹配：标签直接写首个不通过的参数，hover 看双方对比明细 -->
                   <span
                     class="rb-outcome"
                     :class="`rb-outcome--${f.status}`"
-                    :title="f.unmatchedReason?.detail || ''"
+                    :title="f.unmatchedReason?.detail || f.note || ''"
                   >{{ f.statusText }}</span>
                 </td>
-                <td></td>
-                <td>{{ f.cw }}</td>
-                <td class="rb-price">{{ f.xcPrice === '—' ? '—' : `¥${f.xcPrice}` }}</td>
-                <td class="rb-baggage" :title="f.baggage">{{ f.baggageShort }}</td>
+                <td class="qm-route-cell">
+                  <div class="qm-flight">{{ f.flightNo }}</div>
+                  <div class="qm-route">{{ g.route }}</div>
+                </td>
+                <td>{{ f.cabinLabel }}</td>
+                <td class="rb-price">
+                  <div>{{ f.ourPrice == null ? '—' : `¥${f.ourPrice}` }} 官</div>
+                  <div>{{ f.ourFloor == null ? '—' : `¥${f.ourFloor}` }} 底</div>
+                </td>
+                <td class="rb-baggage">{{ f.kind === 'other' ? '—' : (f.ourBaggageShort || '—') }}</td>
+                <td class="rb-price">{{ f.xcPrice === '—' || f.xcPrice == null ? '—' : `¥${f.xcPrice}` }}</td>
+                <td class="rb-baggage" :title="f.xcBaggage">{{ f.xcBaggageShort || '—' }}</td>
               </tr>
             </tbody>
           </table>
@@ -287,7 +254,6 @@ const props = defineProps({
 const _localParams = ref(false)
 const _localResult = ref(true)
 const _localDates = ref(true)
-const _localFlights = ref([])
 
 // 折叠布尔状态的统一读写：有外置 map 按 task.id 存取（惰性建条目），否则走本地 ref
 const _localMap = { params: _localParams, result: _localResult, dates: _localDates }
@@ -442,20 +408,19 @@ function formatJson(obj) {
   return JSON.stringify(rest, null, 2)
 }
 
-// ===== trip 全量报价列表 =====
-//   首选数据源：mergeResult 新增的 quoteRows（携程 lowPrices.prices 全量枚举，五态标注）
-//   兜底：旧结果（落盘的历史任务，无 quoteRows）→ 从 processedData 映射命中行，标 won/lost
-//   五态：won 比赢 / lost 比输（他人报价被我方命中）
-//         ownShown 我方外显（绿）/ ownHidden 我方未显（黄）/ unmatched 他人未命中（白）
+// ===== trip 套餐对套餐对比行 =====
+//   数据源：mergeResult.quoteRows（我方对比单元 main/package + 附加行 other）
+//   状态：won 比赢 / lost 比输 / ownShown 外显 / ownHidden 未显 / unmatched 未匹配 / other 无对应
 const QUOTE_STATUS_TEXT = {
   won: '比赢',
   lost: '比输',
   ownShown: '外显',
   ownHidden: '未显',
-  unmatched: '未匹配'
+  unmatched: '未匹配',
+  other: '无对应'
 }
 
-// 未匹配首因 → 标签短文案（人话明细在 unmatchedReason.detail，hover 标签看）
+// 未匹配首因 → 标签短文案（人话明细在 unmatchedReason.detail / note，hover 标签看）
 const UNMATCH_REASON_TEXT = {
   flight: '无此航班',
   baggage: '行李不符',
@@ -464,67 +429,43 @@ const UNMATCH_REASON_TEXT = {
 
 const tripRows = computed(() => {
   const r = props.task.result
-  if (Array.isArray(r?.quoteRows)) {
-    return r.quoteRows.map(q => {
-      const reason = q.unmatchedReason?.reason
-      return {
-        status: q.status,
-        // 未匹配行：标签直接写首个不通过的参数；无诊断信息（旧数据）时回退「未匹配」
-        statusText: q.status === 'unmatched'
-          ? (UNMATCH_REASON_TEXT[reason] || '未匹配')
-          : (QUOTE_STATUS_TEXT[q.status] || q.status),
-        cw: q.seatClass ?? '—',
-        flightNo: q.flightNo ?? '—',
-        date: q.date ?? '—',
-        dep: q.depAirport ?? '—',
-        arr: q.arrAirport ?? '—',
-        xcPrice: q.sortIndicator ?? '—',
-        ourFloor: q.ourFloor ?? null,
-        ourPrice: q.ourPrice ?? null,
-        // ★ 锦绣官网对比基准行：adapter.js 在 quoteRows 已挂 ourBasis（航班/航线/舱位/价格/底价/行李），
-        //   必须透传到行对象，否则 tripGroups 取不到 → 对比行 <tr v-if="g.ourBasis"> 永远不渲染
-        ourBasis: q.ourBasis ?? null,
-        baggage: q.baggage ?? '',
-        baggageShort: q.baggageShort ?? '—',
-        isInit: !!q.isInit,
-        // ★ 我方投放标记 + 外显标记：adapter.js 在 quoteRows 已挂 isOwn 和 shown
-        //   （shown = showState===1，即该报价在售卖平台实际外显）
-        //   胜出率判定（TaskList 标签栏）：isOwn && shown 的报价条数 ÷ 全部报价条数（含我方投放）
-        isOwn: !!q.isOwn,
-        shown: !!q.shown,
-        flagRemark: q.flagRemark ?? '',
-        unmatchedReason: q.unmatchedReason ?? null
-      }
-    })
-  }
-  // 旧结果兼容：只可能有命中行（无 showState/行李短文案）
-  const arr = r?.processedData
-  if (!Array.isArray(arr)) return []
-  return arr.map(item => {
-    const outcome = item['_outcome'] || 'won'
+  if (!Array.isArray(r?.quoteRows)) return []
+  return r.quoteRows.map(q => {
+    const reason = q.unmatchedReason?.reason
     return {
-      status: outcome,
-      statusText: QUOTE_STATUS_TEXT[outcome] || outcome,
-      cw: item['C舱位'] ?? '—',
-      flightNo: item['H航班号'] ?? '—',
-      date: item['C出发日期'] ?? '—',
-      dep: item['C出发机场'] ?? '—',
-      arr: item['D到达机场'] ?? '—',
-      xcPrice: item['XC_dijia'] ?? '—',
-      ourFloor: item['dijia'] ?? null,
-      ourPrice: item['C成人总票价_CNY_INT'] ?? null,
-      baggage: '',
-      baggageShort: '—',
-      isInit: false,
-      flagRemark: '',
-      unmatchedReason: null
+      kind: q.kind ?? 'other',
+      status: q.status,
+      // 未匹配行：标签直接写首个不通过的参数；无诊断信息时回退「未匹配」
+      statusText: q.status === 'unmatched'
+        ? (UNMATCH_REASON_TEXT[reason] || '未匹配')
+        : (QUOTE_STATUS_TEXT[q.status] || q.status),
+      flightNo: q.flightNo ?? '—',
+      date: q.date ?? '—',
+      dep: q.depAirport ?? '—',
+      arr: q.arrAirport ?? '—',
+      // 舱位列：主行/套餐对比单元带单元标记；附加行只显携程舱位
+      cabinLabel: q.kind === 'main'
+        ? `${q.seatClass ?? '—'}·主行`
+        : (q.kind === 'package'
+          ? `${q.seatClass ?? '—'}${q.pkgIndex != null ? `·套餐${q.pkgIndex}` : ''}`
+          : (q.seatClass ?? '—')),
+      ourBaggageShort: q.ourBaggageShort ?? '—',
+      ourPrice: q.ourPrice ?? null,
+      ourFloor: q.ourFloor ?? null,
+      xcPrice: q.xcPrice ?? '—',
+      xcBaggage: q.xcBaggage ?? '',
+      xcBaggageShort: q.xcBaggageShort ?? '—',
+      note: q.note ?? '',
+      isOwn: !!q.isOwn,
+      shown: !!q.shown,
+      flagRemark: q.flagRemark ?? '',
+      unmatchedReason: q.unmatchedReason ?? null
     }
   })
 })
 
-// ===== trip 按航班分组（仿携程 OTA：主行=OTA 展示行，点击展开该航班全部套餐）=====
-//   分组键：航班号|日期|出发|到达；组顺序=报价首次出现顺序（携程返回序）
-//   head：quantifyFlagRemark 含 initSelected 的那条行对象，没有则回退组内首条
+// ===== trip 相邻归组：同一行程（航班号|日期|出发|到达）的行相邻展示 =====
+//   组顺序=行首次出现顺序（对比单元在前、附加行在后）
 const tripGroups = computed(() => {
   const map = new Map()
   for (const row of tripRows.value) {
@@ -538,54 +479,24 @@ const tripGroups = computed(() => {
     }
     map.get(key).rows.push(row)
   }
-  const groups = [...map.values()]
-  for (const g of groups) {
-    // 主行=OTA 选中行（initSelected，无标记则首条）；子行=其余套餐，主行不在展开区重复
-    g.head = g.rows.find(r => r.isInit) || g.rows[0]
-    g.children = g.rows.filter(r => r !== g.head)
-    // 对比基准（锦绣官网那条）：优先取比赢/比输行记录的命中条目，其次任一行携带的同航班条目
-    g.ourBasis =
-      g.rows.find(r => (r.status === 'won' || r.status === 'lost') && r.ourBasis)?.ourBasis ||
-      g.rows.find(r => r.ourBasis)?.ourBasis ||
-      null
-  }
-  return groups
+  return [...map.values()]
 })
 
-// 航班组折叠状态：空集合 = 全部展开；点航班行把 key 加入/移出集合
-// 底层用数组存于外置 uiState.flights（Set 不可序列化且跨回收需重建），模板仍用 Set.has
-const flightCollapsed = computed(() => {
-  const map = props.uiState
-  const arr = map ? (map[props.task.id]?.flights ?? []) : _localFlights.value
-  return new Set(arr)
-})
-function toggleFlight(key) {
-  const map = props.uiState
-  const arr = [...flightCollapsed.value]
-  const i = arr.indexOf(key)
-  if (i >= 0) arr.splice(i, 1)
-  else arr.push(key)
-  if (!map) {
-    _localFlights.value = arr
-    return
-  }
-  const e = map[props.task.id] || (map[props.task.id] = {})
-  e.flights = arr
-}
-
-// trip 返回统计：summary 里的携程航班/套餐数 + 各态报价计数
+// trip 返回统计：summary 双口径（携程全部报价平铺 + 对比单元/附加行）
 const tripStats = computed(() => {
   const s = props.task.result?.summary || {}
   return {
     flightCount: s.flightCount ?? 0,
     lowPriceCount: s.lowPriceCount ?? 0,
-    total: s.quoteTotal ?? tripRows.value.length,
-    won: s.quoteWon ?? tripRows.value.filter(r => r.status === 'won').length,
-    lost: s.quoteLost ?? tripRows.value.filter(r => r.status === 'lost').length,
+    total: s.quoteTotal ?? 0,
+    compareTotal: s.compareTotal ?? 0,
+    won: s.quoteWon ?? 0,
+    lost: s.quoteLost ?? 0,
     own: s.quoteOwn ?? 0,
-    ownShown: s.quoteOwnShown ?? tripRows.value.filter(r => r.status === 'ownShown').length,
-    ownHidden: s.quoteOwnHidden ?? tripRows.value.filter(r => r.status === 'ownHidden').length,
-    unmatched: s.quoteUnmatched ?? tripRows.value.filter(r => r.status === 'unmatched').length
+    ownShown: s.quoteOwnShown ?? 0,
+    ownHidden: s.quoteOwnHidden ?? 0,
+    unmatched: s.quoteUnmatched ?? 0,
+    other: s.otherCount ?? 0
   }
 })
 </script>
@@ -897,15 +808,23 @@ const tripStats = computed(() => {
   border: 1px solid #e0e0e0;
 }
 
-/* ===== 全量报价表 ===== */
+.rb-outcome--other {
+  color: #8c8c8c;
+  background: #fafafa;
+  border: 1px dashed #d9d9d9;
+}
+
+/* ===== 套餐对套餐对比表 ===== */
 .rb-table--quotes {
   table-layout: fixed;
 
   th:nth-child(1) { width: 76px; }
-  th:nth-child(2) { width: 20%; }
-  th:nth-child(3) { width: 52px; }
+  th:nth-child(2) { width: 18%; }
+  th:nth-child(3) { width: 68px; }
   th:nth-child(4) { width: 68px; }
-  th:nth-child(5) { width: 60px; }
+  th:nth-child(5) { width: 56px; }
+  th:nth-child(6) { width: 64px; }
+  th:nth-child(7) { width: 56px; }
 
   th,
   tr.qrow > td {
@@ -945,16 +864,6 @@ const tripStats = computed(() => {
   border-bottom: 1px solid var(--border-soft);
 }
 
-/* ===== 航班主行（点击展开/收起套餐）===== */
-tr.qrow--main {
-  cursor: pointer;
-  user-select: none;
-}
-
-tr.qrow--main:hover > td {
-  filter: brightness(0.97);
-}
-
 .qm-route-cell {
   white-space: normal;
   line-height: 1.3;
@@ -969,56 +878,13 @@ tr.qrow--main:hover > td {
   font-size: 11.5px;
 }
 
-.qb-price-floor {
-  white-space: normal;
-  line-height: 1.3;
-}
-
-/* 状态行背景：透明=比赢/未匹配，露出块浅灰底 */
+/* 状态行背景：透明=比赢/未匹配，露出块浅灰底；附加行（非我方投放）灰字弱化 */
 tr.qrow--ownShown > td { background: #f6ffed; }
 tr.qrow--ownHidden > td { background: #fffbe6; }
 tr.qrow--lost > td { background: #fbe4dc; }
 tr.qrow--won > td,
 tr.qrow--unmatched > td { background: transparent; }
-
-/* ★ 套餐子行：明确"子项"层级——3px 左缩进条 + 略浅半透明白底 + 字号略小
-   之前子行和主行长得几乎一样，只靠航线列留空，看不出层级关系 */
-tr.qrow-child > td {
-  font-size: 11.5px;
-  background: rgba(255, 255, 255, 0.5);
-}
-tr.qrow-child > td:first-child {
-  border-left: 3px solid var(--border-block);
-}
-/* 子行状态色覆盖半透明白底 */
-tr.qrow-child.qrow--ownShown > td { background: #f6ffed; }
-tr.qrow-child.qrow--ownHidden > td { background: #fffbe6; }
-tr.qrow-child.qrow--lost > td { background: #fbe4dc; }
-tr.qrow-child.qrow--won > td,
-tr.qrow-child.qrow--unmatched > td { background: rgba(255, 255, 255, 0.5); }
-
-/* 锦绣官网对比基准行 */
-.qrow-basis > td {
-  padding: 6px var(--pad-cell-x);
-  background: #f0f7ff;
-  border-top: 1px solid var(--border-soft);
-  border-bottom: 1px solid var(--border-soft);
-  font-size: 11.5px;
-  color: #555;
-  white-space: normal;
-  line-height: 1.3;
-  vertical-align: top;
-}
-
-.qb-tag {
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 10px;
-  font-weight: 600;
-  color: #096dd9;
-  background: #e6f4ff;
-  border: 1px solid #91caff;
-}
+tr.qrow--other:not(.qrow--ownShown):not(.qrow--ownHidden) > td { background: transparent; color: #8c8c8c; }
 
 /* 图例：加浅灰容器，与统计行视觉一致 */
 .rb-legend {

@@ -138,17 +138,16 @@ const tripVirt = useVirtualizer(computed(() => ({
 // ★ 本次任务全部携程请求的汇总胜出率
 //   分母 = 所有携程报价（价格）总数，含我方自己的投放（isOwn 也计入）
 //   分子 = 我方投放且外显（isOwn && shown）的报价条数（仅投放未外显不算胜出）
+//   口径来自各任务 result.summary（携程全部报价平铺计数，与展示行结构无关）
 //   0 报价时显示 '—' 避免除零
 const tripWinRateText = computed(() => {
   let totalPrices = 0
   let wonShownPrices = 0
   for (const t of store.tripTasks) {
-    const rows = t.result?.quoteRows
-    if (!Array.isArray(rows)) continue
-    for (const q of rows) {
-      totalPrices++
-      if (q.isOwn && q.shown) wonShownPrices++
-    }
+    const s = t.result?.summary
+    if (!s) continue
+    totalPrices += Number(s.quoteTotal ?? 0)
+    wonShownPrices += Number(s.quoteOwnShown ?? 0)
   }
   if (totalPrices === 0) return '—'
   return `${Math.round((wonShownPrices / totalPrices) * 100)}%`
