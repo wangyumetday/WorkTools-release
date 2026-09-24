@@ -19,6 +19,8 @@ export const displayName = '携程'
 export { configSchema, defaults }
 
 // ===== 请求写死参数（原 o1.js 硬编码在请求里的固定值，不作为配置项）=====
+// ★ channel 不在其中（2026-09-24 起）：渠道做成平台配置项（config.js schema），
+//   实测我方未外显报价只在主渠道返回，EnglishSite 查不到 → 由用户配置，空值=不携带该字段
 const REQUEST_CONST = {
   baseURL: 'https://intlresource-exchdata.ctrip.com/api/lowPriceSearch',
   timeout: 10000,
@@ -27,7 +29,6 @@ const REQUEST_CONST = {
   travelerCount: 1,
   childTravelerCount: 0,
   seatGrade: 'Y',
-  channel: 'EnglishSite',
   subChannel: 0,
   specialParam: null//'SpecialSupply-特价产品'
 }
@@ -164,15 +165,19 @@ function buildSegments(data) {
   return segments
 }
 
-function buildRequestBody(loginName, password, segments, validatingCarrier) {
+function buildRequestBody(loginName, password, segments, validatingCarrier, channel = '') {
+  const queryCondition = {
+    tripType: REQUEST_CONST.tripType, validatingCarrier, segments,
+    travelerCount: REQUEST_CONST.travelerCount, childTravelerCount: REQUEST_CONST.childTravelerCount,
+    seatGrade: REQUEST_CONST.seatGrade, subChannel: REQUEST_CONST.subChannel,
+    specialParam: REQUEST_CONST.specialParam
+  }
+  // ★ channel（2026-09-24 起配置化）：空值/不传 = 请求体不携带 channel 字段
+  //   （实测携程按全量主渠道返回，含我方未外显报价；EnglishSite 渠道会查不到我方投放）
+  if (channel) queryCondition.channel = channel
   return {
     requestHeader: { requestID: randomUUID(), loginName, password, language: REQUEST_CONST.language },
-    queryCondition: {
-      tripType: REQUEST_CONST.tripType, validatingCarrier, segments,
-      travelerCount: REQUEST_CONST.travelerCount, childTravelerCount: REQUEST_CONST.childTravelerCount,
-      seatGrade: REQUEST_CONST.seatGrade, channel: REQUEST_CONST.channel, subChannel: REQUEST_CONST.subChannel,
-      specialParam: REQUEST_CONST.specialParam
-    }
+    queryCondition
   }
 }
 
@@ -569,6 +574,10 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
       }
       // ★ 展示用候选：分配进本组的全部携程报价（含比不过的），分块展示的携程行来源
       acai._matchedQuotes = pkgCands
+      // ★ 取值时机（2026-09-24）：我方投放标记必须在「比价候选剔除 isOwn」之前取——
+      //   口径 = 本套餐匹配到的携程报价里是否存在我方投放（isOwn=true）；
+      //   过滤之后取必然恒 false（命中报价永远是他人的），导出列会整列空
+      acai['isOwn'] = pkgCands.some(p => p && p[F.isOwn])
       // ★ 展示消耗登记：分配进组的报价都被本单元「消费」，不再落附加行
       if (consumedQuotes) for (const c of pkgCands) consumedQuotes.add(c)
       if (pkgCands.length === 0) {
@@ -595,7 +604,6 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
       }
       const pkgPrice = pkgHit.quote
       acai['差值'] = ''
-      acai['isOwn'] = pkgPrice[F.isOwn]
       acai['携程底价'] = pkgHit.price
       // 差值只保留精确价差（不含 cutOffset 让利额），写入文件前由 policyAdjust 统一「向下取整再 − cutOffset」
       acai['差值'] = new Decimal(pkgHit.price).minus(acai['套餐价格_CNY']).toNumber()
@@ -644,10 +652,13 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
     const rowSig = parseOurBaggage(item.行李信息)
     const dijia = Number(item[A2_FIELDS.dijia]) || 0
     const totalCNY = Number(item[A2_FIELDS.C成人总票价_CNY_INT]) || 0
-    const rowCands = relatedPrices.filter(p =>
-      p && !p[TRIP_RESPONSE_FIELDS.isOwn]
-      && baggageMatchs(rowSig, parseTripBaggage(p[TRIP_RESPONSE_FIELDS.baggage]))
+    const rowMatched = relatedPrices.filter(p =>
+      p && baggageMatchs(rowSig, parseTripBaggage(p[TRIP_RESPONSE_FIELDS.baggage]))
     )
+    // ★ 取值时机（2026-09-24）：我方投放标记在剔除 isOwn 之前取（口径 = 本行行李匹配到的
+    //   携程报价里是否存在我方投放），过滤后取必然恒 false（命中报价永远是他人的）
+    item[A3_FIELDS.isOwn] = rowMatched.some(p => p && p[TRIP_RESPONSE_FIELDS.isOwn])
+    const rowCands = rowMatched.filter(p => !p[TRIP_RESPONSE_FIELDS.isOwn])
     // ★ 展示消耗登记：主行行李匹配上的报价（含比不过的）都被本单元「消费」，不再落附加行
     if (consumedQuotes) for (const c of rowCands) consumedQuotes.add(c)
     // ★ 展示用候选：分块展示的主行单元携程行来源
@@ -659,7 +670,6 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
     const sortIndicator = rowHit ? rowHit.price : (sortedRow[0]?.price ?? NaN)
     const hasXcPrice = Number.isFinite(sortIndicator) && sortIndicator > 0
     if (rowPrice) matchedLowPrice++
-    item[A3_FIELDS.isOwn] = rowPrice?.[TRIP_RESPONSE_FIELDS.isOwn]
     if (rowPrice) {
       wonByPrice++
       item[A3_FIELDS.XC_dijia] = sortIndicator
@@ -1090,7 +1100,7 @@ export async function request(prepared, ctx) {
   //   设为 0 / 负数 = 关闭限流（dev 调试可设 0 跳过限流）
   await _rateLimiter.acquire(cfg.rateLimitPerMin)
 
-  const requestBody = buildRequestBody(loginName, password, segments, validatingCarrier)
+  const requestBody = buildRequestBody(loginName, password, segments, validatingCarrier, cfg.channel)
   const gzippedBody = gzipSync(Buffer.from(JSON.stringify(requestBody), 'utf-8'))
   const rawResponse = await postGzip(REQUEST_CONST.baseURL, gzippedBody, REQUEST_CONST.timeout)
 
@@ -1141,6 +1151,25 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
     const errMsg = resData?.responseHeader?.message || `replyStatus=${replyStatus}`
     throw new Error(`O1平台业务错误：${errMsg}`)
   }
+  // ===== 取值时机（2026-09-24）：原始层统计 =====
+  //   响应一到手（解压/解析/校验通过）立刻统计，只依赖携程原始响应
+  //   （flights / lowPrices / prices 及其 isOwn、showState），与比价、行李匹配、候选过滤全无关系；
+  //   放最前面，保证不被后续任何一步流程（剔除 isOwn、命中判定）影响。
+  //   口径：含 isOwn 的全部报价平铺（胜利率分母/分子同源）
+  const flightCount = resData?.responseBody?.flights?.length || 0
+  const lowPriceCount = resData?.responseBody?.lowPrices?.length || 0
+  const allPrices = []
+  for (const lp of (Array.isArray(resData?.responseBody?.lowPrices) ? resData.responseBody.lowPrices : [])) {
+    for (const pr of (Array.isArray(lp?.prices) ? lp.prices : [])) {
+      if (pr) allPrices.push(pr)
+    }
+  }
+  const ownPrices = allPrices.filter(p => p.isOwn)
+  const quoteTotal = allPrices.length
+  const quoteOwn = ownPrices.length
+  const quoteOwnShown = ownPrices.filter(p => Number(p.showState) === 1).length
+  const quoteOwnHidden = ownPrices.filter(p => Number(p.showState) !== 1).length
+
   // matchSink：主行参与开启时记录「实际命中的携程报价对象 → 比赢/比输」（展示探针，不参与判定）
   const matchSink = new Map()
   // consumedQuotes：已被对比单元（套餐/主行）行李匹配消费的报价对象（剩余落附加行）
@@ -1150,22 +1179,17 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
   const processedDataArr = priceComparisonPolicy(a2Item, resData, matchSink, mainRowEnabled, consumedQuotes)
   // 套餐对套餐对比行（只用于 UI 展示，不参与比价/导出）
   const quoteRows = buildQuoteRows(resData, matchSink, a2Item, mainRowEnabled, consumedQuotes)
-  const flightCount = resData?.responseBody?.flights?.length || 0
-  const lowPriceCount = resData?.responseBody?.lowPrices?.length || 0
-  // ★ 携程全部报价独立平铺计数（胜利率分母/分子同源：含 isOwn 的全部 prices）
-  const allPrices = []
-  for (const lp of (Array.isArray(resData?.responseBody?.lowPrices) ? resData.responseBody.lowPrices : [])) {
-    for (const pr of (Array.isArray(lp?.prices) ? lp.prices : [])) {
-      if (pr) allPrices.push(pr)
-    }
-  }
-  const ownPrices = allPrices.filter(p => p.isOwn)
-  // ★ 我方胜出却未显示（2026-09-23 口径修正，逐条我方报价计）：
-  //   我方投放的报价（isOwn=true 且自身未外显 showState!==1）所在的对比组（unitKey）内，
-  //   存在他人的报价（isOwn=false）价格比我方这条报价高（携程价取整比较）且已外显（showState===1）
-  //   → 这条我方报价计 1。只统计对比组内的报价（main/package 块），附加行的我方报价无「本组」可比、不计；
-  //   主行参与开启时的套餐组同样统计。
-  //   注意：主行对比组的候选过滤了 isOwn，主行组内不存在我方报价 → 自然计不到。
+
+  // ===== 取值时机（2026-09-24）：比对后的统计 =====
+  //   以下量必须先完成行李匹配/比价并建好对比单元行（quoteRows）才统计得到 → 只在此处统计
+  // ★ 我方胜出却未显示（2026-09-24 口径修正，逐条我方报价计）：
+  //   我方投放的报价（isOwn=true 且自身未外显 showState!==1）「理应外显却未外显」时计 1，
+  //   判定只看该报价所在的对比组（unitKey，main/package 块），满足以下任一即计：
+  //     ① 本组内根本没有外部（isOwn=false）报价 → 无人与我竞价，我方不论报价多少都应外显；
+  //     ② 本组内存在已外显（showState===1）的外部报价且价格比我方这条高 → 他人更贵都外显了，
+  //        我方更便宜反而没外显。
+  //   附加行（role='other'/kind='other'）的我方报价无「本组」可比、不计；主行对比组的候选过滤了
+  //   isOwn → 主行组内不存在我方报价，自然计不到。
   //   搭档口径「展示的报价数」= summary.quoteOwnShown（我方投放且已外显的平铺计数，无需胜负条件）。
   let quoteWonHidden = 0
   {
@@ -1177,8 +1201,13 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
     }
     for (const rows of byUnit.values()) {
       const ownHiddenRows = rows.filter(r => r.isOwn && Number(r.shown) !== 1)
-      const shownRivals = rows.filter(r => !r.isOwn && r.shown === true)
+      if (ownHiddenRows.length === 0) continue
+      const rivalRows = rows.filter(r => !r.isOwn)
+      const shownRivals = rivalRows.filter(r => r.shown === true)
       for (const o of ownHiddenRows) {
+        // ① 本组无任何外部报价 → 无人竞价，理应外显
+        if (rivalRows.length === 0) { quoteWonHidden++; continue }
+        // ② 本组有已外显且价格更高的外部报价 → 我方更便宜却未外显
         const myPrice = Number(o.xcPrice)
         if (!Number.isFinite(myPrice)) continue
         if (shownRivals.some(r => Number(r.xcPrice) > myPrice)) quoteWonHidden++
@@ -1195,11 +1224,11 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
     summary: {
       flightCount,
       lowPriceCount,
-      // 携程全部报价平铺口径（胜利率：quoteOwnShown / quoteTotal）
-      quoteTotal: allPrices.length,
-      quoteOwn: ownPrices.length,
-      quoteOwnShown: ownPrices.filter(p => Number(p.showState) === 1).length,
-      quoteOwnHidden: ownPrices.filter(p => Number(p.showState) !== 1).length,
+      // 携程全部报价平铺口径（胜利率：quoteOwnShown / quoteTotal）——原始层统计，见函数开头
+      quoteTotal,
+      quoteOwn,
+      quoteOwnShown,
+      quoteOwnHidden,
       // 对比单元口径（role='official' 官方行：一单元一行，携程子行不计数）
       compareTotal: quoteRows.filter(r => r.role === 'official').length,
       compareMain: quoteRows.filter(r => r.role === 'official' && r.kind === 'main').length,
@@ -1461,6 +1490,9 @@ export async function verifyCredential(credential) {
 
 export default {
   key, displayName, configSchema, defaults,
-  compileConfig, login, prepareRequest, request, mergeResult, exportTemplate, verifyCredential,
+  compileConfig, login, prepareRequest, request, mergeResult, exportTemplate, verifyCredential, buildRequestBody,
   getRateLimitState, onRateLimitChange
 }
+
+// ★ 供回归测试锁定 channel 组装行为（2026-09-24）
+export { buildRequestBody }

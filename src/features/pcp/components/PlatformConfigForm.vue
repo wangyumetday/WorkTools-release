@@ -24,6 +24,9 @@
       <n-switch v-if="field.type === 'boolean'" v-model:value="localConfig[field.key]" :disabled="disabled" />
       <!-- number → 数字输入 -->
       <n-input-number v-else-if="field.type === 'number'" v-model:value="localConfig[field.key]" style="width: 100%" :disabled="disabled" />
+      <!-- select → 下拉选择（选项来自 schema.options: [{label, value}]） -->
+      <n-select v-else-if="field.type === 'select'" v-model:value="localConfig[field.key]" :options="selectOptions(field)"
+        style="width: 100%" :disabled="disabled" />
       <!-- formula / string → 文本输入 -->
       <!-- PriceRange → 区间底价数组：RangePricing 组件负责 级联选择+公式校验+增删行 -->
       <RangePricing v-else-if="field.type === 'PriceRange'" v-model="localConfig[field.key]" :disabled="disabled" />
@@ -40,7 +43,7 @@
 
 <script setup>
 import { ref, watch, computed, nextTick } from 'vue'
-import { NForm, NFormItem, NInput, NInputNumber, NSwitch, NAlert } from 'naive-ui'
+import { NForm, NFormItem, NInput, NInputNumber, NSwitch, NSelect, NAlert } from 'naive-ui'
 import { useTaskStore } from '../stores/task.js'
 import RangePricing from './RangePricing.vue'
 import message from '@/shared/message.js'
@@ -124,6 +127,12 @@ const schemaFields = computed(() => {
   const schema = props.schema || {}
   return Object.keys(schema).map(key => ({ key, ...schema[key] }))
 })
+
+// select 类型字段的选项（schema.options: [{label, value}]，原样交给 NSelect）
+function selectOptions(field) {
+  const opts = Array.isArray(field.options) ? field.options : []
+  return opts.map(o => (typeof o === 'object' && o !== null ? { ...o } : { label: String(o), value: o }))
+}
 
 // 公式轻量 UX 预检：去掉 cost 和空白后，剩余应仅为 数字/./+-*/()
 // 权威校验在主进程 mathjs（AST 白名单 + BigNumber），此处仅给即时提示，不引入大库到渲染进程
