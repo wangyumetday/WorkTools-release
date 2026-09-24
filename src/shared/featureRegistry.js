@@ -15,8 +15,6 @@
 //   3. 在 src/router/index.js 合并该 feature 的 routes 到根路由 children（以及悬浮窗 children 如需）
 //   4. 在本文件加入 features 数组
 //
-// 当前为骨架阶段：硬编码两个 feature 元信息
-// 平移阶段：feature 的 routes 在 router/index.js 单独 import
 // ============================================================
 
 import {

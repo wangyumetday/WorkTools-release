@@ -2,9 +2,8 @@ import { onMounted, onBeforeUnmount, ref } from 'vue'
 import { useTaskStore } from '../stores/task.js'
 
 /**
- * 任务列表共享逻辑(行渲染 + 详情面板 + 折叠状态 + 数据提取)
- * 被 TaskList.vue(真实列表)与 TaskListVirtual.vue(虚拟列表)共用:
- * 两种实现共享同一份逻辑,仅模板与容器 CSS 不同。
+ * 任务列表逻辑(行渲染 + 详情面板 + 折叠状态 + 数据提取)
+ * 被 TaskList.vue 使用:模板与容器 CSS 分层(任务列表样式见 taskList.css)。
  */
 export function useTaskList() {
   const store = useTaskStore()

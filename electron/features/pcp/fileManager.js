@@ -1,4 +1,3 @@
-// ============================================================
 // 数据文件管理器
 // 职责：管理 a1/a2/a3 三个阶段的数据文件（JSON 持久化 + Excel 解析）
 //   导出职责已抽离到 ExcelExporter.js（ARCH-1），本类仅保留数据管理 + exportResult 代理
@@ -9,7 +8,6 @@
 //   a3: O平台组合请求结果 + a2数据 合并（最终数据，交 ExcelExporter 导出 xlsx）
 //
 // 持久化目录：userData/data/{a1,a2,a3}.json
-// ============================================================
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -19,6 +17,7 @@ import { O_PLATFORM_KEYS as O_PLATFORMS } from './platforms/registry.js'
 import { A2_FIELDS, A3_FIELDS } from './fieldNames.js'
 // ARCH-1：导出逻辑已抽离到 ExcelExporter，HR_FIELDS 由其统一导出（saveA3FromOTasks 仍要用）
 import { ExcelExporter, HR_FIELDS } from './ExcelExporter.js'
+import { buildHeaderKeyMap, POLICY_REQUIRED_HEADERS } from './policyWriteback.js'
 
 // ===== JSDoc 类型定义：a1 / a2 / a3 数据 shape（文档 / IDE 提示用）=====
 
@@ -86,6 +85,11 @@ export class FileManager {
 
     // ConfigManager 注入（阶段4：导出时取平台配置 agentName/agentRemark 写入政策列）
     this.configManager = configManager
+
+    // 用户上传的外部政策文件路径（仅内存、不持久化）：上传时只记路径，下载要用时才读盘解析
+    //   注意：不随 clearAll 清空（换航线文件会触发 clearAll，若在此清掉会导致回写被静默跳过）；
+    //         仅在上传新政策文件时覆盖、下载成功后由 controller 显式清空
+    this.policyFilePath = ''
 
     // 上次选择文件的文件夹（首次为空字符串，dialog 不传 defaultPath 时 Electron 用 OS 默认）
     //   用途：步骤1选 xlsx 时，defaultPath = lastDirectory，下次直接打开同一文件夹
@@ -228,6 +232,80 @@ export class FileManager {
   getA1() {
     return { data: this.a1, count: this.a1.length }
   }
+
+  /**
+   * 记录用户上传的外部系统（携程）政策文件路径（惰性加载：此处不读盘解析）
+   * @param {string} filePath xlsx 文件路径
+   */
+  setPolicyFilePath(filePath) {
+    this.policyFilePath = filePath || ''
+  }
+
+  /** 是否已记录政策文件路径（下载回写模式的开关） */
+  hasPolicyFilePath() {
+    return !!this.policyFilePath
+  }
+
+  /** 取已记录的政策文件路径（未上传为 ''） */
+  getPolicyFilePath() {
+    return this.policyFilePath
+  }
+
+  /** 清空已记录的政策文件路径（下载成功后调用） */
+  clearPolicyFilePath() {
+    this.policyFilePath = ''
+  }
+
+  /**
+   * 读取并解析外部系统（携程）导出的政策文件（xlsx），供下载回写使用
+   *   惰性加载：上传时只记路径，真正要用时（下载）才调本方法读盘。
+   *   表头按列名匹配（buildHeaderKeyMap）：9 匹配键 + ID + CreateTime 共 11 列必须齐全；
+   *   表头默认第一行，若首行无 OTAConfigID/航程类型 则顺延试下一行（至多两行）。
+   *   数据行保留原始单元格类型（number/string/null），供回写 aoa 保真。
+   *   纯读取：不写任何实例状态（无副作用），失败时返回可读错误由调用方决定如何处理。
+   * @param {string} filePath xlsx 文件路径
+   * @returns {{success:true, headers:string[], keyColMap:object, rows:any[][]} | {success:false, error:string}}
+   */
+  readPolicyFile(filePath) {
+    if (!filePath) return { success: false, error: '未记录政策文件路径' }
+    try {
+      if (!fs.existsSync(filePath)) {
+        return { success: false, error: `政策文件已不存在（可能被移动或删除）: ${filePath}` }
+      }
+      const workbook = XLSX.readFile(filePath)
+      const firstSheetName = workbook.SheetNames[0]
+      const worksheet = workbook.Sheets[firstSheetName]
+      const aoa = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null })
+      if (!Array.isArray(aoa) || aoa.length < 2) {
+        return { success: false, error: '政策文件内容不足（至少需要表头行 + 1 行数据）' }
+      }
+      // 表头定位：首行起至多找两行，必须同时含 OTAConfigID 与 航程类型 才是表头
+      let headerRow = null
+      let headers = []
+      for (let i = 0; i < Math.min(aoa.length, 2); i++) {
+        const names = (aoa[i] || []).map(c => (c == null ? '' : String(c).trim()))
+        if (names.includes('OTAConfigID') && names.includes('航程类型')) {
+          headerRow = i
+          headers = names
+          break
+        }
+      }
+      if (headerRow == null) {
+        return { success: false, error: '未找到政策文件表头行（须含 OTAConfigID / 航程类型 列）' }
+      }
+      const keyColMap = buildHeaderKeyMap(headers)
+      const missing = POLICY_REQUIRED_HEADERS.filter(h => keyColMap[h] == null)
+      if (missing.length > 0) {
+        return { success: false, error: `政策文件缺少列: ${missing.join('、')}` }
+      }
+      const rows = aoa.slice(headerRow + 1).filter(r => r && r.some(c => c != null && String(c).trim() !== ''))
+      return { success: true, fileName: path.basename(filePath), headers, keyColMap, rows }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  }
+
+  // 获取 a2 数据
   /** ARCH-3：便捷方法，直接返回 a1 数据数组（pipeline 不再访问 .data 内部结构） */
   getA1Data() {
     return this.a1
@@ -252,6 +330,8 @@ export class FileManager {
    * 用途：下载完成后 pipeline.reset() 调用，让流程回到初始态，
    *       步骤流不再显示"已完成"，用户可重新选文件开始新一轮
    * 注：不动 lastDirectory / downloadDir（用户偏好保留）
+   *     不动 policyFilePath（已记录的政策回写文件路径；换航线文件也会触发本方法，
+   *       若在此清掉会导致下载时回写被静默跳过 → ID/CreateTime 为空）
    */
   clearAll() {
     this.a1 = []
@@ -332,6 +412,11 @@ export class FileManager {
     const stats = {}
     O_PLATFORMS.forEach(p => { stats[p] = { okTasks: 0, failedTasks: 0, processedSum: 0 } })
 
+    // ★ 无匹配携程数据（2026-09-23 起）：trip 任务 quoteRows 附加行（kind='other'，
+    //   品牌对不上/无套餐可归属的报价）收集起来供底价检查文件展示
+    //   （任务列表/运行日志已展示；此处补齐人看文件，导出时读 this.tripOtherQuotes）
+    const tripOtherQuotes = []
+
     // 预取各平台配置 + exportTemplate + 锦绣政策字段配置
     //   from(item, ctx) 的 ctx = { ...平台配置, policyFields }：
     //     - 平台配置（cfg）：adapter 内部用（如 trip 无）
@@ -355,6 +440,12 @@ export class FileManager {
         stats[p].failedTasks++
         console.warn(`  [saveA3FromOTasks] 任务=${task.id} ${p} 请求报错: ${result.error}`)
         return
+      }
+      // ★ 收集无匹配携程报价（kind='other' 附加行）
+      if (p === 'trip' && Array.isArray(result.quoteRows)) {
+        for (const q of result.quoteRows) {
+          if (q && q.kind === 'other') tripOtherQuotes.push(q)
+        }
       }
       const processedData = result.processedData
       if (!Array.isArray(processedData)) return
@@ -399,6 +490,7 @@ export class FileManager {
     const summary = O_PLATFORMS.map(p => `${p}: ok=${stats[p].okTasks} fail=${stats[p].failedTasks} processed=${stats[p].processedSum}`).join('；')
     // console.log(`[saveA3FromOTasks] 总 O 任务数=${tasks.length}；${summary} → a3 条数=${a3arr.length}`)
     this.a3 = a3arr
+    this.tripOtherQuotes = tripOtherQuotes
     this.saveData('a3.json', a3arr)
     return a3arr
   }

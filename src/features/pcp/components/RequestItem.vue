@@ -129,19 +129,19 @@
             · 外显 {{ tripStats.ownShown }} · 未显 {{ tripStats.ownHidden }}
             · 未匹配 {{ tripStats.unmatched }} · 无对应 {{ tripStats.other }}
           </div>
-          <!-- 每套餐一块：第 1 行官网数据，其后为该套餐匹配到的全部携程报价行，列一一对齐 -->
+          <!-- 每套餐一块，块内三区（2026-09-24）：我方投放携程行 → 官网行 → 外部投放携程行 -->
           <div v-if="!isResultFail" class="rb-legend">
-            <span class="rbl-item"><i class="rbl-dot rbl-dot--ownShown" />我方外显</span>
-            <span class="rbl-item"><i class="rbl-dot rbl-dot--ownHidden" />我方未显</span>
+            <span class="rbl-item"><i class="rbl-dot rbl-dot--on" />已外显</span>
+            <span class="rbl-item"><i class="rbl-dot rbl-dot--off" />未外显</span>
             <span class="rbl-item"><i class="rbl-dot rbl-dot--lost" />比输</span>
             <span class="rbl-item"><i class="rbl-dot rbl-dot--other" />未匹配/无对应</span>
-            <span class="rbl-hint">每块=官网行（官网/OTA 列显官价/底价 + 行李信息列显锦绣行李）+ 其下携程行（价格/行李进同列对照）· 数据归属列：蓝=官网、橙=携程 · 标签 hover 看明细</span>
+            <span class="rbl-hint">每块三区：绿底=我方投放携程 → 蓝底=官网 → 橙底=外部投放携程 · 区首行上方深线=分区界 · 来源/状态列灯绿=已外显、黄=未外显 · 标签 hover 看明细</span>
           </div>
           <table v-if="tripGroups.length > 0" class="rb-table rb-table--quotes">
             <thead>
               <tr>
                 <th>匹配结果</th>
-                <th>数据归属</th>
+                <th>来源/状态</th>
                 <th>航线</th>
                 <th>舱位</th>
                 <th>官网/OTA</th>
@@ -152,18 +152,21 @@
               <tr
                 v-for="(f, i) in g.rows"
                 :key="`${g.key}-${i}`"
-                :class="['qrow', `qrow--${f.status}`, `qrow--${f.role}`]"
+                :class="['qrow', `qrow--${f.status}`, `qrow--${f.role}`, `qrow--region-${f.region}`, { 'qrow--regionStart': f.regionStart && i > 0 }]"
               >
+                <!-- 匹配结果：仅携程行展示；锦绣官网行（role=official）不显示值 -->
                 <td>
-                  <span
-                    class="rb-outcome"
-                    :class="`rb-outcome--${f.status}`"
-                    :title="f.unmatchedReason?.detail || f.note || ''"
-                  >{{ f.statusText }}</span>
+                  <template v-if="f.role !== 'official'">
+                    <span
+                      class="rb-outcome"
+                      :class="[`rb-outcome--${f.status}`, f.isHit ? 'rb-outcome--hit' : 'rb-outcome--dim']"
+                      :title="f.unmatchedReason?.detail || f.note || ''"
+                    >{{ f.statusText }}</span>
+                  </template>
                 </td>
-                <!-- 数据归属：官网=蓝 / 携程=橙（字体+背景+边框三色一眼区分） -->
+                <!-- 来源/状态：官网=蓝「官网」；携程=橙「携程」+ 外显状态小灯（绿=showState=1 已外显 / 黄=未外显） -->
                 <td>
-                  <span class="rb-owner" :class="`rb-owner--${f.role === 'official' ? 'official' : 'ctrip'}`">{{ f.ownerLabel }}</span>
+                  <span class="rb-owner" :class="`rb-owner--${f.role === 'official' ? 'official' : 'ctrip'}`">{{ f.ownerLabel }}<i v-if="f.role !== 'official'" class="rb-light" :class="f.shown ? 'rb-light--on' : 'rb-light--off'" :title="f.shown ? '已外显（showState=1）' : '未外显（showState≠1）'"></i></span>
                 </td>
                 <td class="qm-route-cell">
                   <div class="qm-flight">{{ f.flightNo }}</div>
@@ -179,8 +182,8 @@
                   </template>
                   <template v-else>{{ f.xcPrice == null || f.xcPrice === '—' ? '—' : `¥${f.xcPrice}` }}</template>
                 </td>
-                <!-- 行李信息：官网行=锦绣行李；携程行/附加行=携程行李 -->
-                <td class="rb-baggage" :title="f.role !== 'official' ? f.xcBaggage : ''">{{ (f.role === 'official' ? f.ourBaggageShort : f.xcBaggageShort) || '—' }}</td>
+                <!-- 行李信息：官网行=锦绣行李+套餐品牌；携程行/附加行=携程行李+报价品牌 -->
+                <td class="rb-baggage" :title="f.role !== 'official' ? f.xcBaggage : ''">{{ f.baggageLabel }}</td>
               </tr>
             </tbody>
           </table>
@@ -430,7 +433,8 @@ const QUOTE_STATUS_TEXT = {
 const UNMATCH_REASON_TEXT = {
   flight: '无此航班',
   baggage: '行李不符',
-  price: '价格异常'
+  price: '价格异常',
+  own: '仅我方投放'
 }
 
 const tripRows = computed(() => {
@@ -441,7 +445,7 @@ const tripRows = computed(() => {
     const role = q.role ?? 'other'
     return {
       role,
-      // 数据归属：官网行=官网（锦绣官方数据）；携程行/附加行=携程（报价来源）
+      // 来源/状态：官网行=官网（锦绣官方数据）；携程行/附加行=携程（报价来源）+ shown 驱动外显小灯
       ownerLabel: role === 'official' ? '官网' : '携程',
       unitKey: q.unitKey ?? null,
       kind: q.kind ?? 'other',
@@ -468,9 +472,16 @@ const tripRows = computed(() => {
       xcPrice: q.xcPrice ?? '—',
       xcBaggage: q.xcBaggage ?? '',
       xcBaggageShort: q.xcBaggageShort ?? '—',
+      // 品牌名（2026-09-23 起）：行李信息后展示——官网行=锦绣套餐品牌，携程行/附加行=携程报价品牌
+      ourBrand: q.ourBrand ?? '',
+      xcBrand: q.xcBrand ?? '',
+      baggageLabel: ((role === 'official' ? (q.ourBaggageShort ?? '—') : (q.xcBaggageShort ?? '—')) || '—')
+        + ((role === 'official' ? (q.ourBrand ?? '') : (q.xcBrand ?? '')) ? ` · ${role === 'official' ? q.ourBrand : q.xcBrand}` : ''),
       note: q.note ?? '',
       isOwn: !!q.isOwn,
       shown: !!q.shown,
+      // 实际命中标记：依次比价中真实比赢的那一条（用于「匹配结果」虚实样式）
+      isHit: !!q.isHit,
       flagRemark: q.flagRemark ?? '',
       unmatchedReason: q.unmatchedReason ?? null
     }
@@ -478,6 +489,7 @@ const tripRows = computed(() => {
 })
 
 // ===== trip 分块归组：按 unitKey（每套餐一块=官网行+其携程行；附加行各自成块）=====
+//   块内三区排序（2026-09-24）：我方投放携程 → 官网 → 外部投放携程；区首行带 regionStart 标记
 const tripGroups = computed(() => {
   const map = new Map()
   for (const row of tripRows.value) {
@@ -490,6 +502,20 @@ const tripGroups = computed(() => {
       })
     }
     map.get(key).rows.push(row)
+  }
+  const regionOf = r => (r.role === 'official' ? 'official' : (r.isOwn ? 'own' : 'external'))
+  for (const g of map.values()) {
+    const segs = { own: [], official: [], external: [] }
+    for (const r of g.rows) segs[regionOf(r)].push(r)
+    const ordered = [...segs.own, ...segs.official, ...segs.external]
+    let prevRegion = null
+    for (const r of ordered) {
+      const region = regionOf(r)
+      r.region = region
+      r.regionStart = region !== prevRegion
+      prevRegion = region
+    }
+    g.rows = ordered
   }
   return [...map.values()]
 })
@@ -826,7 +852,20 @@ const tripStats = computed(() => {
   border: 1px dashed #d9d9d9;
 }
 
-/* 数据归属列标识：字体色+背景色+边框色三合一，一眼区分数据来源（蓝=官网/橙=携程，
+/* 匹配结果虚实样式（2026-09-23 起）：实际比赢（命中）那条醒目实框加粗；
+   其余携程行虚框降透明度（官网行的总体判定不受影响） */
+.rb-outcome--hit {
+  border-width: 2px;
+  font-weight: 700;
+}
+
+.rb-outcome--dim {
+  border-style: dashed;
+  opacity: .55;
+  font-weight: 400;
+}
+
+/* 来源/状态列标识：字体色+背景色+边框色三合一，一眼区分数据来源（蓝=官网/橙=携程，
    与平台色呼应：锦绣卡片蓝 #1890ff、携程卡片橙 #fa8c16） */
 .rb-owner {
   display: inline-block;
@@ -836,6 +875,26 @@ const tripStats = computed(() => {
   font-weight: 600;
   white-space: nowrap;
   border: 1px solid transparent;
+}
+
+/* 来源/状态列小灯（仅携程行）：圆点 + 浅浅光晕；绿=showState=1 已外显，黄=未外显 */
+.rb-light {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-left: 4px;
+  vertical-align: 1px;
+}
+
+.rb-light--on {
+  background: #52c41a;
+  box-shadow: 0 0 4px 1px rgba(82, 196, 26, .55);
+}
+
+.rb-light--off {
+  background: #faad14;
+  box-shadow: 0 0 4px 1px rgba(250, 173, 20, .55);
 }
 
 .rb-owner--official {
@@ -855,7 +914,7 @@ const tripStats = computed(() => {
   table-layout: fixed;
 
   th:nth-child(1) { width: 76px; }
-  th:nth-child(2) { width: 64px; }
+  th:nth-child(2) { width: 84px; }
   th:nth-child(3) { width: 18%; }
   th:nth-child(4) { width: 60px; }
   th:nth-child(5) { width: 90px; }
@@ -881,28 +940,41 @@ const tripStats = computed(() => {
 
 /* ===== 航班块（tbody）层级分隔 =====
    tbody 不渲染 margin/border/border-radius，靠 td 拼接：
-   - 块整体极浅灰底（与白内容区微差，可见但不抢眼）
-   - 块四周 1px 弱描边（不再是 2px 灰描边，收敛）
-   - 块间距 8px（用内容区白色作槽，比之前 14px 灰槽更安静）
-   - 比赢/未匹配行透明露出块底；绿/黄/棕红状态行保留自身色 */
+   - 块四边 2px 醒目描边（#b0b6c4），一眼看清每一块的边界
+   - 块间距 12px（用内容区白色作槽）
+   - 块内三区全体行铺浅背景色区分（见下），比输行保留浅棕红 */
 .rb-table--quotes tbody {
   background: var(--bg-block);
 }
-.rb-table--quotes tbody td:first-child { border-left: 1px solid var(--border-block); }
-.rb-table--quotes tbody td:last-child  { border-right: 1px solid var(--border-block); }
+.rb-table--quotes tbody td:first-child { border-left: 2px solid #b0b6c4; }
+.rb-table--quotes tbody td:last-child  { border-right: 2px solid #b0b6c4; }
 .rb-table--quotes tbody tr:first-child > td {
-  border-top: 1px solid var(--border-block);
+  border-top: 2px solid #b0b6c4;
 }
 .rb-table--quotes tbody:not(:first-child) tr:first-child > td {
-  border-top: 8px solid var(--bg-content);
-  box-shadow: inset 0 1px 0 var(--border-block);
+  border-top: 12px solid var(--bg-content);
+  box-shadow: inset 0 2px 0 #b0b6c4;
 }
 .rb-table--quotes tbody tr:last-child > td {
-  border-bottom: 1px solid var(--border-block);
+  border-bottom: 2px solid #b0b6c4;
 }
 .rb-table--quotes thead th {
   border-bottom: 1px solid var(--border-soft);
 }
+
+/* 块内三区（我方投放 / 官网 / 外部投放）：
+   - 全体行铺浅背景：own 浅绿 #f0fff9 / official 浅蓝 #eef6ff / external 浅橙 #fff7ed（与 chip 色同族）
+   - 区首行上方 2px 主题色分隔线（蓝=官网区起始、橙=外部投放区起始）；我方投放区恒为块首行，无分隔线 */
+tr.qrow--region-own > td { background: #f0fff9; }
+tr.qrow--region-official > td { background: #eef6ff; }
+tr.qrow--region-external > td { background: #fff7ed; }
+tr.qrow--regionStart > td { border-top: 2px solid transparent; }
+tr.qrow--regionStart.qrow--region-official > td { border-top-color: #0958d9; }
+tr.qrow--regionStart.qrow--region-external > td { border-top-color: #fa8c16; }
+
+/* 状态覆盖（声明于区域背景之后）：比输行保留浅棕红；附加行（非我方投放）灰字弱化 */
+tr.qrow--lost > td { background: #fbe4dc; }
+tr.qrow--other:not(.qrow--ownShown):not(.qrow--ownHidden) > td { color: #8c8c8c; }
 
 .qm-route-cell {
   white-space: normal;
@@ -917,14 +989,6 @@ const tripStats = computed(() => {
   color: #999;
   font-size: 11.5px;
 }
-
-/* 状态行背景：透明=比赢/未匹配，露出块浅灰底；附加行（非我方投放）灰字弱化 */
-tr.qrow--ownShown > td { background: #f6ffed; }
-tr.qrow--ownHidden > td { background: #fffbe6; }
-tr.qrow--lost > td { background: #fbe4dc; }
-tr.qrow--won > td,
-tr.qrow--unmatched > td { background: transparent; }
-tr.qrow--other:not(.qrow--ownShown):not(.qrow--ownHidden) > td { background: transparent; color: #8c8c8c; }
 
 /* 图例：加浅灰容器，与统计行视觉一致 */
 .rb-legend {
@@ -953,8 +1017,8 @@ tr.qrow--other:not(.qrow--ownShown):not(.qrow--ownHidden) > td { background: tra
   border: 1px solid transparent;
 }
 
-.rbl-dot--ownShown  { background: #f6ffed; border-color: #95de64; }
-.rbl-dot--ownHidden { background: #fffbe6; border-color: #ffd666; }
+.rbl-dot--on        { background: #52c41a; border-radius: 50%; box-shadow: 0 0 4px 1px rgba(82, 196, 26, .45); }
+.rbl-dot--off       { background: #faad14; border-radius: 50%; box-shadow: 0 0 4px 1px rgba(250, 173, 20, .45); }
 .rbl-dot--lost      { background: #fbe4dc; border-color: #d4876f; }
 .rbl-dot--other     { background: var(--bg-block); border-color: var(--border-block); }
 

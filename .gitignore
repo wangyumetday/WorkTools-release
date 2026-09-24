@@ -12,12 +12,7 @@ asar-list.txt
 
 # ============================================================
 # 本地非工程文件统一目录（整体不入库）
-#   _local/design/   UI 设计探索稿
-#   _local/docs/     调研报告 / 需求 / 接口文档
-#   _local/tests/    E2E 测试脚本 + fixtures
-#   _local/samples/  抓包样本数据
-#   _local/wenti/    疑问排查时的抓包与实验脚本
-#   _local/e2e-outputs/  E2E 运行输出
+#   _local/tests/    E2E 测试脚本 + fixtures（唯一保留项；其余已迁出到 D:\WorkTools-data\）
 # ============================================================
 _local/
 

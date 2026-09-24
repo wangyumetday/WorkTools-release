@@ -1,4 +1,4 @@
-/* 任务列表共享样式(TaskList.vue / TaskListVirtual.vue 共用)
+/* 任务列表样式(TaskList.vue 使用)
    模板根元素: .tab-list(滚动容器)
    结构: .tl-row-wrap > .tl-row(行) + .tl-detail(详情面板) */
 

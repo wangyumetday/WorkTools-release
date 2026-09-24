@@ -1,9 +1,7 @@
-// ============================================================
 // TRIP（携程 OTA 低价看板）平台 adapter
 // 移植自老 o1.js，拆为 prepareRequest / request / mergeResult 三步
 // 语义：O 平台（步骤4），a2 → 该平台比价结果（processedData）
 // 协议：Json + Gzip HTTPS POST（请求体压缩，响应解压）
-// ============================================================
 
 import https from 'node:https'
 import { gzipSync, gunzipSync } from 'node:zlib'
@@ -13,6 +11,7 @@ import { configSchema, defaults } from './config.js'
 import { A2_FIELDS, A3_FIELDS, TRIP_RESPONSE_FIELDS, JXGJ_RESPONSE_FIELDS } from '../../fieldNames.js'
 import { resolvePolicyField } from '../../policyFieldResolver.js'
 import { formatPolicyAdjust } from '../../policyAdjust.js'
+import { keepPolicyRow } from '../../policyWriteback.js'
 
 export const key = 'trip'
 // 平台中文名：用于导出文件名（携程导入政策{日期}.xlsx / 携程底价检查{日期}.xlsx）和底价列名（携程底价）
@@ -41,7 +40,6 @@ export async function login(credential) {
   return { loginName: credential?.username || '', password: credential?.password || '' }
 }
 
-// ============================================================
 // 进程级滑动窗口限流器（携程专用，处理 rateLimitPerMin 阈值 + 429 被动冷却）
 // 设计要点（对齐项目硬约束）：
 //   1. 模块级单例：跨并发 worker 共享同一计数状态，保证准确计数
@@ -50,7 +48,6 @@ export async function login(credential) {
 //   4. 429 被动冷却：服务端返 429 时进入 cooldown，Retry-After 优先，无则默认 30s
 //   5. 配置快照：每次 acquire 从 compiledConfig.rateLimitPerMin 动态读取阈值
 //      （TaskManager.precompilePlatformConfigs 编译后 cfg.rateLimitPerMin 即用户配置值）
-// ============================================================
 const RATE_LIMIT_WINDOW_MS = 60_000  // 滑动窗口长度 60s
 const DEFAULT_COOLDOWN_MS = 30_000   // 429 默认冷却 30s（无 Retry-After 时）
 
@@ -261,8 +258,9 @@ function formatBaggageShort(str) {
 
 /**
  * 政策调价金额写入规则见 @{link ../../policyAdjust.js}（政策文件与底价检查文件共用）：
- *   计算阶段（CUT_VALUE / 套餐差值）只保留精确价差、不含 −1；
- *   写入两个文件前统一「向下取整再 −1」（平台只接受整数）。
+ *   计算阶段（CUT_VALUE / 套餐差值）只保留精确价差、不含让利额；
+ *   写入两个文件前统一「向下取整再 − cutOffset」（平台只接受整数）；
+ *   cutOffset = 平台配置「比携程低多少元」（ctx.cutOffset，默认 1）。
  */
 
 /** 数字相等（20 与 20.0 视为相等），null/NaN 一律不匹配 */
@@ -332,6 +330,33 @@ function buildPackagePolicyEntry(acai, item) {
   return entry
 }
 
+/**
+ * 携程报价携带的成人品牌名列表（adtBrandNames）：归一 trim+大写，过滤 null/''/'-1' 等缺失形态
+ * @param {object} q prices[] 报价条目
+ * @returns {string[]}
+ */
+function quoteBrands(q) {
+  const arr = q?.[TRIP_RESPONSE_FIELDS.adtBrandNames]
+  return Array.isArray(arr)
+    ? arr.map(b => String(b?.brandName ?? '').trim().toUpperCase()).filter(v => v && v !== '-1')
+    : []
+}
+
+/** 携程报价品牌名展示串（原文，顿号连接；空 → 空串；只用于 UI/日志展示） */
+function formatQuoteBrandNames(q) {
+  const arr = q?.[TRIP_RESPONSE_FIELDS.adtBrandNames]
+  if (!Array.isArray(arr)) return ''
+  return arr.map(b => String(b?.brandName ?? '').trim()).filter(v => v && v !== '-1').join(', ')
+}
+
+/**
+ * 品牌兼容：忽略大小写 + 前缀包含（任一方以另一方开头）
+ *   样本口径：锦绣 SUNVALUE/SUNECOPLUS vs 携程 SunValue/SUNECO
+ */
+function brandCompatible(ourBrand, qBrands) {
+  return qBrands.some(b => b === ourBrand || b.startsWith(ourBrand) || ourBrand.startsWith(b))
+}
+
 function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowEnabled = false, consumedQuotes = null) {
   const resArr = []
   const forData = Array.isArray(originalData?.dateValue) ? originalData.dateValue : []
@@ -388,6 +413,15 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
     if (itemFlightNo == null || itemDepAirport == null || itemArrAirport == null || itemDate == null) {
       return
     }
+
+    // ★ 防串态（2026-09-24）：同一 item 可能被重复 mergeResult 处理（任务重试/重复跑），
+    //   先清掉上一次运行写下的比价结果字段，避免残留旧值（携程底价/命中/说明）参与本次判定
+    item[A3_FIELDS.XC_dijia] = undefined
+    item[A3_FIELDS.CUT_VALUE] = undefined
+    item[A3_FIELDS.isOwn] = undefined
+    item['_outcome'] = undefined
+    item._hitQuote = undefined
+    item._matchedQuotes = undefined
 
     // ★ 中转判定（数据驱动）：Z中转机场 三字码优先；否则取 分段信息 首段到达（段间机场）；
     //   分段信息 ≥2 段 或 组合航班号拆段 ≥2 → 视为中转（多程）
@@ -453,32 +487,107 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
       }
     }
 
-    // ===== 套餐富化（两种模式共用）：给每个套餐挂「携程底价 / 差值 / isOwn」 =====
-    //   匹配只按行李，舱位不参与；无法匹配的套餐不打错误，只在套餐上补「套餐数据说明」属性
+    // ===== 套餐分配（两种模式共用，2026-09-23 分配制）=====
+    //   ① 品牌分配：带品牌的携程报价按品牌兼容（忽略大小写/前缀包含）分给对应套餐——
+    //      须行李匹配；同品牌挂多个套餐时按行李细分（行李对上几个套餐就进几个组）
+    //   ② 无品牌报价：按「价格最接近该套餐官网价（套餐价格_CNY）」+ 行李匹配分配给单个套餐
+    //      （最近者得，距离相同时取先出现的套餐；无任何套餐行李匹配则不下发）
+    //   ③ 品牌对不上：不进任何套餐组，标无匹配（不消费 → 落对比块附加行）
+    //   ④ 回退老规则：套餐无品牌、或候选中没有任何带品牌报价 → 行李匹配即候选（不按品牌过滤）
+    //   依次比价命中规则不变：候选按价升序，取第一个「我方底价 ≤ 携程价」的报价
     const taocan = Array.isArray(item.套餐信息) ? item.套餐信息 : []
+    // 先收集各套餐的行李签名与品牌（无行李套餐直接贴说明跳过）
+    const pkgInfos = []
     for (const acai of taocan) {
       if (!acai || typeof acai !== 'object') continue
-      const acaiSig = parseOurBaggage(acai.行李信息)
-      if (!acaiSig) {
+      // ★ 防串态（2026-09-24）：与 item 级同款——清掉上次 mergeResult 残留的套餐比价字段
+      acai['携程底价'] = undefined
+      acai['差值'] = undefined
+      acai['isOwn'] = undefined
+      acai['套餐数据说明'] = undefined
+      acai['showState'] = undefined
+      acai['携程行李原文'] = undefined
+      acai['flagRemark'] = undefined
+      acai._hitQuote = undefined
+      acai._matchedQuotes = undefined
+      acai._compareCands = undefined
+      const sig = parseOurBaggage(acai.行李信息)
+      if (!sig) {
         acai['套餐数据说明'] = '套餐无行李信息，无法匹配携程报价'
         acai._matchedQuotes = [] // 展示用候选（无行李 → 空；原价判定依赖此字段）
         continue
       }
-      const pkgCands = relatedPrices.filter(p =>
-        p && baggageMatchs(acaiSig, parseTripBaggage(p[F.baggage]))
-      )//&& !p[F.isOwn]
-      // ★ 展示用候选：行李匹配上的全部携程报价（含比不过的），分块展示的携程行来源
+      const rawBrand = acai['品牌名']
+      const ourBrand = (() => {
+        if (rawBrand == null) return ''
+        const s = String(rawBrand).trim().toUpperCase()
+        return s === '-1' ? '' : s
+      })()
+      pkgInfos.push({ acai, sig, ourBrand, brandCands: [], priceAssigned: [] })
+    }
+    // ① 品牌分配（全局一轮分完）
+    for (const p of relatedPrices) {
+      if (!p) continue
+      const qBrands = quoteBrands(p)
+      if (qBrands.length === 0) continue // 无品牌报价留到第②步
+      for (const info of pkgInfos) {
+        if (!info.ourBrand) continue
+        if (!brandCompatible(info.ourBrand, qBrands)) continue
+        const xcSig = parseTripBaggage(p[F.baggage])
+        if (xcSig && baggageMatchs(info.sig, xcSig)) info.brandCands.push(p)
+      }
+      // 没进任何套餐组 → 品牌对不上，不消费（buildQuoteRows 落附加行标无匹配）
+    }
+    // ② 无品牌报价价格最近邻分配
+    for (const p of relatedPrices) {
+      if (!p || quoteBrands(p).length > 0) continue
+      const price = Math.floor(Number(p?.[F.sortIndicator]))
+      if (!Number.isFinite(price) || price <= 0) continue
+      let best = null
+      let bestDiff = Infinity
+      for (const info of pkgInfos) {
+        const gw = Number(info.acai['套餐价格_CNY'])
+        if (!Number.isFinite(gw)) continue
+        const xcSig = parseTripBaggage(p[F.baggage])
+        if (!xcSig || !baggageMatchs(info.sig, xcSig)) continue
+        const diff = Math.abs(price - gw)
+        if (diff < bestDiff) { bestDiff = diff; best = info }
+      }
+      if (best) best.priceAssigned.push(p)
+    }
+    // ③④ 逐套餐合成候选 + 依次比价命中
+    for (const info of pkgInfos) {
+      const acai = info.acai
+      const baseCands = relatedPrices.filter(p =>
+        p && baggageMatchs(info.sig, parseTripBaggage(p[F.baggage]))
+      )
+      let pkgCands
+      if (info.ourBrand === '' || !baseCands.some(q => quoteBrands(q).length > 0)) {
+        pkgCands = baseCands // ④ 回退老规则：行李匹配即候选
+      } else {
+        pkgCands = info.brandCands.concat(info.priceAssigned) // ①② 分配结果
+      }
+      // ★ 展示用候选：分配进本组的全部携程报价（含比不过的），分块展示的携程行来源
       acai._matchedQuotes = pkgCands
-      // ★ 展示消耗登记：行李匹配上的报价（含比不过的）都被本单元「消费」，不再落附加行
+      // ★ 展示消耗登记：分配进组的报价都被本单元「消费」，不再落附加行
       if (consumedQuotes) for (const c of pkgCands) consumedQuotes.add(c)
       if (pkgCands.length === 0) {
         acai['套餐数据说明'] = '未匹配到携程报价'
         continue
       }
+      // ★ 官网数据不与自己的携程投放报价做比价（2026-09-24，与主行行级比价口径一致）：
+      //   比价候选剔除 isOwn（我方投放只展示、不参与比价，更不会据此产出比赢/比输判定）；
+      //   候选全部是我方投放 → 无外部报价可比，等同未匹配（导出侧判 _compareCands 产原价政策）
+      const compareCands = pkgCands.filter(p => p && !p[TRIP_RESPONSE_FIELDS.isOwn])
+      acai._compareCands = compareCands
+      if (compareCands.length === 0) {
+        acai['套餐数据说明'] = '仅有我方投放的携程报价，无外部报价可比价'
+        continue
+      }
       // ★ 多条匹配报价：按价格从低到高，取第一个「我方底价 ≤ 其价」的（能比过的价格里最低的）
       const ourFloor = Number(acai['我方底价'])
       const pkgHit = (Number.isFinite(ourFloor) && ourFloor > 0)
-        ? sortedValidPrices(pkgCands).find(x => ourFloor <= x.price)
+        ? sortedValidPrices(compareCands).find(x => ourFloor <= x.price)
         : null
       if (!pkgHit) {
         acai['套餐数据说明'] = '匹配报价均低于我方底价，无可比过的价格'
@@ -488,7 +597,7 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
       acai['差值'] = ''
       acai['isOwn'] = pkgPrice[F.isOwn]
       acai['携程底价'] = pkgHit.price
-      // 差值只保留精确价差（不含 −1），写入文件前由 policyAdjust 统一「向下取整再 −1」
+      // 差值只保留精确价差（不含 cutOffset 让利额），写入文件前由 policyAdjust 统一「向下取整再 − cutOffset」
       acai['差值'] = new Decimal(pkgHit.price).minus(acai['套餐价格_CNY']).toNumber()
       // ★ 展示口径补充（套餐对套餐对比行用；只记录、不参与任何判定）：
       //   命中报价对象引用 / 行李原文 / 外显状态 / OTA 航班卡标记（price 自身优先、父级兜底）
@@ -511,7 +620,7 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
       for (const acai of taocan) {
         if (!acai || typeof acai !== 'object') continue
         if (acai['携程底价'] == null) {
-          const hasCands = (acai._matchedQuotes ?? []).length > 0
+          const hasCands = (acai._compareCands ?? []).length > 0
           if (hasCands) continue // 低底价：有人投放但比不过 → 不产政策
           // ★ 原价政策：没人在携程投放此套餐 → 按官网价卖、调价固定加减钱=0
           const entry = buildPackagePolicyEntry(acai, item)
@@ -572,8 +681,9 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
       matchSink?.set(refPrice, { outcome: 'lost', cw: itemCangWei, ourPrice: totalCNY, dijia, item })
     }
     // ★ 调价固定加减钱（政策导入文件「调价固定加减钱」列 + 底价检查文件「预计减价」列，同源）：
-    //   内存里保留精确价差（不含 −1），写入文件前由 policyAdjust 统一「向下取整再 −1」：
-    //   仅 won（可以胜出）计算：价差 = 携程价(取整) − 官网显示价，写入后生效价 = 携程价(取整) − 1
+    //   内存里保留精确价差（不含 cutOffset 让利额），写入文件前由 policyAdjust 统一「向下取整再 − cutOffset」：
+    //   仅 won（可以胜出）计算：价差 = 携程价(取整) − 官网显示价，写入后生效价 = 携程价(取整) − cutOffset
+    //   cutOffset = 平台配置「比携程低多少元」（ctx.cutOffset，默认 1）
     //   lost（无法胜出）不贴底价卖：CUT_VALUE 留空（底价检查文件「预计减价」为空）
     if (item[A3_FIELDS._outcome] === 'won') {
       item[A3_FIELDS.CUT_VALUE] = new Decimal(sortIndicator).minus(totalCNY || 0).toNumber()
@@ -583,7 +693,7 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
     for (const acai of taocan) {
       if (!acai || typeof acai !== 'object') continue
       if (acai['携程底价'] != null) continue
-      if ((acai._matchedQuotes ?? []).length > 0) continue // 低底价不产
+      if ((acai._compareCands ?? []).length > 0) continue // 低底价不产
       const entry = buildPackagePolicyEntry(acai, item)
       entry['_原价政策'] = true
       resArr.push(entry)
@@ -748,7 +858,7 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
   // ★ 对比单元分块产出：官方行（role=official，我方数据+总体判定）+ 逐条携程行（role=ctrip，
   //   该单元行李匹配到的全部携程报价：能比过的 won / 比不过的 lost / 我方投放 own 态）
   const emitUnit = (base, unit) => {
-    const { kind, seatClass, cabinClass, pkgIndex, ourBaggageShort, ourPrice, ourFloor, status, unmatchedReason, note, matched } = unit
+    const { kind, seatClass, cabinClass, pkgIndex, ourBaggageShort, ourPrice, ourFloor, status, unmatchedReason, note, matched, hitQuote, ourBrand } = unit
     const unitKey = `${base.flightNo}|${base.date}|${base.depAirport}|${base.arrAirport}|${kind}|${seatClass}|${pkgIndex ?? ''}`
     rows.push({
       ...base,
@@ -759,6 +869,8 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
       cabinClass,
       pkgIndex,
       ourBaggageShort,
+      // ★ 我方套餐品牌名（2026-09-23 起）：UI/日志在行李信息后展示；主行无品牌 → 空串
+      ourBrand: ourBrand ?? '',
       ourPrice,
       ourFloor,
       xcPrice: null,
@@ -768,6 +880,7 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
       shown: false,
       flagRemark: '',
       isInit: false,
+      isHit: false,
       status,
       unmatchedReason,
       note
@@ -798,10 +911,15 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
         xcPrice: qPrice,
         xcBaggage: q[F.baggage] ?? '',
         xcBaggageShort: formatBaggageShort(q[F.baggage]),
+        // ★ 携程报价品牌名（2026-09-23 起）：UI/日志在行李信息后展示
+        xcBrand: formatQuoteBrandNames(q),
         isOwn,
         shown,
         flagRemark: String(flagRemark ?? ''),
         isInit: /initSelected/i.test(String(flagRemark ?? '')),
+        // ★ 实际命中标记（2026-09-23 起）：依次比价中真实比赢的那一条（我方底价≤其价的最低报价），
+        //   供 UI 对比块「匹配结果」用醒目实样式展示；其余携程行虚浅
+        isHit: !!hitQuote && q === hitQuote,
         status: qStatus,
         unmatchedReason: null,
         note: ''
@@ -837,7 +955,10 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
           ? null
           : { reason: 'price', detail: '未进入胜负判定（携程价无效或我方底价为0）' },
         note: '',
-        matched: item._matchedQuotes ?? []
+        matched: item._matchedQuotes ?? [],
+        // 主行命中报价（仅 won 时是真实命中；lost 时 _hitQuote 为全场最低参考价，不点亮）
+        hitQuote: outcome === 'won' ? (item._hitQuote || null) : null,
+        ourBrand: '' // 主行无品牌（品牌只属于套餐）
       })
     }
 
@@ -848,15 +969,20 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
       const hit = acai._hitQuote || null
       const note0 = acai['套餐数据说明'] || ''
       const isBelowFloor = /低于我方底价|无可比过的价格/.test(note0)
+      // ★ own-only（2026-09-24）：分配组里只有我方投放报价、无外部报价 → 未匹配原因标「仅我方投放」
+      const ownOnly = Array.isArray(acai._compareCands) && acai._compareCands.length === 0
+        && (acai._matchedQuotes ?? []).length > 0
       let status = 'unmatched'
       if (hit) status = 'won'
       else if (isBelowFloor) status = 'lost'
       let unmatchedReason = null
       let note = note0
       if (!hit && !isBelowFloor) {
-        unmatchedReason = /无行李信息/.test(note0)
-          ? { reason: 'baggage', detail: note0 }
-          : { reason: 'flight', detail: note0 || '未匹配到携程报价' }
+        unmatchedReason = ownOnly
+          ? { reason: 'own', detail: note0 }
+          : (/无行李信息/.test(note0)
+            ? { reason: 'baggage', detail: note0 }
+            : { reason: 'flight', detail: note0 || '未匹配到携程报价' })
         // ★ 无人投放 → 将产出原价政策
         note = note0 ? `${note0}；将产出原价政策` : '将产出原价政策'
       }
@@ -871,7 +997,9 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
         status,
         unmatchedReason,
         note,
-        matched: acai._matchedQuotes ?? []
+        matched: acai._matchedQuotes ?? [],
+        hitQuote: hit, // 仅 won 有值（比赢那一条被点亮）
+        ourBrand: acai['品牌名'] ?? ''
       })
     }
   }
@@ -916,6 +1044,7 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
         xcPrice: p[F.sortIndicator] ?? null,
         xcBaggage: p[F.baggage] ?? '',
         xcBaggageShort: formatBaggageShort(p[F.baggage]),
+        xcBrand: formatQuoteBrandNames(p),
         isOwn,
         shown,
         flagRemark: String(flagRemark ?? ''),
@@ -1031,6 +1160,31 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
     }
   }
   const ownPrices = allPrices.filter(p => p.isOwn)
+  // ★ 我方胜出却未显示（2026-09-23 口径修正，逐条我方报价计）：
+  //   我方投放的报价（isOwn=true 且自身未外显 showState!==1）所在的对比组（unitKey）内，
+  //   存在他人的报价（isOwn=false）价格比我方这条报价高（携程价取整比较）且已外显（showState===1）
+  //   → 这条我方报价计 1。只统计对比组内的报价（main/package 块），附加行的我方报价无「本组」可比、不计；
+  //   主行参与开启时的套餐组同样统计。
+  //   注意：主行对比组的候选过滤了 isOwn，主行组内不存在我方报价 → 自然计不到。
+  //   搭档口径「展示的报价数」= summary.quoteOwnShown（我方投放且已外显的平铺计数，无需胜负条件）。
+  let quoteWonHidden = 0
+  {
+    const byUnit = new Map()
+    for (const r of quoteRows) {
+      if (!r || r.role !== 'ctrip' || r.kind === 'other' || !r.unitKey) continue
+      if (!byUnit.has(r.unitKey)) byUnit.set(r.unitKey, [])
+      byUnit.get(r.unitKey).push(r)
+    }
+    for (const rows of byUnit.values()) {
+      const ownHiddenRows = rows.filter(r => r.isOwn && Number(r.shown) !== 1)
+      const shownRivals = rows.filter(r => !r.isOwn && r.shown === true)
+      for (const o of ownHiddenRows) {
+        const myPrice = Number(o.xcPrice)
+        if (!Number.isFinite(myPrice)) continue
+        if (shownRivals.some(r => Number(r.xcPrice) > myPrice)) quoteWonHidden++
+      }
+    }
+  }
   return {
     platform: 'trip', status: 'ok', code: rawResponse.statusCode,
     message: resData?.responseHeader?.message || 'success',
@@ -1051,8 +1205,13 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
       compareMain: quoteRows.filter(r => r.role === 'official' && r.kind === 'main').length,
       comparePackage: quoteRows.filter(r => r.role === 'official' && r.kind === 'package').length,
       quoteWon: quoteRows.filter(r => r.role === 'official' && r.status === 'won').length,
+      quoteWonHidden,
       quoteLost: quoteRows.filter(r => r.role === 'official' && r.status === 'lost').length,
       quoteUnmatched: quoteRows.filter(r => r.role === 'official' && r.status === 'unmatched').length,
+      // ★ 本次将写入政策导入文件的条数（2026-09-24）：我方比赢（_outcome!=='lost'，含未匹配出政策的
+      //   原价政策行）且航程类型=单程、会真正落进政策导入文件的数据条数
+      //   口径与 ExcelExporter 导出过滤 / policyWriteback.keepPolicyRow 完全一致
+      policyRowCount: processedDataArr.filter(r => keepPolicyRow(r, A3_FIELDS._outcome)).length,
       // 附加行口径
       otherCount: quoteRows.filter(r => r.kind === 'other').length,
       otherOwnShown: quoteRows.filter(r => r.kind === 'other' && r.status === 'ownShown').length,
@@ -1062,7 +1221,6 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
   }
 }
 
-// ============================================================
 // 导出模板（阶段4）：每 O 平台一份异构 xlsx 列模板
 //   新格式 147 列（对齐 政导文件样例.xlsx 的表头与单元格数据类型）：
 //     - 数字列（16 个，t:'n'）：Y优先级/OTAConfigID/数据有效期End/退票增加百分比/退票固定加减钱/
@@ -1081,7 +1239,6 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
 //        各标识=未设置 / 各百分比与加减钱=0 / 价格基础类型=总价 / 团体资质=正常票 /
 //        是否包机产品=否 / 同程resouceCategory=普通资源 等）
 //     D. 留空列：value:''（空字符串单元格；ID/CreateTime 也留空）
-// ============================================================
 
 // 锦绣配置列：ctx.policyFields[key] 用户配置值（含 ${变量}），导出时逐行解析
 const pf = (key) => ({ from: (item, ctx) => resolvePolicyField(ctx?.policyFields?.[key], item) })
@@ -1127,7 +1284,7 @@ export const exportTemplate = {
     e('数据有效期Start'),
     // 22：锦绣配置（数字列）；23：锦绣配置
     { key: '数据有效期End', ...numPf('数据有效期End') },
-    { key: '航司名', ...pf('航司名') },
+    { key: '航司名', from: (item) => item[A3_FIELDS.H航司名] ?? '' },
     // 24：对接旧字段（出发机场-到达机场 拼接）
     { key: '机场航线匹配', from: (item) => `${item[A3_FIELDS.C出发机场]}-${item[A3_FIELDS.D到达机场]}` },
     // 25-33：留空
@@ -1154,7 +1311,7 @@ export const exportTemplate = {
     e('返程套餐索引v2'),
     e('政策代码'), e('市场渠道'), e('主渠道'),
     // 63：锦绣配置
-    { key: '爬虫名', ...pf('爬虫名') },
+    { key: '爬虫名', from: (item) => item[A3_FIELDS.H航司名] ?? '' },
     // 64-69：留空
     e('去程起飞时间'), e('返程起飞时间'),
     e('销售日期'), e('销售日期排除'), e('销售班期'), e('销售时间'),
@@ -1186,9 +1343,10 @@ export const exportTemplate = {
     { key: '改签固定加减钱', value: 0 },
     // 93-96：调价（固定 0 + CUT_VALUE 对接）
     { key: '调价增加百分比', value: 0 },
-    // ★ 写入前统一「向下取整再 −1」（计算阶段保留精确价差，见 policyAdjust.js）
-    // 原价政策（无人在携程投放此套餐）→ 不调价，直接写 0；正常行按差值的 floor−1 口径
-    { key: '调价固定加减钱', from: (item) => item['_原价政策'] === true ? 0 : formatPolicyAdjust(item[A3_FIELDS.CUT_VALUE]) },
+    // ★ 写入前统一「向下取整再 − cutOffset」（计算阶段保留精确价差，见 policyAdjust.js）
+    //   cutOffset = 平台配置「比携程低多少元」（ctx.cutOffset，默认 1）
+    // 原价政策（无人在携程投放此套餐）→ 不调价，直接写 0；正常行按差值的 floor−cutOffset 口径
+    { key: '调价固定加减钱', from: (item, ctx) => item['_原价政策'] === true ? 0 : formatPolicyAdjust(item[A3_FIELDS.CUT_VALUE], ctx?.cutOffset) },
     { key: '儿童调价增加百分比', value: 0 },
     { key: '儿童调价固定加减钱', value: 0 },
     // 97-99：留空
@@ -1224,9 +1382,9 @@ export const exportTemplate = {
     e('同程voidSupported'), e('同程voidRule'), e('同程platformAllow'),
     e('同程supportNations'), e('同程notSupportNations'),
     e('飞猪availableMarket'), e('飞猪nameLanguage'),
-    // 136,137：固定值（字符串，与样例类型一致）
-    { key: '去哪飞猪携程nationalityType', value: '2' },
-    { key: '去哪飞猪携程nationality', value: 'TR' },
+    // 136,137：锦绣政策字段配置（2026-09-24 起配置化）：不填=空、默认空（原固定值 '2'/'TR' 已废弃）
+    { key: '去哪飞猪携程nationalityType', ...pf('去哪飞猪携程nationalityType') },
+    { key: '去哪飞猪携程nationality', ...pf('去哪飞猪携程nationality') },
     // 138-144：留空
     e('飞猪gvChildRule'), e('携程planCategory'),
     e('携程penalties'), e('携程fareType'), e('携程tariffNo'),

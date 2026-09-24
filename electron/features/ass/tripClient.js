@@ -1,6 +1,4 @@
-// ============================================================
 // 携程低价查询客户端（真实实现：复用 QueryPageBrowser 可见窗口）
-// ------------------------------------------------------------
 // seam 契约不变（无需改 queryEngine.js 调用方）：
 //   async tripQuery(queryParam, session, requestLogin)
 //
@@ -14,7 +12,6 @@
 //   4. 捕获：CDP Network 域抓 /lowpricesearch 的响应体（已过 rms.js 签名）
 //   5. 兜底：CDP 抓不到则 DOM 解析表格返回 Content.List
 //   6. 间隔：QueryPageBrowser.query() 内部保证上一请求返回后随机 3~7 秒才发下一请求
-// ============================================================
 
 /** @type {import('./queryPageBrowser.js').QueryPageBrowser|null} 由 controller.js 注入 */
 let _queryBrowser = null

@@ -23,6 +23,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
   // ==================== 步骤器数据 ====================
   const selectedFile = ref('')
   const a1Data = ref([])
+  const policyFileName = ref('')
   const a1Count = ref(0)
   const a2Count = ref(0)
   const a3Count = ref(0)
@@ -76,6 +77,8 @@ export const useTaskStore = defineStore('pcp-task', () => {
   const lastDownloadFilename = ref('')
   // 最近下载文件的完整路径（用于点击文件名时定位到文件，而非只打开文件夹）
   const lastDownloadPath = ref('')
+  // 政策回写文件读取失败时的处置选项框状态：null=不显示；{ reason, path }=显示
+  const policyWritebackIssue = ref(null)
 
   // ==================== 派生状态 ====================
   const completedCount = computed(() => tasks.value.filter(t => t.status === 'completed').length)
@@ -196,6 +199,8 @@ export const useTaskStore = defineStore('pcp-task', () => {
     //   防止上一个流程的 a2/a3 残留导致 StepFlow 误判步骤为「已完成」
     //   ★ 任务列表不清空：跨轮累积，只有「清空」按钮清已结束任务（refreshTasks 合并式保留历史）
     await api.pcp.pipelineReset()
+    // 注意：不在此清 policyFileName —— 政策文件路径由主进程独立持有、不随 clearAll 清空，
+    //   用户先传政策文件再换航线文件时，回写依然生效（否则会出现 ID/CreateTime 全空的错误文件）
 
     const result = await api.pcp.fileUploadXlsx()
     if (result && result.success) {
@@ -214,6 +219,21 @@ export const useTaskStore = defineStore('pcp-task', () => {
       message.success(`成功解析 ${result.count} 条数据`)
     } else if (result && !result.success) {
       message.error(result.error || '上传失败')
+    }
+  }
+
+  // ==================== 政策文件上传（下载回写用）====================
+  //   与航线上传不同：不 pipelineReset（不清已上传的航线数据）；
+  //   主进程只记录该文件路径，下载时才读盘解析用于回写（惰性加载，不随 clearAll 清空）
+  async function handleUploadPolicyXlsx() {
+    const result = await api.pcp.fileUploadPolicy()
+    if (result && result.success) {
+      policyFileName.value = result.fileName || ''
+      message.success(`已选择政策文件：${result.fileName}，下载时将回写更新`)
+    } else if (result && !result.success) {
+      message.error(result.error || '政策文件上传失败')
+    } else if (result == null) {
+      // 用户取消对话框：静默返回
     }
   }
 
@@ -315,14 +335,22 @@ export const useTaskStore = defineStore('pcp-task', () => {
   }
 
   // ==================== 下载相关 ====================
-  async function handleDownloadResult() {
+  /**
+   * 下载结果文件
+   * @param {{ skipPolicyWriteback?: boolean }} [opts] 透传主进程：
+   *   skipPolicyWriteback=true → 跳过政策回写，输出 ID/CreateTime 为空的新增类型文件
+   * 注意：模板里 @click 直接绑定本方法时会把 MouseEvent 当参数传入，
+   *   而 Event 无法被 IPC 结构化克隆（报 "An object could not be cloned"）→ 只提取已知开关
+   */
+  async function handleDownloadResult(opts = {}) {
+    const skipPolicyWriteback = opts?.skipPolicyWriteback === true
     if (downloadProgress.value !== null) return
     if (!downloadDir.value) {
       message.warning('未设置下载目录，请先点击「选择下载目录」')
       return
     }
     downloadProgress.value = 0
-    const result = await api.pcp.fileDownloadResult()
+    const result = await api.pcp.fileDownloadResult({ skipPolicyWriteback })
     if (result && result.success) {
       // 阶段4：每 O 平台一份 xlsx，files 为数组
       const files = Array.isArray(result.files) ? result.files : []
@@ -335,10 +363,16 @@ export const useTaskStore = defineStore('pcp-task', () => {
       // 下载完成 = 本轮流程结束：重置 pipeline 到初始态 + 清空 a1/a2/a3，
       //   步骤流回到"可重新选文件"，dev 模式下步骤重新可点（避免一直停在 done 无法重新开始）
       await api.pcp.pipelineReset()
+      policyFileName.value = '' // 主进程下载成功后已清政策文件路径，前端同步清显示
       await refreshAll()
       setTimeout(() => {
         if (downloadProgress.value === 100) downloadProgress.value = null
       }, 1500)
+    } else if (result && result.code === 'POLICY_READ_FAILED') {
+      // 政策文件读取失败：不当普通失败处理，复位进度并弹选项框让用户决定
+      //   ① 重新选一个正确的政策文件后重试  ② 跳过回写直接输出（ID/CreateTime 为空的新增类型文件）
+      downloadProgress.value = null
+      policyWritebackIssue.value = { reason: result.error || '', path: result.policyPath || '' }
     } else if (result && result.canceled) {
       downloadProgress.value = null
       message.info('已取消下载')
@@ -349,6 +383,31 @@ export const useTaskStore = defineStore('pcp-task', () => {
         if (downloadProgress.value === -1) downloadProgress.value = null
       }, 1500)
     }
+  }
+
+  /** 选项①：重新选择一个正确的政策文件 → 选好后自动重试下载 */
+  async function handlePolicyIssueRepick() {
+    const picked = await api.pcp.fileUploadPolicy()
+    if (picked && picked.success) {
+      policyFileName.value = picked.fileName || ''
+      policyWritebackIssue.value = null
+      await handleDownloadResult()
+    } else if (picked && !picked.success) {
+      // 选文件失败（如流程进行中）→ 保留选项框，提示原因
+      message.error(picked.error || '政策文件选择失败')
+    }
+    // picked == null：用户在系统对话框里取消 → 保留选项框
+  }
+
+  /** 选项②：跳过回写，直接输出 ID/CreateTime 为空的新增类型政策导入文件 */
+  async function handlePolicyIssueSkip() {
+    policyWritebackIssue.value = null
+    await handleDownloadResult({ skipPolicyWriteback: true })
+  }
+
+  /** 关闭选项框（不下载，用户可稍后重新点「下载文件」） */
+  function handlePolicyIssueCancel() {
+    policyWritebackIssue.value = null
   }
 
   async function refreshDownloadDir() {
@@ -400,10 +459,9 @@ export const useTaskStore = defineStore('pcp-task', () => {
   async function handleSetConcurrency(value) {
     const result = await api.pcp.taskSetConcurrency(value)
     if (result && result.success) {
+      // 只同步「设定并发」；activeCount 是真实运行中任务数，由状态流转 / 主进程推送维护，
+      // 不能在这里强制写成 concurrency，否则点 +/− 会让计数跳变（如 5/6 点 + 变 7/7）
       concurrency.value = result.concurrency
-      if (isRunning.value) {
-        activeCount.value = result.concurrency
-      }
     }
   }
 
@@ -611,17 +669,20 @@ export const useTaskStore = defineStore('pcp-task', () => {
   return {
     // state
     selectedFile, a1Data, a1Count, a2Count, a3Count,
+    policyFileName,
     routesInfo, jxgjTasks, tripTasks,
     tasks, isRunning, isPaused, currentStage,
     concurrency, activeCount,
     pipelineState, blinkTarget,
     downloadDir, downloadProgress, lastDownloadFilename, lastDownloadPath,
+    policyWritebackIssue,
     // getters
     completedCount, failedCount, pendingCount, a1Columns, pipelineInProgress,
     // actions
     getStageName,
     refreshTasks, refreshDataCounts, refreshAll, refreshPipelineState,
-    handleUploadXlsx, handleDownloadResult,
+    handleUploadXlsx, handleUploadPolicyXlsx, handleDownloadResult,
+    handlePolicyIssueRepick, handlePolicyIssueSkip, handlePolicyIssueCancel,
     handleSelectDownloadDir, handleOpenDownloadDir, refreshDownloadDir,
     handleDeleteTask, handleClearTasks, handlePause, handleAbort, handleSetConcurrency,
     handleStartExecution, pipelineTriggerStep, setMode, setBusinessMode,

@@ -1,4 +1,3 @@
-// ============================================================
 // 汇率转换模块（JXGJ 平台专用）
 //
 // 功能：
@@ -13,7 +12,6 @@
 //
 // 注：本模块在主进程被 import，不能在模块顶层调 electron.app.getPath()
 //     （app 那时候可能还没 ready），所以缓存路径用 os.homedir() 拼。
-// ============================================================
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -81,9 +79,7 @@ let _fetchedAt = 0
 /** @type {Promise<void> | null} 正在刷新中的 Promise，防止并发重复请求 */
 let _refreshPromise = null
 
-// ============================================================
 // 工具：确保缓存目录存在（同步，供 ensureRatesSync 调用）
-// ============================================================
 function _ensureCacheDirSync() {
   if (!fs.existsSync(CACHE_DIR)) {
     try {
@@ -95,9 +91,7 @@ function _ensureCacheDirSync() {
   }
 }
 
-// ============================================================
 // 工具：从磁盘同步读取缓存文件
-// ============================================================
 function _loadCacheSync() {
   _ensureCacheDirSync()
   if (!fs.existsSync(CACHE_FILE)) return null
@@ -115,9 +109,7 @@ function _loadCacheSync() {
   }
 }
 
-// ============================================================
 // 工具：把汇率表写入磁盘（异步，后台刷新成功后调用）
-// ============================================================
 function _saveCacheAsync(rates, fetchedAt) {
   _ensureCacheDirSync()
   const obj = { src: CACHE_SCHEMA, rates, fetchedAt, savedAt: Date.now() }
@@ -127,11 +119,9 @@ function _saveCacheAsync(rates, fetchedAt) {
   })
 }
 
-// ============================================================
 // 工具：异步拉取最新汇率（锦绣国际汇率接口 /api/ExchangeRate/all）
 //   返回 { Content: { 币种码: 1单位外币=X CNY }, Status, Msg }；
 //   只保留标准三字币种码（Content 混有 CNY_LJ / USD_NS 等分渠道变体码，剔除）
-// ============================================================
 async function _fetchRatesFromApi() {
   const res = await fetch(ExchangeRate_URL, { method: 'GET' })
   if (!res.ok) {
@@ -150,10 +140,8 @@ async function _fetchRatesFromApi() {
   return rates
 }
 
-// ============================================================
 // 工具：异步刷新汇率（拉取 → 更新内存 → 持久化到磁盘）
 // 重复调用并发安全（复用同一个 _refreshPromise）
-// ============================================================
 async function _refreshRatesAsync() {
   if (_refreshPromise) return _refreshPromise
   _refreshPromise = (async () => {
@@ -172,10 +160,8 @@ async function _refreshRatesAsync() {
   return _refreshPromise
 }
 
-// ============================================================
 // 工具：同步保证 _rates 至少有值（内存 → 磁盘文件 → 兜底表）
 //   并在过期时触发后台异步刷新（不阻塞当前调用）
-// ============================================================
 function _ensureRatesSync() {
   const now = Date.now()
 
@@ -207,7 +193,6 @@ function _ensureRatesSync() {
   }
 }
 
-// ============================================================
 // 对外 API：任意币种 → CNY
 //
 // 入参：
@@ -219,7 +204,6 @@ function _ensureRatesSync() {
 // 换算逻辑：
 //   汇率表 rates[BIZHONG] = R 表示 "1 单位外币 = R CNY"（CNY 恒为 1）
 //   因此：外币金额 JINE → CNY = JINE × R
-// ============================================================
 export function AnyToCny(BIZHONG, JINE) {
   // 先保证内存里至少有一份汇率表（兜底/缓存/新拉 都可）
   _ensureRatesSync()

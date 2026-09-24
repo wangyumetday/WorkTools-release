@@ -1,4 +1,3 @@
-// ============================================================
 // PCP RunLogExporter - 运行日志导出器
 // 职责：把本次运行的全部任务快照导出为 HTML 文件到桌面
 //
@@ -19,7 +18,6 @@
 //   - 状态色点：completed=绿 / failed=红 / aborted=橙 / 其它=灰
 //   - 任务列表分两组：锦绣请求（jxgj）+ 携程请求（trip/reserved）
 //   - 单一文件，零运行时依赖（除 node:fs / node:path / electron.app）
-// ============================================================
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -134,7 +132,8 @@ const UNMATCH_REASON_TEXT = {
   flight: '无此航班',
   cabin: '舱位不符',
   baggage: '行李不符',
-  price: '价格异常'
+  price: '价格异常',
+  own: '仅我方投放'
 }
 
 /**
@@ -143,7 +142,7 @@ const UNMATCH_REASON_TEXT = {
  *   - 数据源：task.result.quoteRows（trip adapter.js buildQuoteRows 生成）
  *   - 行类型：main=主行对比单元（仅主行参与开启时）、package=套餐对比单元、other=附加行
  *   - 排序：按 flightNo|date|dep|arr 相邻归组，同行自含航班/航线信息
- *   - 列布局：匹配结果 | 数据归属（官网=蓝/携程=橙三色标识） | 航线 | 舱位
+ *   - 列布局：匹配结果 | 来源/状态（官网=蓝/携程=橙三色标识，携程行带外显小灯：绿=showState=1、黄=未外显） | 航线 | 舱位
  *             | 官网/OTA（官网行=官价/底价，携程行=报价价） | 行李信息（官网行=锦绣行李，携程行=携程行李）
  *   - 着色（终端深色版）：
  *       won=透明绿字 / lost=深红 #3a1a1a / ownShown=深绿 #1e3a1a
@@ -169,6 +168,22 @@ function renderQuoteBlock(task) {
     if (!map.has(key)) map.set(key, [])
     map.get(key).push(q)
   }
+  // ★ 块内三区排序（2026-09-24，与任务列表同口径）：我方投放携程 → 官网 → 外部投放携程；区首行打分隔标记
+  const regionOf = q => (q.role === 'official' ? 'official' : (q.isOwn ? 'own' : 'external'))
+  for (const group of map.values()) {
+    const segs = { own: [], official: [], external: [] }
+    for (const q of group) segs[regionOf(q)].push(q)
+    const ordered = [...segs.own, ...segs.official, ...segs.external]
+    let prevRegion = null
+    let idx = 0
+    for (const q of ordered) {
+      const region = regionOf(q)
+      q._regionStart = idx > 0 && region !== prevRegion
+      prevRegion = region
+      idx++
+    }
+    group.splice(0, group.length, ...ordered)
+  }
 
   // 统计（优先 summary，回退本地计数；对比单元口径按 role='official'）
   const s = result.summary || {}
@@ -192,27 +207,38 @@ function renderQuoteBlock(task) {
     const detail = q.unmatchedReason?.detail || q.note || ''
     const titleAttr = detail ? ` title="${escapeHtml(detail)}"` : ''
     const role = q.role ?? 'other'
-    const cls = `qrow qrow--${q.status || 'other'} qrow--${role}`
-    // 数据归属：官网行=官网（锦绣官方数据）；携程行/附加行=携程（报价来源）
+    const region = role === 'official' ? 'official' : (q.isOwn ? 'own' : 'external')
+    const cls = `qrow qrow--${q.status || 'other'} qrow--${role} qrow--region-${region}${q._regionStart ? ' qrow--regionStart' : ''}`
+    // 来源/状态：官网行=官网（锦绣官方数据）；携程行/附加行=携程（报价来源）+ shown 驱动外显小灯
     const isOfficial = role === 'official'
     const ownerClass = isOfficial ? 'official' : 'ctrip'
     const ownerLabel = isOfficial ? '官网' : '携程'
+    const lightHtml = isOfficial
+      ? ''
+      : `<i class="rb-light ${q.shown ? 'rb-light--on' : 'rb-light--off'}" title="${q.shown ? '已外显（showState=1）' : '未外显（showState≠1）'}"></i>`
     // 官网/OTA 列：官网行=官价+底价（无人投放的未匹配行加提示）；携程行/附加行=该报价价
     const priceCell = isOfficial
       ? `<div>${q.ourPrice != null ? `¥${q.ourPrice} 官` : '—'}</div>` +
         `<div>${q.ourFloor != null ? `¥${q.ourFloor} 底` : '—'}</div>` +
         (q.kind !== 'other' && q.status === 'unmatched' ? '<span class="rb-nodrop">无人投放</span>' : '')
       : (q.xcPrice == null ? '—' : `¥${q.xcPrice}`)
-    // 行李信息列：官网行=锦绣行李；携程行/附加行=携程行李
-    const baggageCell = isOfficial ? (q.ourBaggageShort || '—') : (q.xcBaggageShort || '—')
+    // 行李信息列：官网行=锦绣行李+套餐品牌；携程行/附加行=携程行李+报价品牌（2026-09-23 起带品牌名）
+    const brandSuffix = isOfficial
+      ? (q.ourBrand ? ` · ${escapeHtml(q.ourBrand)}` : '')
+      : (q.xcBrand ? ` · ${escapeHtml(q.xcBrand)}` : '')
+    const baggageCell = `${isOfficial ? (q.ourBaggageShort || '—') : (q.xcBaggageShort || '—')}${brandSuffix}`
     const cabinLabel = role === 'ctrip'
       ? '↳ 携程'
       : (q.kind === 'main'
         ? `${q.seatClass ?? '—'}·主行`
         : (q.kind === 'package' ? `${q.seatClass ?? '—'}${q.pkgIndex != null ? `·套餐${q.pkgIndex}` : ''}` : (q.seatClass ?? '—')))
+    // 匹配结果：仅携程行展示；锦绣官网行不显示值（2026-09-23 起，与任务列表同步口径）
+    const outcomeCell = isOfficial
+      ? ''
+      : `<span class="rb-outcome rb-outcome--${q.status || 'other'}"${titleAttr}>${escapeHtml(quoteStatusText(q))}</span>`
     return `<tr class="${cls}">
-      <td><span class="rb-outcome rb-outcome--${q.status || 'other'}"${titleAttr}>${escapeHtml(quoteStatusText(q))}</span></td>
-      <td><span class="rb-owner rb-owner--${ownerClass}">${ownerLabel}</span></td>
+      <td>${outcomeCell}</td>
+      <td><span class="rb-owner rb-owner--${ownerClass}">${ownerLabel}${lightHtml}</span></td>
       <td class="qm-route-cell">
         <div class="qm-flight">${escapeHtml(q.flightNo ?? '—')}</div>
         <div class="qm-route">${escapeHtml(route)}</div>
@@ -241,17 +267,17 @@ function renderQuoteBlock(task) {
           · 未匹配 ${stats.unmatched} · 无对应 ${stats.other}
         </div>
         <div class="rb-legend">
-          <span class="rbl-item"><i class="rbl-dot rbl-dot--ownShown"></i>我方外显</span>
-          <span class="rbl-item"><i class="rbl-dot rbl-dot--ownHidden"></i>我方未显</span>
+          <span class="rbl-item"><i class="rbl-dot rbl-dot--on"></i>已外显</span>
+          <span class="rbl-item"><i class="rbl-dot rbl-dot--off"></i>未外显</span>
           <span class="rbl-item"><i class="rbl-dot rbl-dot--lost"></i>比输</span>
           <span class="rbl-item"><i class="rbl-dot rbl-dot--other"></i>未匹配/无对应</span>
-          <span class="rbl-hint">每块=官网行（官网/OTA 列显官价/底价 + 行李信息列显锦绣行李）+ 其下携程行（价格/行李进同列对照）· 数据归属列：蓝=官网、橙=携程 · 标签 hover 看明细</span>
+          <span class="rbl-hint">每块三区：绿底=我方投放携程 → 蓝底=官网 → 橙底=外部投放携程 · 区首行上方深线=分区界 · 标签 hover 看明细</span>
         </div>
         <table class="rb-table rb-table--quotes">
           <thead>
             <tr>
               <th>匹配结果</th>
-              <th>数据归属</th>
+              <th>来源/状态</th>
               <th>航线</th>
               <th>舱位</th>
               <th>官网/OTA</th>
@@ -416,8 +442,8 @@ function pageShell(title, bodyHtml) {
     }
     .rbl-item { display: inline-flex; align-items: center; gap: 4px; }
     .rbl-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; }
-    .rbl-dot--ownShown { background: #4caf50; }
-    .rbl-dot--ownHidden { background: #ffeb3b; }
+    .rbl-dot--on  { background: #66bb6a; border-radius: 50%; box-shadow: 0 0 4px 1px rgba(102, 187, 106, .6); }
+    .rbl-dot--off { background: #ffca28; border-radius: 50%; box-shadow: 0 0 4px 1px rgba(255, 202, 40, .6); }
     .rbl-dot--lost { background: #ef5350; }
     .rbl-dot--other { background: #9e9e9e; }
     .rbl-hint { color: #666; font-style: italic; margin-left: auto; }
@@ -427,11 +453,11 @@ function pageShell(title, bodyHtml) {
     }
     .rb-table th {
       background: #2a2a2a; color: #888; text-align: left;
-      padding: 6px 8px; border-bottom: 1px solid #444;
+      padding: 7px 10px; border-bottom: 1px solid #444;
       font-weight: 600; font-size: 11px;
     }
     .rb-table td {
-      padding: 5px 8px; border-bottom: 1px solid #2a2a2a;
+      padding: 7px 10px; border-bottom: 1px solid #2a2a2a;
       vertical-align: top;
     }
     .qm-route-cell .qm-flight { color: #fff; }
@@ -449,18 +475,40 @@ function pageShell(title, bodyHtml) {
     .rb-outcome--unmatched { background: transparent; color: #888; border-color: #555; }
     .rb-outcome--other { background: transparent; color: #9e9e9e; border-color: #555; }
     .rb-nodrop { color: #8a8a8a; font-size: 10px; }
-    /* 数据归属列标识：字体色+背景色+边框色三合一，一眼区分数据来源 */
+    /* 来源/状态列标识：字体色+背景色+边框色三合一，一眼区分数据来源 */
     .rb-owner {
       display: inline-block; padding: 1px 6px;
       border-radius: 2px; font-size: 10px;
       border: 1px solid #555; white-space: nowrap;
     }
+    /* 来源/状态列小灯（仅携程行）：圆点 + 浅浅光晕；绿=showState=1 已外显，黄=未外显 */
+    .rb-light {
+      display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+      margin-left: 4px; vertical-align: 1px;
+    }
+    .rb-light--on { background: #66bb6a; box-shadow: 0 0 4px 1px rgba(102, 187, 106, .6); }
+    .rb-light--off { background: #ffca28; box-shadow: 0 0 4px 1px rgba(255, 202, 40, .6); }
     .rb-owner--official { color: #4fc3f7; background: #12293a; border-color: #4fc3f7; }
     .rb-owner--ctrip { color: #ffb74d; background: #3a2c10; border-color: #ffb74d; }
-    .qrow--lost td { background: #3a1a1a; }
-    .qrow--ownShown td { background: #1e3a1a; }
-    .qrow--ownHidden td { background: #3a3a1a; }
-    .qrow--other td { color: #9e9e9e; }
+    /* 对比块分隔（暗色，与任务列表同款式）：块四周 2px 醒目描边 #5a5a5a + 块间距 12px + 块顶 2px 内描边 */
+    .rb-table--quotes tbody td:first-child { border-left: 2px solid #5a5a5a; }
+    .rb-table--quotes tbody td:last-child { border-right: 2px solid #5a5a5a; }
+    .rb-table--quotes tbody tr:first-child > td { border-top: 2px solid #5a5a5a; }
+    .rb-table--quotes tbody:not(:first-child) tr:first-child > td {
+      border-top: 12px solid #1e1e1e;
+      box-shadow: inset 0 2px 0 #5a5a5a;
+    }
+    .rb-table--quotes tbody tr:last-child > td { border-bottom: 2px solid #5a5a5a; }
+    /* 块内三区背景（暗色同族浅色版）：own 暗绿 / official 暗蓝 / external 暗橙；比输行深红压过区域色 */
+    tr.qrow--region-own > td { background: #1a2a1a; }
+    tr.qrow--region-official > td { background: #12293a; }
+    tr.qrow--region-external > td { background: #2a1f10; }
+    tr.qrow--lost > td { background: #3a1a1a; }
+    tr.qrow--other:not(.qrow--ownShown):not(.qrow--ownHidden) td { color: #9e9e9e; }
+    /* 块内三区分隔：区首行上方 2px 主题色描边（蓝=官网区、橙=外部投放区；我方投放区恒为块首行） */
+    .qrow--regionStart > td { border-top: 2px solid transparent; }
+    .qrow--regionStart.qrow--region-official > td { border-top-color: #4fc3f7; }
+    .qrow--regionStart.qrow--region-external > td { border-top-color: #ffb74d; }
     .idx-row {
       display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
       padding: 5px 8px; border-bottom: 1px solid #2a2a2a; font-size: 11px;

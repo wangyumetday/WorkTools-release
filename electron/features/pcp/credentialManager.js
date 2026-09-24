@@ -1,4 +1,3 @@
-// ============================================================
 // PCP CredentialManager - 账密管理器
 // 职责：管理多平台多账号的账密存储 + 每个平台独立的"当前选中账号"
 //
@@ -11,7 +10,6 @@
 //   - credentials.json: 全部账密数组
 //   - selectedCredential.json: { selectedMap: { g1: id|null, o1: id|null, ... } }
 //   - 兼容旧版 { selectedId } 格式：首次加载时自动迁移到新版
-// ============================================================
 
 import fs from 'node:fs'
 import path from 'node:path'

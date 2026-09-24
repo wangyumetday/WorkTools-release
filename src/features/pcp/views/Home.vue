@@ -45,9 +45,9 @@ const store = useTaskStore()
 // ===== 右栏宽度拖拽 =====
 //   默认 380px（原固定 440px 略收窄），范围 320~680px；
 //   宽度 = 视口宽 - 鼠标X - 布局右内边距(16)
-const RIGHT_DEFAULT = 380
-const RIGHT_MIN = 320
-const RIGHT_MAX = 680
+const RIGHT_DEFAULT = 400
+const RIGHT_MIN = 300
+const RIGHT_MAX = 800
 const rightWidth = ref(RIGHT_DEFAULT)
 const dragging = ref(false)
 

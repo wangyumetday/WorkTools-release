@@ -1,4 +1,3 @@
-// ============================================================
 // ASS 航班统计（tjarr）—— 主进程单例
 //
 // 职责：
@@ -10,7 +9,6 @@
 //
 // 死数据来源：由 src/features/ass/docs/fanhui.json（supplierSimpleInfo 响应样本）
 // 提取 supplierList 的 agentCode → sourceName 映射生成，共 622 条。
-// ============================================================
 
 import supplierNames from './supplierNames.json'
 

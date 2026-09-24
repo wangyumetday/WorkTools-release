@@ -1,9 +1,7 @@
-// ============================================================
 // 预留拓展位 adapter（模板，未实现）
 // 接入真实平台时：复制本目录改为新平台 key，参考 trip/adapter.js 实现
 //   prepareRequest / request / mergeResult，并在 registry.js 注册
 // 未实现的方法抛错，避免误调用
-// ============================================================
 
 import { configSchema, defaults } from './config.js'
 

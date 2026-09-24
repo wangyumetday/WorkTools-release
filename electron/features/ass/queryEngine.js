@@ -1,4 +1,3 @@
-// ============================================================
 // ASS 查询流程编排器（核心）
 //
 // 主流程：
@@ -13,7 +12,6 @@
 //
 // 错误策略：单条 QueryParam 错误不中断整体流程；每个阶段出错时在对应文件写 error 行
 // UNKNOWN 放行规则（§8.3）：Phase 1 hasFlight===null 时 Phase 2 当作"有航班"去请求携程
-// ============================================================
 
 import path from 'node:path'
 import { parseAirportPairsFromXlsx } from './excelParser.js'

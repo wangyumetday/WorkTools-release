@@ -1,4 +1,3 @@
-// ============================================================
 // ERC ConfigManager - 汇率源、币种富信息源、刷新频率与悬浮窗外观配置管理器
 // 职责：管理汇率源（xxklf 默认 / exchangerate）与币种富信息源（restcountries）的
 //       地址/key、全局自动刷新频率、悬浮窗缩放/透明度
@@ -10,7 +9,6 @@
 //
 // 与 pcp ConfigManager 同一范式（userData/config/*.json），但 ERC 配置结构
 // 固定且简单，使用模块级懒加载单例，无需 class/DI。
-// ============================================================
 
 import fs from 'node:fs'
 import path from 'node:path'

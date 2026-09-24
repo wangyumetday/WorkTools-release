@@ -187,6 +187,15 @@
           选择文件
         </n-button>
       </div>
+      <!-- 政策文件上传：外部系统（携程）导出的政策文件，跑完下载时用于回写更新（不 reset 航线数据） -->
+      <div class="ttb-row">
+        <span class="ttb-label">政策:</span>
+        <n-button type="default" class="ttb-btn" :disabled="store.pipelineInProgress"
+          @click="store.handleUploadPolicyXlsx">
+          选择文件
+        </n-button>
+      </div>
+      <div v-if="store.policyFileName" class="ttb-fi-value">政策回写: {{ store.policyFileName }}</div>
       <!-- 文件解析信息：航司 / 舱位 / 航线（原右栏「舱位航线组配」折叠面板移入，常驻不折叠） -->
       <div v-if="store.routesInfo.hangsi" class="ttb-fileinfo">
         <div class="ttb-fi-row">
@@ -228,18 +237,22 @@
       </n-button>
       <!-- 下载按钮：进度填充动画，与 Stepper 步骤4 相同逻辑 -->
       <n-button :type="downloadButtonType" class="ttb-btn" :disabled="downloadButtonDisabled"
-        :style="{ position: 'relative', overflow: 'hidden' }" @click="store.handleDownloadResult">
+        :style="{ position: 'relative', overflow: 'hidden' }" @click="() => store.handleDownloadResult()">
         <div class="download-progress-fill" :style="{ width: downloadProgressWidth + '%' }"></div>
         <span class="download-progress-label">{{ downloadButtonText }}</span>
       </n-button>
     </div>
   </div>
+
+  <!-- 政策回写文件读取失败 → 处置选项框（由 store.policyWritebackIssue 驱动显示） -->
+  <PolicyWritebackFallbackModal />
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { NButton, NProgress } from 'naive-ui'
 import { useTaskStore } from '../stores/task.js'
+import PolicyWritebackFallbackModal from './PolicyWritebackFallbackModal.vue'
 
 const store = useTaskStore()
 

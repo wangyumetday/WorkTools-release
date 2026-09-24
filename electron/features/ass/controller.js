@@ -1,4 +1,3 @@
-// ============================================================
 // ASS Feature 主进程 IPC Controller
 //
 // 职责：注册 ass:* 命名空间的 ipc handlers + 事件推送
@@ -10,7 +9,6 @@
 // 注入：registerAssController({ mainWindow, userDataPath })
 //   mainWindow 用于推送进度事件 + dialog 模态附着
 //   userDataPath 用于 ass_outputs 目录 + SessionManager 本地文件
-// ============================================================
 
 import { ipcMain, dialog, app, shell } from 'electron'
 import path from 'node:path'

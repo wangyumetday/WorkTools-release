@@ -1,4 +1,3 @@
-// ============================================================
 // PCP TaskScheduler - 任务调度器（阶段2 拆分自 taskManager.js）
 // 职责：
 //   - 维护任务队列（addTask / addBatch / deleteTask / clearAll）
@@ -7,7 +6,6 @@
 //
 // 不关心平台逻辑：execute(task, {onStep}) 回调由 facade 注入（platformRunner.runByType）
 // 不关心配置：compiledConfigs 由 facade 持有
-// ============================================================
 
 // ★ 请求项状态机：task.stage 的合法取值与转换
 //   idle       已入队，预请求已配置，等待调度器拉起

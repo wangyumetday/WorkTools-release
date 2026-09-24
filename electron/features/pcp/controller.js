@@ -1,4 +1,3 @@
-// ============================================================
 // PCP Controller - IPC handlers 注册器
 // 职责：把渲染层的 IPC 请求分发给对应的 manager 业务方法
 //
@@ -9,7 +8,6 @@
 //
 // 调用方式：main.js 在 registerIpcHandlers 阶段调一次
 //   registerPcpController({ mainWindow, taskManager, fileManager, credentialManager, configManager, pipeline })
-// ============================================================
 
 import { ipcMain, dialog, shell } from 'electron'
 import path from 'node:path'
@@ -58,6 +56,26 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
     // 选完后更新 lastDirectory，下次打开默认定位到该文件夹
     fileManager.setLastDirectory(path.dirname(result.filePaths[0]))
     return fileManager.parseXlsx(result.filePaths[0])
+  })
+
+  // 上传外部系统（携程）导出的政策文件：仅记录路径（惰性加载），下载时再读盘解析用于回写
+  //   - 上传时只记路径，不做解析（避免驻留内存被 clearAll 清掉 → 下载时回写被静默跳过）
+  //   - 上传政策文件本身不 reset（不清空已上传的航线 a1/a2/a3）
+  ipcMain.handle('pcp:file:uploadPolicy', async () => {
+    failIfInProgress('上传政策文件')
+    const lastDir = fileManager.getLastDirectory()
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      filters: [{ name: 'Excel文件', extensions: ['xlsx', 'xls'] }],
+      defaultPath: lastDir || undefined
+    })
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+    const filePath = result.filePaths[0]
+    fileManager.setLastDirectory(path.dirname(filePath))
+    fileManager.setPolicyFilePath(filePath)
+    return { success: true, fileName: path.basename(filePath) }
   })
 
   ipcMain.handle('pcp:file:getA1', () => fileManager.getA1())
@@ -114,7 +132,7 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
    *   - exportResult 内部用 getUniqueFilePath 处理同名序号，不会覆盖已有文件
    *   - 通过 onProgress 回调 + webContents.send 推送进度事件，前端按钮按进度填充颜色
    */
-  ipcMain.handle('pcp:file:downloadResult', async () => {
+  ipcMain.handle('pcp:file:downloadResult', async (_event, opts = {}) => {
     // ★ 用"阶段状态"做门控（替代原来的 a3.count===0 判断）
     //   a3_merge.completed + 至少一个O平台completed → 可下载，哪怕 a3.count=0
     const gate = pipeline ? pipeline.canExport() : { can: false, reason: '请先完成 O 平台比价阶段' }
@@ -127,9 +145,16 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
     }
     // onProgress 回调：把 0/30/60/100 推送给渲染层，渲染层据此填充按钮颜色
     // platformsToInclude：0 条数据时也为每个 completed 的 O 平台生成表头文件
-    return await fileManager.exportResult(dir, 'result.xlsx', (progress) => {
+    // skipPolicyWriteback：用户在「政策文件读取失败」选项框里选了「直接输出」→ 跳过回写走旧模式
+    const res = await fileManager.exportResult(dir, 'result.xlsx', (progress) => {
       mainWindow?.webContents.send('pcp:file:downloadProgress', { progress })
-    }, { platformsToInclude: gate.platformsToExport || [] })
+    }, {
+      platformsToInclude: gate.platformsToExport || [],
+      skipPolicyWriteback: !!opts.skipPolicyWriteback
+    })
+    // 下载成功 = 本轮流程结束：清掉已记录的政策文件路径（失败保留，用户可重选后重试）
+    if (res && res.success) fileManager.clearPolicyFilePath()
+    return res
   })
 
   // ========== Credential IPC ==========
@@ -180,7 +205,7 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
     return { merged, runtimeInfo }
   })
 
-  // ========== 锦绣政策字段配置 IPC（新格式政策导入文件的 12 项配置：11 文本 + 1 主行参与开关）==========
+  // ========== 锦绣政策字段配置 IPC（新格式政策导入文件的 14 项配置：13 文本 + 1 主行参与开关）==========
   //   - get：返回 { fields, schema }，渲染层据此列出输入框 + 默认值
   //   - set：运行中禁止保存（与平台配置同源 failIfInProgress，避免 saveA3 读到前后不一致值）
   //   - 持久化在 userData/config/policyFields.json（独立于平台配置）

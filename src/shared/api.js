@@ -48,11 +48,12 @@ const mockApi = {
     onTaskState:         () => { mockNotReady('pcp.onTaskState') },
 
     fileUploadXlsx:      (routeFields) => { mockNotReady('pcp.fileUploadXlsx');      return mockDelay(null) },
+    fileUploadPolicy:    () => { mockNotReady('pcp.fileUploadPolicy');    return mockDelay(null) },
     fileApplyRouteFields: (routeFields) => { mockNotReady('pcp.fileApplyRouteFields'); return mockDelay({ success: false }) },
     fileGetA1:           () => { mockNotReady('pcp.fileGetA1');           return mockDelay({ data: [], count: 0 }) },
     fileGetA2:           () => { mockNotReady('pcp.fileGetA2');           return mockDelay({ data: [], count: 0 }) },
     fileGetA3:           () => { mockNotReady('pcp.fileGetA3');           return mockDelay({ data: [], count: 0 }) },
-    fileDownloadResult:  () => { mockNotReady('pcp.fileDownloadResult');  return mockDelay({ success: false, canceled: false, error: '未连接主进程' }) },
+    fileDownloadResult:  (opts) => { mockNotReady('pcp.fileDownloadResult');  return mockDelay({ success: false, canceled: false, error: '未连接主进程' }) },
     fileGetDownloadDir:    () => { mockNotReady('pcp.fileGetDownloadDir');    return mockDelay({ dir: '' }) },
     fileSelectDownloadDir: () => { mockNotReady('pcp.fileSelectDownloadDir'); return mockDelay({ success: false, canceled: true }) },
     fileOpenDownloadDir:   () => { mockNotReady('pcp.fileOpenDownloadDir');   return mockDelay({ success: false, error: '未连接主进程' }) },

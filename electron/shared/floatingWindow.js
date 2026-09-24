@@ -1,4 +1,3 @@
-// ============================================================
 // 悬浮窗管理器 + IPC 控制器
 // 职责：创建/控制置顶无边框的悬浮窗，支持 hover 展开/收缩
 //        并注册 floating:* IPC handlers
@@ -51,7 +50,6 @@
 //   - floating:close         关闭悬浮窗
 //   - floating:togglePin     切换固定钉，返回新状态（true=已固定）
 //   - floating:stateChange   主进程 → 渲染层推送（窗口打开/关闭状态）
-// ============================================================
 
 import { app, BrowserWindow, ipcMain, screen } from 'electron'
 import fs from 'node:fs'

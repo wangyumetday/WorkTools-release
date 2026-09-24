@@ -1,4 +1,3 @@
-// ============================================================
 // PCP TaskManager - 任务管理器 facade（唯一"运行时配置栈"持有者）
 // 职责：
 //   1. 队列/并发调度（TaskScheduler）
@@ -6,7 +5,6 @@
 //   3. ★ 运行时配置栈 compiledConfigs：前端点启用后 & 任务开始前 统一从文件加载+预编译进
 //      compiledConfigs 内存对象，后续任何需要配置的地方（门禁/底价公式/其他字段）
 //      都只从 compiledConfigs 取，不再读磁盘，保证"一条路径"使用。
-// ============================================================
 
 import * as registry from './platforms/registry.js'
 import { TaskScheduler } from './taskScheduler.js'

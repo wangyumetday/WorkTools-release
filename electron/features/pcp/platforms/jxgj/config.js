@@ -1,8 +1,6 @@
-// ============================================================
 // JXGJ（锦绣国际）平台配置 schema + 默认值
 // configSchema 驱动 PlatformConfig 页自动渲染 + 前置门禁 enabled 检查
 // 修改配置项：调整此文件 schema/defaults，配置页与门禁自动适配
-// ============================================================
 
 export const configSchema = {
   enabled: {

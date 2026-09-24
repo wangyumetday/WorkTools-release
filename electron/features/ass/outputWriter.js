@@ -1,11 +1,9 @@
-// ============================================================
 // 输出文件写入器
 // 职责：
 //   - 生成一对 P1/P2 jsonl 文件（共用同一任务时间戳前缀，便于配对）
 //   - 提供 appendLine 一行一追加（JSON Lines 实时落盘，不怕中断）
 //   - 提供 close 关句柄
 //   - P1/P2 文件永不删除（调用方不提供删除接口）
-// ============================================================
 
 import { mkdirSync, createWriteStream, existsSync } from 'node:fs'
 import path from 'node:path'

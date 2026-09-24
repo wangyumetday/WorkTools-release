@@ -1,4 +1,3 @@
-// ============================================================
 // Excel 导出器
 // 职责：把 a3 最终数据导出为 xlsx
 //   - 系统导入文件：每 O 平台一份，按 adapter.exportTemplate.columns 决定列序
@@ -11,7 +10,6 @@
 //
 // 由 FileManager 在构造时实例化，FileManager.exportResult 代理给它，
 //   保证 controller.js / pipeline.js 等外部调用方接口不变。
-// ============================================================
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -21,6 +19,7 @@ import * as registry from './platforms/registry.js'
 import { O_PLATFORM_KEYS as O_PLATFORMS } from './platforms/registry.js'
 import { A3_FIELDS } from './fieldNames.js'
 import { formatPolicyAdjust } from './policyAdjust.js'
+import { keepPolicyRow, applyPolicyWriteback } from './policyWriteback.js'
 
 // 「底价检查」人看文件需要保留的原始字段（附加在 a3 每行上）
 //   exportResult 只按 template.columns 的 key 导列，这些附加字段不会被写进系统导入文件
@@ -51,7 +50,8 @@ function dateStamp() {
 
 /**
  * 「底价检查」预计减价列的展示值：与政策导入文件「调价固定加减钱」同值（policyAdjust.js）
- *   计算阶段保留精确价差，此处统一「向下取整再 −1」；非数字/缺失原样透传
+ *   计算阶段保留精确价差，此处统一「向下取整再 − cutOffset」（cutOffset 取本平台配置，默认 1）；
+ *   非数字/缺失原样透传
  */
 const roundForDisplay = formatPolicyAdjust
 
@@ -61,20 +61,35 @@ const roundForDisplay = formatPolicyAdjust
  */
 function cutRatePct(xcPrice, gwPrice) {
   const x = Number(xcPrice)
-  const g = Number(gwPrice)
-  if (!Number.isFinite(x) || !Number.isFinite(g) || x <= 0 || g <= 0) return null
+  const gRaw = Number(gwPrice)
+  if (!Number.isFinite(x) || !Number.isFinite(gRaw) || x <= 0 || gRaw <= 0) return null
+  const g = Math.ceil(gRaw) // ★ 官网价先向上取整再参与计算（1950.12→1951；整数不变）
   return Math.round((100 - (x / g) * 100) * 100) / 100
 }
 
 /**
  * 「底价检查」-2%后的减价数值列：携程价 − 官网价 × 0.98，保留 2 位小数（数值）
- *   携程价/官网价任一缺失、非数字或非正数 → null（列留空）
+ *   官网价先向上取整再参与计算；携程价/官网价任一缺失、非数字或非正数 → null（列留空）
  */
 function cutValueMinus2Pct(xcPrice, gwPrice) {
   const x = Number(xcPrice)
-  const g = Number(gwPrice)
-  if (!Number.isFinite(x) || !Number.isFinite(g) || x <= 0 || g <= 0) return null
+  const gRaw = Number(gwPrice)
+  if (!Number.isFinite(x) || !Number.isFinite(gRaw) || x <= 0 || gRaw <= 0) return null
+  const g = Math.ceil(gRaw) // ★ 官网价先向上取整再参与计算（1950.12→1951；整数不变）
   return Math.round((x - g * 0.98) * 100) / 100
+}
+
+/**
+ * 「底价检查」预计减价列（2026-09-23 起）：官网价先「向上取整」（1950.12→1951；整数不变），
+ *   再算价差 = 携程价 − 取整后官网价，走 policyAdjust 的「向下取整再 − cutOffset」口径
+ *   （cutOffset = 本平台配置「比携程低多少元」，默认 1）；
+ *   任一缺失/非数字/非正数 → null（列留空）
+ */
+function expectedCut(xcPrice, gwPrice, offset) {
+  const x = Number(xcPrice)
+  const gRaw = Number(gwPrice)
+  if (!Number.isFinite(x) || !Number.isFinite(gRaw) || x <= 0 || gRaw <= 0) return null
+  return roundForDisplay(x - Math.ceil(gRaw), offset)
 }
 
 /**
@@ -169,6 +184,16 @@ export class ExcelExporter {
   }
 
   /**
+   * 导出文件名航司前缀（2026-09-23 起）：政策导入/底价检查文件统一「航司-」前缀（如 XQ-）
+   *   取 a1 首行 hangsi 大写；缺失 → 空串（无前缀，不报错）
+   */
+  _airlinePrefix() {
+    const a1Data = this.fileManager?.getA1?.()?.data || []
+    const al = String(a1Data[0]?.hangsi || '').trim().toUpperCase()
+    return al ? `${al}-` : ''
+  }
+
+  /**
    * 同名文件序号递增（不无限套娃）
    *   - result.xlsx 存在 → result (1).xlsx
    *   - result (1).xlsx 也存在 → result (2).xlsx（不会变成 result (1) (1).xlsx）
@@ -234,15 +259,18 @@ export class ExcelExporter {
    * @param {string} dir                   下载目录
    * @param {string} _filename             已废弃（每个平台独立命名；仅保留形参兼容老调用方）
    * @param {(n:number)=>void} onProgress  进度回调 0→90→100（-1 = 失败）
-   * @param {{ platformsToInclude?: string[] }} opts
+   * @param {{ platformsToInclude?: string[], skipPolicyWriteback?: boolean }} opts
    *   platformsToInclude：即使 a3 中该平台 0 条数据，也生成"仅表头"的系统导入文件。
    *     用于 O 平台真的跑成功了但恰好没匹配到底价政策、0 结果也应该允许下载的场景。
+   *   skipPolicyWriteback：跳过政策回写（走旧模式，输出 ID/CreateTime 为空的新增类型文件）。
+   *     用于政策文件读取失败后，用户在选项框里选了"直接输出"的场景。
    */
   async exportResult(dir, _filename = 'result.xlsx', onProgress = () => { }, opts = {}) {
     try {
       onProgress(0)
       const dateStr = dateStamp()
-      const { platformsToInclude = [] } = opts
+      const airlinePrefix = this._airlinePrefix()
+      const { platformsToInclude = [], skipPolicyWriteback = false } = opts
 
       // 按 _platform 分组（兼容老 a3：无 _platform 的行归到 trip）
       const groups = {}
@@ -262,11 +290,32 @@ export class ExcelExporter {
         return { success: false, error: '没有可导出的平台数据' }
       }
 
+      // ★ 2026-09-25 政策回写（惰性加载）：若已记录政策文件路径且本次要导出 trip，
+      //   此处读盘解析一次（上传时未解析、未驻留内存，故与 clearAll 无关）。
+      //   读取失败不中止导出：回 code=POLICY_READ_FAILED 给渲染层 → 弹选项框
+      //   （① 重选一个正确的文件 ② 直接输出 ID/CreateTime 为空的新增类型文件）
+      let tripPolicy = null
+      if (!skipPolicyWriteback && platformKeys.includes('trip') && this.fileManager.hasPolicyFilePath()) {
+        const policyPath = this.fileManager.getPolicyFilePath()
+        const readResult = this.fileManager.readPolicyFile(policyPath)
+        if (!readResult.success) {
+          // 注意：此处不推 -1 —— 这不是"下载失败"，而是要求用户决策；
+          //   渲染层收到本 code 后会复位按钮进度并弹选项框（若推 -1 会让按钮先闪红再弹框，语义冲突）
+          return {
+            success: false,
+            code: 'POLICY_READ_FAILED',
+            policyPath,
+            error: `政策回写文件读取失败：${readResult.error}`
+          }
+        }
+        tripPolicy = readResult
+      }
+
       // ★ 统一序号：政策导入文件 + 每个有数据平台的底价检查文件用相同序号（取使所有文件都不冲突的最小序号）
-      const bases = platformKeys.map(p => `${platformDisplayName(p)}导入政策${dateStr}`)
+      const bases = platformKeys.map(p => `${airlinePrefix}${platformDisplayName(p)}导入政策${dateStr}`)
       for (const p of platformKeys) {
         if ((groups[p] || []).length > 0) {
-          bases.push(`${platformDisplayName(p)}底价检查${dateStr}`)
+          bases.push(`${airlinePrefix}${platformDisplayName(p)}底价检查${dateStr}`)
         }
       }
       const unifiedSeq = this._uniqueSeqForAll(dir, bases, '.xlsx')
@@ -274,10 +323,11 @@ export class ExcelExporter {
       const files = []
       for (let i = 0; i < platformKeys.length; i++) {
         const p = platformKeys[i]
-        // 导入政策文件仅导出 won 行（调价打到携程底价-1）；lost 行（比输）不贴底价卖，
+        // 导入政策文件仅导出 won 行（调价打到携程底价 − cutOffset，cutOffset 见平台配置「比携程低多少元」）；lost 行（比输）不贴底价卖，
         //   不出现在政策导入文件，只在底价检查文件展示
         //   老 a3 无 _outcome 标记的数据视为胜出，兼容已持久化数据
-        const rows = groups[p].filter(r => r[A3_FIELDS._outcome] !== 'lost')
+        // ★ 2026-09-24 起：政策导入文件只输出「航程类型=单程」的政策行（多程不写；底价检查文件保留多程）
+        const rows = groups[p].filter(r => keepPolicyRow(r, A3_FIELDS._outcome))
 
         // 取该平台 exportTemplate.columns 决定列顺序；无模板则用行自身键序
         let template = null
@@ -304,21 +354,30 @@ export class ExcelExporter {
 
         // ★ 0 行数据 + 有 columns 模板时：仅写表头行（否则 json_to_sheet([]) 出的表连列名都没有）
         let worksheet
-        if (flatData.length === 0 && columns) {
+        let outCount
+        // ★ 2026-09-24 政策回写：已上传外部政策文件 → 生成政策与用户文件逐条匹配，
+        //   输出 = 用户文件行（命中行删除）+ 我方更新/新增行追加末尾（保留用户表头与列序）
+        if (p === 'trip' && tripPolicy) {
+          const wb = applyPolicyWriteback(flatData, tripPolicy)
+          worksheet = XLSX.utils.aoa_to_sheet([tripPolicy.headers, ...wb.finalRows])
+          outCount = wb.finalRows.length
+        } else if (flatData.length === 0 && columns) {
           const headerRow = columns.map(col => col.title || col.label || col.key)
           worksheet = XLSX.utils.aoa_to_sheet([headerRow])
+          outCount = 0
         } else {
           worksheet = XLSX.utils.json_to_sheet(flatData)
+          outCount = rows.length
         }
         // 系统导入文件：所有单元格水平垂直居中显示
         centerSheetCells(worksheet)
         const workbook = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(workbook, worksheet, p)
 
-        // 系统导入文件名：{平台中文名}导入政策{日期}.xlsx（如 携程导入政策2026-08-21.xlsx）
-        const finalPath = this._pathWithSeq(dir, `${platformDisplayName(p)}导入政策${dateStr}`, '.xlsx', unifiedSeq)
+        // 系统导入文件名：{航司-}{平台中文名}导入政策{日期}.xlsx（如 XQ-携程导入政策2026-08-21.xlsx）
+        const finalPath = this._pathWithSeq(dir, `${airlinePrefix}${platformDisplayName(p)}导入政策${dateStr}`, '.xlsx', unifiedSeq)
         XLSX.writeFile(workbook, finalPath)
-        files.push({ path: finalPath, filename: path.basename(finalPath), platform: p, count: rows.length })
+        files.push({ path: finalPath, filename: path.basename(finalPath), platform: p, count: outCount })
 
         // 每平台完成后按比例推进进度（留 10% 给最终 100）
         onProgress(Math.round(((i + 1) / platformKeys.length) * 90))
@@ -376,6 +435,8 @@ export class ExcelExporter {
   /** 单个平台的底价检查文件：按模板列组装主行 + 套餐子行 */
   async _buildHumanFileForPlatform(p, rows, dir, dateStr, seq) {
     const pName = platformDisplayName(p)
+    // 本平台「比携程低多少元」配置（仅携程 OTA 平台可配；其余平台无此项 → resolveCutOffset 回退默认 1）
+    const cutOffset = this.fileManager?.configManager?.getPlatformConfig?.(p)?.cutOffset
     // 表头（对齐模板：主键列 + 本平台底价三列 + 减价两列 + 行李额 + 航班详情列尾）
     const header = ['航班号', '舱位', '套餐索引', '出发机场', '到达机场', 'isOwn', '成人总票价_CNY',
       `${pName}底价`, '预计减价', '携程减价比例(%)', '-2%后的减价数值(元)', '底价公式命中', '行李额',
@@ -410,7 +471,7 @@ export class ExcelExporter {
         } else if (h === `${pName}底价`) {
           parent[h] = r[A3_FIELDS.XC_dijia]
         } else if (h === '预计减价') {
-          parent[h] = roundForDisplay(r[A3_FIELDS.CUT_VALUE])
+          parent[h] = expectedCut(pXc, pGw, cutOffset)
         } else if (h === '携程减价比例(%)') {
           parent[h] = cutRatePct(pXc, pGw)
         } else if (h === '-2%后的减价数值(元)') {
@@ -437,7 +498,7 @@ export class ExcelExporter {
         child['isOwn'] = acai['isOwn'] ?? ''
         child['成人总票价_CNY'] = acai['套餐价格_CNY'] ?? ''
         child[`${pName}底价`] = acai['携程底价'] ?? ''
-        child['预计减价'] = roundForDisplay(acai['差值'])
+        child['预计减价'] = expectedCut(acai['携程底价'], acai['套餐价格_CNY'], cutOffset)
         child['携程减价比例(%)'] = cutRatePct(acai['携程底价'], acai['套餐价格_CNY'])
         child['-2%后的减价数值(元)'] = cutValueMinus2Pct(acai['携程底价'], acai['套餐价格_CNY'])
         child['底价公式命中'] = formatFloorMeta(acai._floorMeta)
@@ -447,11 +508,30 @@ export class ExcelExporter {
       }
     }
 
-    // 写 xlsx：{平台中文名}底价检查{日期}.xlsx（如 携程底价检查2026-08-28.xlsx）
+    // ★ 无匹配携程数据（2026-09-23 起）：携程「无人认领」的报价（品牌对不上/无套餐可归属，
+    //   分配制下没进任何对比组的报价）追加在文件末尾展示完整比价过程；
+    //   与任务列表「无对应」附加行、运行日志同口径；数据源 fileManager.tripOtherQuotes
+    if (p === 'trip') {
+      const others = Array.isArray(this.fileManager?.tripOtherQuotes) ? this.fileManager.tripOtherQuotes : []
+      for (const o of others) {
+        if (!o) continue
+        const row = {}
+        for (const h of header) row[h] = ''
+        row['航班号'] = o.flightNo ?? ''
+        row['舱位'] = o.seatClass ?? ''
+        row['套餐索引'] = '无对应'
+        row[`${pName}底价`] = o.xcPrice ?? ''
+        row['行李额'] = (o.xcBaggageShort && o.xcBaggageShort !== '—') ? o.xcBaggageShort : ''
+        outRows.push(row)
+        rowBgColors.push(null) // 无匹配行不着色
+      }
+    }
+
+    // 写 xlsx：{航司-}{平台中文名}底价检查{日期}.xlsx（如 XQ-携程底价检查2026-08-28.xlsx）
     //   用 exceljs 生成（支持单元格样式：居中 + 行背景色）
     const finalPath = seq != null
-      ? this._pathWithSeq(dir, `${pName}底价检查${dateStr}`, '.xlsx', seq)
-      : this.getUniqueFilePath(dir, `${pName}底价检查${dateStr}.xlsx`)
+      ? this._pathWithSeq(dir, `${this._airlinePrefix()}${pName}底价检查${dateStr}`, '.xlsx', seq)
+      : this.getUniqueFilePath(dir, `${this._airlinePrefix()}${pName}底价检查${dateStr}.xlsx`)
 
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet('底价检查')

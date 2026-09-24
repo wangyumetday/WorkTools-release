@@ -1,10 +1,8 @@
-// ============================================================
 // JXGJ（锦绣国际）平台 adapter
 // 数据源接口：spider.xxklf.com/TaskResult/api/TaskResult/GetList（POST JSON）
 // 语义：JXGJ 是源数据平台，a1 → a2（含航班 + date_obj），不产出政策 xlsx
 // 调用链（PlatformAdapter 接口，按执行顺序排列）：
 //   compileConfig → login → prepareRequest → request → mergeResult
-// ============================================================
 
 import { compileFloorPrice } from './floorPrice.js'
 import { configSchema, defaults } from './config.js'
@@ -176,6 +174,25 @@ function enrichTaocanFloorPrice(findItem, floorPriceFormula) {
       continue
     }
     acai['套餐价格_CNY'] = cnyPrice
+    // ★ 品牌名（2026-09-23 起）：锦绣品牌数据真实来源是 ExtValues_Json（JSON 字符串，
+    //   如 {"brandName_1":"SUNVALUE"}）；接口返回的 ExtValues 对象经常是空 {}，
+    //   所以优先解析 ExtValues_Json，为空/解析失败时回退 ExtValues 对象形态；
+    //   缺失形态（null/''/'-1'）→ 存 null（分配制匹配时回退老规则）
+    {
+      const parseExt = (v) => {
+        if (v == null) return null
+        if (typeof v === 'string') {
+          const s = v.trim()
+          if (!s) return null
+          try { return JSON.parse(s) } catch { return null }
+        }
+        return (typeof v === 'object') ? v : null
+      }
+      const extMap = parseExt(findItem?.ExtValues_Json) ?? parseExt(findItem?.ExtValues) ?? {}
+      const rawBrand = extMap['brandName_' + acai['套餐索引']]
+      const b = rawBrand == null ? '' : String(rawBrand).trim()
+      acai['品牌名'] = (b && b !== '-1') ? b : null
+    }
     // acai['差值_CNY'] = ''
     const fp = floorPriceFormula(cnyPrice)
     acai['我方底价'] = fp?.floorPrice

@@ -1,4 +1,3 @@
-// ============================================================
 // PCP PlatformRunner - 平台运行器（阶段2 拆分自 taskManager.js）
 // 职责：执行单个平台任务的"账密读取 → 登录 → 前置 → 请求 → 交叉"五步流程
 //   每步上报真实业务进度（替代老版 setInterval 模拟进度）
@@ -6,7 +5,6 @@
 //
 // 不维护队列/并发：队列与并发由 taskScheduler.js 负责
 // 不维护配置：compiledConfigs 由 taskManager facade 在 start 时预编译后注入
-// ============================================================
 
 import * as registry from './platforms/registry.js'
 

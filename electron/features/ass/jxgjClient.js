@@ -1,4 +1,3 @@
-// ============================================================
 // ASS 专用 — 锦绣 TaskResult / GetList 接口客户端
 //
 // 数据源：https://spider.xxklf.com/TaskResult/api/TaskResult/GetList （POST JSON）
@@ -14,7 +13,6 @@
 //   2. 指数退避重试 + AbortController 超时
 //   3. 只保留 fetchList（单页查询），ASS 不需要翻页
 //   4. 无需登录 / Token（接口无认证）
-// ============================================================
 
 // ---------- 内部常量（与 PCP taskResultApi.js 逐行一致）----------
 const BASE_URL = 'https://spider.xxklf.com/TaskResult'
@@ -64,7 +62,6 @@ const DEFAULT_PAGE_SIZE = 200
  * 19    dataSource                dataSource           数据来源（下拉） 0=全部（实测 1 与 0 同结果，2/3 当前无数据；其余枚举待确认）
  *  —    （抓包中未出现）           isTest               测试数据（勾选框）未勾选时请求体不含该字段；勾选时应为 true
  *
- * 注：旧版 GET 接口注释里的 stopAirPort（经停机场）在新接口抓包参数中不存在，已移除。
  *     价格三字段线上是中文 JSON 键，代码侧统一用英文别名 priceStart/priceEnd/priceType，
  *     由 buildRequestBody 的 PRICE_KEY_MAP 转换，调用方不要直接写中文键。
  * ================================================================================

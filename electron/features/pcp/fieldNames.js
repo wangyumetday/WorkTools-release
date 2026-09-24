@@ -1,4 +1,3 @@
-// ============================================================
 // PCP 字段名常量集中定义
 // 职责：把 a1/a2/a3 阶段数据 + 各平台响应中跨模块硬编码的字段名
 //       集中到一处，改字段名时只改这里，调用方自动跟随。
@@ -8,7 +7,6 @@
 //   - 访问数据字段时用 bracket 形式：item[A3_FIELDS.C出发机场]
 //   - JSDoc typedef 里的字段名是文档，不引用这里的常量
 //   - 对象字面量里的属性声明（{ CF_jichang: ... }）保持标识符形式不改
-// ============================================================
 
 // a1 阶段字段：parseXlsx 产出的原始行（id/CF_jichang/DD_jichang/CH_city/DD_city/hangsi/cangwei_str）
 export const A1_FIELDS = {
@@ -53,6 +51,9 @@ export const A3_FIELDS = {
   // 套餐索引（仅套餐政策行有值）：锦绣套餐信息数组元素自带的「套餐索引」字段，
   //   主行政策行无此字段；供政策字段 ${套餐索引} 变量解析
   套餐索引: '套餐索引',
+  // 品牌名（2026-09-23 起）：套餐品牌名（锦绣 ExtValues.brandName_N），供政策字段 ${品牌名} 变量解析；
+  //   仅套餐政策行有值，主行政策行无此字段（变量取值返回 null）
+  品牌名: '品牌名',
   TuoYunXingLi:'TuoYunXingLi',
   isOwn:'isOwn'
 }
@@ -67,6 +68,8 @@ export const TRIP_RESPONSE_FIELDS = {
   flightRefs: 'flightRefs',
   prices: 'prices',
   baggage: 'baggage',
+  // 报价条目携带的成人品牌名数组：[{segmentNo, sequenceNo, brandName}]；chd/inf 品牌字段忽略（只考虑成人）
+  adtBrandNames: 'adtBrandNames',
   seatClass:'seatClass',
   showState: 'showState',
   isOwn: 'isOwn',

@@ -1,4 +1,3 @@
-// ============================================================
 // 政策字段变量解析器
 // 职责：把「锦绣政策字段配置」里用户填写的字符串中的 ${变量名}
 //       替换成 a3 比价结果行（item）对应字段的实际值。
@@ -13,7 +12,6 @@
 //   2. 未匹配的变量替换为空字符串（不残留 ${...} 污染输出），并打 warn 便于排查拼写错误
 //   3. 非字符串输入（数字/空）原样返回，调用方无需特判
 //   4. 变量映射表只读，集中维护：新增变量只改这里
-// ============================================================
 
 import { A3_FIELDS } from './fieldNames.js'
 
@@ -36,7 +34,8 @@ export const POLICY_FIELD_VARS = [
   { name: '成人总票价CNY', key: A3_FIELDS.C成人总票价_CNY, desc: '成人总票价（人民币）' },
   { name: '携程底价', key: A3_FIELDS.XC_dijia, desc: '携程底价（won: 命中报价；lost: 全场最低有效报价，仅在底价检查文件展示）' },
   { name: '预计减价', key: A3_FIELDS.CUT_VALUE, desc: 'won: 携程底价 - 官网价 - 1；lost 不参与调价（留空）' },
-  { name: '套餐索引', key: A3_FIELDS.套餐索引, desc: '套餐索引（仅套餐政策行有值；主行政策行留空）' }
+  { name: '套餐索引', key: A3_FIELDS.套餐索引, desc: '套餐索引（仅套餐政策行有值；主行政策行留空）' },
+  { name: '品牌名', key: A3_FIELDS.品牌名, desc: '套餐品牌名（锦绣 ExtValues.brandName_N；仅套餐政策行有值，缺失为 null）' }
 ]
 
 // 变量名 → field key 的查找表（O(1)）
@@ -57,6 +56,12 @@ const _VAR_RE = /\$\{([^}]+)\}/g
  */
 export function resolvePolicyField(raw, item) {
   if (typeof raw !== 'string') return raw
+  // ★ 品牌名变量特殊约定（2026-09-23 起）：整个值就是 ${品牌名} 时，取不到 → 返回 null
+  //   （导出层 null 落空单元格，避免出现 'null' 字符串）；拼接在文本中间时仍按空串合并
+  if (raw === '${品牌名}') {
+    const v = item ? item[A3_FIELDS.品牌名] : undefined
+    return (v == null || v === '') ? null : String(v)
+  }
   if (!raw.includes('${')) return raw
   return raw.replace(_VAR_RE, (_, varName) => {
     const fieldKey = _varKeyMap.get(varName)

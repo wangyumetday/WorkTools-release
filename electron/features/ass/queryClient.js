@@ -1,4 +1,3 @@
-// ============================================================
 // ASS QueryClient - 携程低价政策推荐查询
 // 职责：模仿网页 #/selfTest/LowPrice 的两步调用流程：
 //
@@ -11,7 +10,6 @@
 //   - 与登录窗口共用 persist:ass-ctrip 分区，cookies 自动携带（同源会话鉴权）
 //   - User-Agent / Referer / Accept 对齐真实桌面浏览器（默认 Electron UA 会暴露程序身份）
 //   - 仅由用户点击触发，无并发、无轮询，避免高频调用触发风控
-// ============================================================
 
 import { session } from 'electron'
 import { randomUUID } from 'node:crypto'

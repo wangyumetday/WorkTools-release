@@ -1,4 +1,3 @@
-// ============================================================
 // ERC Service - 汇率与国家列表数据获取
 // 职责：从外部 API 拉取汇率和国家信息，供 controller 调用
 //
@@ -20,7 +19,6 @@
 //
 // 说明：地址与 key 在 ERC 设置页配置，持久化于 userData/config/ercConfig.json，
 //       缺省时使用 configManager 内置默认值
-// ============================================================
 
 import fs from 'node:fs'
 import path from 'node:path'

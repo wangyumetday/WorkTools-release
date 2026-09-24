@@ -1,4 +1,3 @@
-// ============================================================
 // 主进程入口
 // 职责：
 //   1. 创建主窗口（含 webPreferences 安全配置）
@@ -13,7 +12,6 @@
 //   - 主进程入口只负责"装配"：创建窗口、注入依赖、注册 controller
 //   - features 之间互不引用，改一个不会影响另一个
 //   - 共用基础设施在 electron/shared/ 下
-// ============================================================
 
 import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import { fileURLToPath } from 'node:url'
@@ -40,7 +38,6 @@ import { createAppTray, refreshAppTrayMenu } from './shared/appTray.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// ───────────────────────────────────────────────────────────────
 // dev 模式自动开启 Node Inspector，便于 VS Code / Chrome DevTools attach 调试主进程
 //   使用方式：
 //   ① npm run dev 启动后，终端会打印 [debug] Electron 主进程 inspector 已开启
@@ -48,7 +45,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 //   ③ 在源码（electron/**/*.js）里打断点（编辑器行号左侧红点）
 //   ④ 触发任务执行，代码会停在断点处，可看变量/调用栈/watch 表达式
 //   也可用 Chrome 打开 chrome://inspect → Configure → 添加 localhost:9229 → inspect
-// ───────────────────────────────────────────────────────────────
+
 if (!app.isPackaged) {
   try {
     openInspector(9229, '127.0.0.1')
@@ -66,9 +63,7 @@ let isQuitting = false
 // PCP 各 manager 单例（initFeatures 实例化，registerIpcHandlers 注入 controller）
 let taskManager, fileManager, credentialManager, configManager, pipeline
 
-// ============================================================
 // 创建主窗口
-// ============================================================
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -163,9 +158,7 @@ function createWindow() {
   }
 }
 
-// ============================================================
 // 后台挂起 / 真正退出（托盘 + 关闭询问 + 关闭偏好持久化）
-// ============================================================
 // 关闭偏好：'ask' 每次询问（默认） / 'tray' 后台挂起 / 'quit' 直接关闭。
 // 持久化到 userData/window-close-preference.json；用户在对话框勾选"记住本次
 // 选择"或托盘菜单"关闭主窗口时"子菜单切换，均落盘到这同一文件（单一数据源）。
@@ -242,7 +235,6 @@ async function handleMainClose(e) {
   // response === 2（取消 / Esc）：什么都不做，主窗口保持打开
 }
 
-// ============================================================
 // 进度推送合批器（C2 方案：16ms 窗口 + 按 id 去重合并）
 //
 // 为什么做这个：
@@ -250,7 +242,6 @@ async function handleMainClose(e) {
 //   → 每条单独走 IPC = 30 次结构化克隆序列化 + 渲染层 30 次响应式更新
 //   → 16ms 合批后降为 ~60 次/秒上限，且同任务同帧更新只保留最后一条
 //   → 1~2 千条任务下，响应式开销下降 90%+，UI 不卡顿
-// ============================================================
 function createBatchedProgressSender(getWindow) {
   const WINDOW_MS = 16        // ≈ 浏览器一帧，体感零延迟
   let batch = new Map()      // id → task，天然做"同任务同帧只留最后一条"的去重
@@ -281,11 +272,9 @@ function createBatchedProgressSender(getWindow) {
   }
 }
 
-// ============================================================
 // 初始化各 features 的 managers（注入依赖、创建单例）
 // 职责：实例化 PCP 的 taskManager/fileManager/credentialManager/configManager
 // 说明：ERC 是无状态 API 调用，无需 manager；悬浮窗在 Todo 5 实现
-// ============================================================
 function initFeatures() {
   const userDataPath = app.getPath('userData')
   // PCP：实例化 4 个 manager，互相注入依赖
@@ -321,11 +310,9 @@ function initFeatures() {
   })
 }
 
-// ============================================================
 // 注册 IPC handlers
 //   - 自动更新：主进程原生对话框联动 autoUpdater，渲染层 0 改动就能体验自动更新
 //   - 同时给渲染层暴露 api.update.*（以后做"关于 / 手动检查更新"按钮时直接用）
-// ============================================================
 function registerIpcHandlers() {
   registerPcpController({ mainWindow, taskManager, fileManager, credentialManager, configManager, pipeline })
   registerErcController()

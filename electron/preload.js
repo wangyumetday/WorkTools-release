@@ -1,4 +1,3 @@
-// ============================================================
 // Preload：渲染层与主进程的 IPC 桥接层
 //
 // 架构说明（contextIsolation=false + nodeIntegration=false 简化版）：
@@ -22,7 +21,6 @@
 //   - api.pcp.*       PriceComparisonPolicy（比价工具）feature 的 IPC
 //   - api.erc.*       ExchangeRateConversion（汇率转换）feature 的 IPC
 //   - api.floating.*  悬浮窗的 IPC
-// ============================================================
 
 import { ipcRenderer } from 'electron'
 
@@ -47,10 +45,11 @@ const api = {
 
     // File：Excel 上传/读取 a1/a2/a3/下载结果
     fileUploadXlsx:      ()                  => ipcRenderer.invoke('pcp:file:uploadXlsx'),
+    fileUploadPolicy:    ()                  => ipcRenderer.invoke('pcp:file:uploadPolicy'),
     fileGetA1:           ()                  => ipcRenderer.invoke('pcp:file:getA1'),
     fileGetA2:           ()                  => ipcRenderer.invoke('pcp:file:getA2'),
     fileGetA3:           ()                  => ipcRenderer.invoke('pcp:file:getA3'),
-    fileDownloadResult:  ()                  => ipcRenderer.invoke('pcp:file:downloadResult'),
+    fileDownloadResult:  (opts)              => ipcRenderer.invoke('pcp:file:downloadResult', opts),
     // 下载目录：获取 / 选择 / 在系统文件管理器中打开
     fileGetDownloadDir:    ()                => ipcRenderer.invoke('pcp:file:getDownloadDir'),
     fileSelectDownloadDir: ()                => ipcRenderer.invoke('pcp:file:selectDownloadDir'),

@@ -1,4 +1,3 @@
-// ============================================================
 // PCP ConfigManager - 平台配置管理器（schema 驱动重构）
 // 职责：管理各平台（JXGJ/TRIP/O2/O3）的异构配置
 //
@@ -10,7 +9,6 @@
 //
 // 持久化：userData/config/platformConfig.json
 //   - 加载时与 defaults 合并，兼容老用户配置缺字段
-// ============================================================
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -19,7 +17,7 @@ import { POLICY_FIELD_VARS } from './policyFieldResolver.js'
 
 /**
  * 「锦绣政策字段配置」字段元数据（单一事实来源）
- *   新格式政策导入文件里标注「由锦绣政策字段配置传入」的 12 项（11 个文本字段 + 1 个开关）：
+ *   新格式政策导入文件里标注「由锦绣政策字段配置传入」的 14 项（13 个文本字段 + 1 个开关）：
  *   用户在 PCP 独立配置板块填写，支持 ${变量} 拼接，导出时逐行替换。
  *   default 取示例值原样（用户首次进入时的初始值，可自行改为变量拼接）。
  *   数字列（Y优先级/OTAConfigID/数据有效期End/创建人id）导出时由 adapter numPf 转 Number。
@@ -33,11 +31,14 @@ export const POLICY_FIELDS_SCHEMA = [
   { key: 'Y优先级', label: 'Y优先级', default: 90 },
   { key: 'OTAConfigID', label: 'OTAConfigID', default: 11 },
   { key: '数据有效期End', label: '数据有效期End', default: 45 },
-  { key: '航司名', label: '航司名', default: 'XQ' },
+  // 「航司名」「爬虫名」（2026-09-23 起不再配置）：导出列自动取锦绣数据 H航司名（爬虫名与航司同名）
   { key: '销售天数', label: '销售天数', default: '2-999' },
   { key: '座位数', label: '座位数', default: '2-999' },
-  { key: '爬虫名', label: '爬虫名', default: 'XQ' },
   { key: '创建人id', label: '创建人id', default: 139 },
+  // 「去哪飞猪携程nationalityType」「去哪飞猪携程nationality」（2026-09-24 起配置化）：
+  //   不填=空，默认也是空（原固定值 '2'/'TR' 已废弃，改由用户配置）
+  { key: '去哪飞猪携程nationalityType', label: '去哪飞猪携程nationalityType', default: '' },
+  { key: '去哪飞猪携程nationality', label: '去哪飞猪携程nationality', default: '' },
   { key: '主行参与', label: '主行参与', type: 'switch', default: false }
 ]
 
