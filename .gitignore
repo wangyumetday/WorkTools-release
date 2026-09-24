@@ -1,9 +1,16 @@
-# 依赖
+# ============================================================
+# WorkTools 上传规则
+#   入库原则：只上传「参与软件运行 / 构建 / 发布」的文件。
+#   依赖、编译产物、AI 工作产物、设计原型、纯说明文档、测试脚本、
+#   日志与本机文件一律不入库（本地文件照常保留，只是不进 git）。
+# ============================================================
+
+# ---- 依赖 ----
 node_modules/
 .pnp
 .pnp.js
 
-# 构建产物
+# ---- 构建 / 打包产物 ----
 out/
 release/
 dist/
@@ -11,9 +18,22 @@ dist_electron/
 asar-list.txt
 
 # ============================================================
-# 本地非工程文件统一目录（整体不入库）
-#   _local/tests/    E2E 测试脚本 + fixtures（唯一保留项；其余已迁出到 D:\WorkTools-data\）
+# 不参与运行的工作产物（整目录不入库）
 # ============================================================
+# AI 助手工作目录：计划/需求 md、过程截图、specs、skills、临时 json/pdf
+.trae/
+
+# 设计阶段原型产物（solo-design 输出：.design / .preflight / manifest 等）
+pcp-top-toolbar/
+
+# 纯说明文档与参考资料（不参与运行）
+docs/
+
+# 面向 AI / 协作者的说明文档
+AGENTS.md
+CONTEXT.md
+
+# 本地非工程文件目录：回归测试脚本 + fixtures（本地保留，不入库）
 _local/
 
 # 开发过程草稿 / scratch（工作区 issue tracker 约定路径）
@@ -31,13 +51,16 @@ tmp-*.ps1
 test-debug.mjs
 test-fold-snapshot.mjs
 
-# 日志
+# 随手截图（Snipaste）等工具产物
+Snipaste_*.png
+
+# ---- 日志 ----
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# 编辑器
+# ---- 编辑器 ----
 .idea/
 .vscode/*
 !.vscode/launch.json
@@ -45,11 +68,11 @@ yarn-error.log*
 *.user
 *.swp
 
-# 系统
+# ---- 系统 ----
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# 环境变量
+# ---- 环境变量 ----
 .env
 .env.local
