@@ -11,39 +11,41 @@ node_modules/
 .pnp.js
 
 # ---- 构建 / 打包产物 ----
-out/
-release/
-dist/
-dist_electron/
+/out/
+/release/
+/dist/
+/dist_electron/
 asar-list.txt
 
 # ============================================================
 # 不参与运行的工作产物（整目录不入库）
+#   注意：以下目录必须写成「前导斜杠 + 目录名」，只锚定仓库根目录，
+#   否则会连带命中源码里的同名目录（如 src/features/ass/docs/）。
 # ============================================================
 # AI 助手工作目录：计划/需求 md、过程截图、specs、skills、临时 json/pdf
-.trae/
+/.trae/
 
 # 设计阶段原型产物（solo-design 输出：.design / .preflight / manifest 等）
-pcp-top-toolbar/
+/pcp-top-toolbar/
 
 # 纯说明文档与参考资料（不参与运行）
-docs/
+/docs/
 
 # 面向 AI / 协作者的说明文档
 AGENTS.md
 CONTEXT.md
 
 # 本地非工程文件目录：回归测试脚本 + fixtures（本地保留，不入库）
-_local/
+/_local/
 
 # 开发过程草稿 / scratch（工作区 issue tracker 约定路径）
-.scratch/
+/.scratch/
 
 # 旧引用/备份（已误删，残留 git 跟踪）
-.ref/
+/.ref/
 
 # 测试数据 / fixture
-testfold/
+/testfold/
 
 # 临时 / 调试脚本
 *.tmp-*
