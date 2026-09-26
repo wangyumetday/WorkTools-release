@@ -17,21 +17,13 @@
 //      （reserved 是预留拓展位，未实现 stub，默认不启用）
 //
 // ===== 向后兼容（老字段保留，从 stages 派生）=====
-//  status: 'idle'|'running'|'paused'|'waiting_next'|'done'   （全局粗状态）
-//  step:   'upload'|'jxgj'|'o_combo'|'export'                 （老 StepFlow 用）
-//  这两个字段仍然填充在 getState() 中，老调用方零改动。
-//
-// mode: 'auto' | 'dev'
-//   auto  门禁通过后跑到底（jxgj → O 平台 → a3_merge → 等待手动 export）
-//   dev   每个粗阶段完成后停在 waiting_next，等用户点 StepFlow 触发下一步
+//  status: 'idle'|'running'|'paused'|'done'                   （全局粗状态）
+//  step:   'upload'|'jxgj'|'o_combo'|'export'                 （老字段，兼容用）
+//  这两个字段仍然填充在 getState() 中。
 
-import fs from 'node:fs'
-import path from 'node:path'
 import registry, { O_PLATFORM_KEYS } from './platforms/registry.js'
 import { DEFAULT_BUSINESS_MODE, isValidBusinessMode } from './businessModes.js'
 import { exportRunLog } from './runLogExporter.js'
-
-const PIPELINE_STATE_FILE = 'pipelineState.json'
 
 // ===== 细粒度阶段定义（单一权威：顺序 = 依赖顺序）=====
 // 任何地方要列阶段，都应该遍历这个数组而不是自己硬编码顺序
@@ -58,11 +50,6 @@ export class Pipeline {
     this.credentialManager = credentialManager
     this.getMainWindow = getMainWindow || (() => null)
     this.userDataPath = userDataPath
-
-    this.stateFile = path.join(userDataPath, 'config', PIPELINE_STATE_FILE)
-    this.ensureStateFileDir()
-
-    this.mode = this.loadMode() // 'auto' | 'dev'
 
     // 业务模式（产什么）：不持久化，每次启动回到默认 policy
     this.businessMode = DEFAULT_BUSINESS_MODE
@@ -104,29 +91,6 @@ export class Pipeline {
     Object.assign(prev, patch)
   }
 
-  ensureStateFileDir() {
-    const dir = path.dirname(this.stateFile)
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  }
-
-  loadMode() {
-    try {
-      if (fs.existsSync(this.stateFile)) {
-        const data = JSON.parse(fs.readFileSync(this.stateFile, 'utf-8'))
-        return data.mode === 'dev' ? 'dev' : 'auto'
-      }
-    } catch { /* ignore */ }
-    return 'auto'
-  }
-
-  saveMode() {
-    try {
-      fs.writeFileSync(this.stateFile, JSON.stringify({ mode: this.mode }, null, 2), 'utf-8')
-    } catch (e) {
-      console.warn('[Pipeline] mode 持久化失败', e)
-    }
-  }
-
   // ========== legacy 派生（保持老调用方不破）==========
   /**
    * 派生老 step 字段（粗粒度 4 步）
@@ -151,19 +115,6 @@ export class Pipeline {
     const stageList = Array.from(this.stages.values())
     // running → 只要有阶段在跑
     if (stageList.some(s => s.status === 'running')) return 'running'
-    // paused → 由 pause() 直接设，不派生（因为暂停不是阶段状态，是全局控制）
-    // 如果全局当前 step 是 jxgj 或 o_combo 且 stages 中对应阶段仍未完成 → 检查是否 waiting_next
-    const step = this._deriveLegacyStep()
-    if (this.mode === 'dev') {
-      // jxgj completed 但还没点 o_combo → waiting_next
-      const jxgj = this.stages.get('jxgj').status
-      if (step === 'o_combo' && jxgj === 'completed') {
-        const anyORunningOrCompleted = O_PLATFORM_KEYS.some(p =>
-          ['running', 'completed', 'failed'].includes(this.stages.get(p).status)
-        )
-        if (!anyORunningOrCompleted) return 'waiting_next'
-      }
-    }
     // done → export 之前 a3_merge 已 completed（不管是否已真正下载）
     if (this.stages.get('a3_merge').status === 'completed') return 'done'
     // paused → 保留外部设置（pause() 直接写 this.status = 'paused'）
@@ -195,6 +146,9 @@ export class Pipeline {
   async start() {
     if (this.status === 'running') return { success: false, message: '流程执行中，请勿重复操作' }
 
+    // ★ 航司私有化：门禁前先按当前文件航司加载运行时配置（幂等物化，未配置航司用默认值）
+    this._reloadCurrentAirlineConfig('gate')
+
     const gate = this.checkGate()
     if (!gate.success) {
       this.lastGateFail = gate
@@ -218,54 +172,6 @@ export class Pipeline {
     this.emitState()
 
     await this.runStage('jxgj')
-    return { success: true }
-  }
-
-  /**
-   * dev 模式：用户点 StepFlow 触发某一步
-   * @param {string} step  'jxgj' | 'o_combo'（保持老接口，内部映射到细阶段）
-   */
-  async triggerStep(step) {
-    if (this.status === 'running') return { success: false, message: '流程执行中，请勿重复操作' }
-    if (step !== 'jxgj' && step !== 'o_combo') {
-      return { success: false, message: '未知的步骤' }
-    }
-
-    const gate = this.checkGate()
-    if (!gate.success) {
-      this.lastGateFail = gate
-      this.emit('pcp:pipeline:gateFail', gate)
-      return gate
-    }
-    this.lastGateFail = null
-
-    // 第一次手动点 jxgj：重置 + upload 标 completed
-    if (step === 'jxgj') {
-      this._resetRuntimeStages()
-      const a1Count = this.fileManager?.getA1()?.count || 0
-      this._setStage('upload', {
-        status: 'completed',
-        outputCount: a1Count,
-        startedAt: Date.now(),
-        finishedAt: Date.now()
-      })
-    }
-
-    if (step === 'jxgj') {
-      this._setStage('jxgj', { status: 'running', startedAt: Date.now() })
-    } else {
-      // o_combo：先检查 jxgj 前置（upload 阶段通过 checkGate 已经保证有文件）
-      const jxgj = this.stages.get('jxgj')
-      if (jxgj.status !== 'completed' && jxgj.status !== 'failed') {
-        // dev 模式下允许 jxgj 没跑完？不允许，依赖必须成立
-        return { success: false, message: '请先完成锦绣国际阶段' }
-      }
-      // 在 runStage('o_combo') 内部会为每 O 平台标 running/skipped
-    }
-
-    this._syncLegacyFields()
-    this.emitState()
-    await this.runStage(step)
     return { success: true }
   }
 
@@ -310,14 +216,6 @@ export class Pipeline {
     if (this.taskManager) this.taskManager.clearAll()
     if (this.fileManager) this.fileManager.clearAll()
     return { success: true }
-  }
-
-  setMode(mode) {
-    if (mode !== 'auto' && mode !== 'dev') return { success: false, message: '未知模式' }
-    this.mode = mode
-    this.saveMode()
-    this.emitState()
-    return { success: true, mode: this.mode }
   }
 
   /**
@@ -369,7 +267,6 @@ export class Pipeline {
     const stages = STAGE_DEFS.map(def => ({ ...(this.stages.get(def.key) || {}) }))
     this._syncLegacyFields()
     return {
-      mode: this.mode,
       businessMode: this.businessMode,       // 业务模式（政策导入/底价检查）
       status: this.status,
       step: this.step,
@@ -412,6 +309,12 @@ export class Pipeline {
   }
 
   // ========== 内部：门禁检查 ==========
+  /** 航司私有化：按当前文件 a1 首行 hangsi 加载该航司配置到运行时栈 */
+  _reloadCurrentAirlineConfig(reason) {
+    const hangsi = String(this.fileManager?.getA1()?.data?.[0]?.hangsi || '').trim()
+    if (hangsi) this.taskManager?.reloadRuntimeConfigs(hangsi, reason)
+  }
+
   /**
    * 前置门禁：选文件 → 航司/舱位已读（来自文件 R1/R2）→ JXGJ 配置启用 → 至少一个 O 配置启用
    * 返回 { success, missing: ['file'|'hangsi'|'cangwei'|'jxgj_config'|'jxgj_credential'|'o_config'|'o_credential'] }
@@ -634,18 +537,11 @@ export class Pipeline {
       // BUG-2 弹窗：收集失败任务的错误，按错误内容分组推给前端
       this._emitTaskErrors(results, 'jxgj')
 
-      if (this.mode === 'auto') {
-        // 衔接 o_combo（即使 a2Count=0 也要跑：让 O 阶段收到 0 任务失败信息，而不是卡在 jxgj）
-        this._syncLegacyFields()
-        this.emitState()
-        await new Promise(r => setTimeout(r, 300))
-        await this.runStage('o_combo')
-      } else {
-        this._syncLegacyFields()
-        this.emitState()
-        // dev 模式：jxgj 单步运行结束（不衔接 o_combo），导出本次运行日志
-        this._exportRunLog('dev-jxgj-complete')
-      }
+      // 衔接 o_combo（即使 a2Count=0 也要跑：让 O 阶段收到 0 任务失败信息，而不是卡在 jxgj）
+      this._syncLegacyFields()
+      this.emitState()
+      await new Promise(r => setTimeout(r, 300))
+      await this.runStage('o_combo')
     } else if (stage === 'o_combo') {
       // ★ 按 task.type 拆分 O 平台统计
       const byPlatform = { trip: [], reserved: [] }
@@ -717,8 +613,8 @@ export class Pipeline {
 
       this._syncLegacyFields()
       this.emitState()
-      // o_combo 阶段结束 = 本次运行终点（auto 模式整链最后一阶段 / dev 模式单步）
-      this._exportRunLog(this.mode === 'auto' ? 'auto-complete' : 'dev-o-combo-complete')
+      // o_combo 阶段结束 = 本次运行终点
+      this._exportRunLog('auto-complete')
     }
 
     // 2. 推 pcp:task:allComplete（渲染层据此刷新 a1/a2/a3 计数 + 提示）

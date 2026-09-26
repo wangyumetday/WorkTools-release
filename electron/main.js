@@ -293,6 +293,7 @@ function initFeatures() {
   taskManager = new TaskManager({
     credentialManager,
     configManager,
+    fileManager,
     onProgress: batchedEmitProgress,
     onAllComplete: () => {}
   })

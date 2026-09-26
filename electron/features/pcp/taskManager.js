@@ -17,9 +17,10 @@ function deepClone(obj) {
 }
 
 export class TaskManager {
-  constructor({ onProgress, onAllComplete, credentialManager, configManager }) {
+  constructor({ onProgress, onAllComplete, credentialManager, configManager, fileManager }) {
     this.credentialManager = credentialManager || null
     this.configManager = configManager || null
+    this.fileManager = fileManager || null
 
     /**
      * ★ 运行时配置栈（唯一使用路径）：
@@ -28,10 +29,10 @@ export class TaskManager {
      *   trip: { enabled:true, (trip 平台各字段)... },
      *   reserved: { ... }
      * }
-     * 刷新时机：
-     *   a) TaskManager 构造后立刻加载一次（App 启动就有默认/上次保存值可用）
-     *   b) 用户在前端点启用触发 IPC `pcp:config:set` → ConfigManager 存文件后，controller 立刻调 reloadRuntimeConfigs()
-     *   c) start(stage) 开始任务前 再 reload 一次（兜底，确保和磁盘一致）
+     * 刷新时机（航司私有化：按当前文件航司二字码取私有配置）：
+     *   a) TaskManager 构造后调一次（无航司上下文 → 空栈，门禁会先拦「未选文件/hangsi」）
+     *   b) 用户保存航司配置触发 IPC `pcp:config:saveAirlineConfig` → controller 立刻调 reloadRuntimeConfigs(code, 'save')
+     *   c) Pipeline 门禁前调 reloadRuntimeConfigs(hangsi, 'gate')，start(stage) 再 reload 一次兜底
      */
     this.compiledConfigs = {}
     this._runtimeRevision = 0   // 单调递增版本号，前后端日志对齐用
@@ -45,8 +46,8 @@ export class TaskManager {
       getCompiledConfigs: () => this.compiledConfigs
     })
 
-    // ★ App 启动时立刻把配置文件 → 内存栈（保证"一条路径"立即可用，门禁/启动判断都走这）
-    this.reloadRuntimeConfigs('init')
+    // ★ App 启动时无航司上下文（未上传文件），运行时栈留空；门禁会先拦「未选文件/hangsi」
+    this.reloadRuntimeConfigs(null, 'init')
   }
 
   // ========== facade 转发：队列/并发/状态 ==========
@@ -62,23 +63,37 @@ export class TaskManager {
 
   // ========== 一条路径 · 运行时配置栈 ==========
   /**
-   * 把 ConfigManager 内存里的用户配置（已落盘的那份）
-   * 做每个平台 adapter.compileConfig → 写入 compiledConfigs 内存栈。
-   * @param {string} reason 日志标记：init(构造初始化)/start(任务开始)/save(用户保存)
+   * 把当前航司的私有配置（platform + policyFields）做每个平台 adapter.compileConfig
+   * → 写入 compiledConfigs 内存栈。
+   * @param {string|null} airlineCode 航司二字码；为空/null 时清空栈（未上传文件场景）
+   * @param {string} reason 日志标记：init(构造初始化)/gate(门禁前)/start(任务开始)/save(用户保存)
    * @returns {{ revision: number, summary: object }}
    */
-  reloadRuntimeConfigs(reason = 'manual') {
+  reloadRuntimeConfigs(airlineCode, reason = 'manual') {
     const before = this._runtimeRevision
     this.compiledConfigs = {}
     if (!this.configManager) {
       console.warn(`[TaskManager:reloadRuntimeConfigs reason=${reason}] 未注入 ConfigManager，保持空栈`)
       return { revision: this._runtimeRevision, summary: {} }
     }
+    // 航司私有配置（幂等物化：未配置航司自动用默认值建一份，不打断运行）
+    let airline = null
+    if (airlineCode) {
+      try {
+        airline = this.configManager.getAirlineConfig(airlineCode)
+      } catch (e) {
+        console.warn(`[TaskManager:reloadRuntimeConfigs reason=${reason}] 取航司配置失败:`, e.message)
+      }
+    }
+    // 无航司上下文（未上传文件 / 二字码为空）→ 空栈；门禁会先拦「未选文件/hangsi」
+    if (!airline) {
+      return { revision: this._runtimeRevision, summary: {} }
+    }
     // 政策字段配置快照（含「主行参与」开关）：随运行时栈一起注入各平台编译配置，
-    //   比价时从 compiledConfigs 读取，与平台配置同属"任务开始时的快照"（开始后不随页面改动变化）
-    const policyFields = this.configManager.getPolicyFields().fields
+    //   与平台配置同属"任务开始时的快照"（开始后不随页面改动变化）
+    const policyFields = airline.policyFields
     for (const adapter of registry.all()) {
-      const rawConfig = this.configManager.getPlatformConfig(adapter.key)
+      const rawConfig = airline.platform[adapter.key] || {}
       const compiled = adapter.compileConfig(rawConfig)
       compiled.policyFields = policyFields
       this.compiledConfigs[adapter.key] = compiled
@@ -134,8 +149,9 @@ export class TaskManager {
     const pendingTasks = this.scheduler.tasks.filter(t => t.status === 'pending' || t.status === 'paused')
     if (pendingTasks.length === 0) return { success: false, message: '没有待执行的任务' }
 
-    // ★ 任务开始前再 reload 一次（兜底：确保此时内存栈和磁盘最新保存一致；revision+1）
-    this.reloadRuntimeConfigs(`start-${stage || 'all'}`)
+    // ★ 任务开始前再 reload 一次（兜底：按当前文件航司取私有配置；revision+1）
+    const hangsi = this.fileManager?.getA1()?.data?.[0]?.hangsi || null
+    this.reloadRuntimeConfigs(hangsi, `start-${stage || 'all'}`)
 
     const credCheck = this.checkStageCredentials(stage)
     if (!credCheck.success) return credCheck

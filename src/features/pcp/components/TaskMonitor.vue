@@ -442,9 +442,9 @@ const statsItems = computed(() => {
   return [
     { key: 'total', label: '投放总数', value: agg.total, tip: '携程返回的全部报价条目数（含我方与其它投放）' },
     { key: 'own', label: '我方投放数', value: agg.own, tip: '携程查到的属于我方投放的报价条目数' },
-    { key: 'ownShown', label: '展示的报价数', value: agg.ownShown, tip: '我方投放且已在携程外显（isOwn=true 且 showState=1）的报价条目数' },
-    { key: 'wonHidden', label: '我方胜出却未显示数', value: agg.wonHidden, tip: '我方投放却未外显（isOwn=true 且 showState≠1）的报价中「理应外显却未外显」的条数：①所在对比组内无任何他人报价（无人竞价）；②所在对比组内有他人报价价格更高却已外显' },
-    { key: 'unmatched', label: '独占数量', value: agg.unmatched, tip: '我们锦绣数据存在、但携程无人投放（未匹配）的官网数据单元数' },
+    { key: 'ownShown', label: '展示的报价数', value: agg.ownShown, tip: '我方投放且已在携程外显（isOwn=true && showState=1）的报价条目数' },
+    { key: 'wonHidden', label: '我方胜出却未显示数', value: agg.wonHidden, tip: '我方投放却未外显（isOwn=true && showState≠1）的报价中「理应外显却未外显」的条数：①所在对比组内无任何他人报价（无人竞价）；②所在对比组内有他人报价价格更高却已外显' },
+    { key: 'unmatched', label: '独占数量', value: agg.unmatched, tip: '官网数据存在、但携程无人投放（未匹配）的官网数据单元数' },
     { key: 'policyRows', label: '写入政策条数', value: agg.policyRows, tip: '我方比赢（含未匹配出政策的原价政策）且航程类型=单程、本次将写入政策导入文件的数据条数' }
   ]
 })

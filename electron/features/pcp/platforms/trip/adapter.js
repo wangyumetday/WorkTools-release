@@ -578,6 +578,11 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
       //   口径 = 本套餐匹配到的携程报价里是否存在我方投放（isOwn=true）；
       //   过滤之后取必然恒 false（命中报价永远是他人的），导出列会整列空
       acai['isOwn'] = pkgCands.some(p => p && p[F.isOwn])
+      // ★ 我方报价自身的 showState（2026-09-26）：与 isOwn 同源（取 isOwn=true 那条报价），
+      //   供底价检查文件「是否显示」列在 isOwn=true 时展示——避免与「命中外部报价 showState」混淆
+      acai['ownShowState'] = acai['isOwn']
+        ? (pkgCands.find(p => p && p[F.isOwn])?.[F.showState] ?? null)
+        : null
       // ★ 展示消耗登记：分配进组的报价都被本单元「消费」，不再落附加行
       if (consumedQuotes) for (const c of pkgCands) consumedQuotes.add(c)
       if (pkgCands.length === 0) {
@@ -585,12 +590,12 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
         continue
       }
       // ★ 官网数据不与自己的携程投放报价做比价（2026-09-24，与主行行级比价口径一致）：
-      //   比价候选剔除 isOwn（我方投放只展示、不参与比价，更不会据此产出比赢/比输判定）；
-      //   候选全部是我方投放 → 无外部报价可比，等同未匹配（导出侧判 _compareCands 产原价政策）
-      const compareCands = pkgCands.filter(p => p && !p[TRIP_RESPONSE_FIELDS.isOwn])
+      //   ① 剔除 isOwn（我方投放只展示、不参与比价）；
+      //   ② 再剔除「未展示（showState≠1）的隐藏价」——只有公开竞对价才参与比价（2026-09-26 用户确认）。
+      const compareCands = pkgCands.filter(p => p && !p[TRIP_RESPONSE_FIELDS.isOwn] && Number(p[TRIP_RESPONSE_FIELDS.showState]) === 1)
       acai._compareCands = compareCands
       if (compareCands.length === 0) {
-        acai['套餐数据说明'] = '仅有我方投放的携程报价，无外部报价可比价'
+        acai['套餐数据说明'] = '无已展示的外部报价可比价（仅有我方投放或仅未展示报价）'
         continue
       }
       // ★ 多条匹配报价：按价格从低到高，取第一个「我方底价 ≤ 其价」的（能比过的价格里最低的）
@@ -658,12 +663,17 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
     // ★ 取值时机（2026-09-24）：我方投放标记在剔除 isOwn 之前取（口径 = 本行行李匹配到的
     //   携程报价里是否存在我方投放），过滤后取必然恒 false（命中报价永远是他人的）
     item[A3_FIELDS.isOwn] = rowMatched.some(p => p && p[TRIP_RESPONSE_FIELDS.isOwn])
+    item['ownShowState'] = item[A3_FIELDS.isOwn]
+      ? (rowMatched.find(p => p && p[TRIP_RESPONSE_FIELDS.isOwn])?.[TRIP_RESPONSE_FIELDS.showState] ?? null)
+      : null
     const rowCands = rowMatched.filter(p => !p[TRIP_RESPONSE_FIELDS.isOwn])
     // ★ 展示消耗登记：主行行李匹配上的报价（含比不过的）都被本单元「消费」，不再落附加行
     if (consumedQuotes) for (const c of rowCands) consumedQuotes.add(c)
-    // ★ 展示用候选：分块展示的主行单元携程行来源
+    // ★ 展示用候选：分块展示的主行单元携程行来源（全量，含未展示隐藏价）
     item._matchedQuotes = rowCands
-    const sortedRow = sortedValidPrices(rowCands)
+    // ★ 比价候选：仅用「已展示（showState=1）」的外部报价；隐藏价(showState≠1)不作竞对（2026-09-26 用户确认）
+    const rowCompareCands = rowCands.filter(p => Number(p[TRIP_RESPONSE_FIELDS.showState]) === 1)
+    const sortedRow = sortedValidPrices(rowCompareCands)
     const rowHit = dijia > 0 ? sortedRow.find(x => dijia <= x.price) : null
     const rowPrice = rowHit ? rowHit.quote : null
     const refPrice = sortedRow[0]?.quote ?? null
@@ -676,6 +686,7 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
       // 比赢：打「可以胜出」标记
       item[A3_FIELDS._outcome] = 'won'
       item._hitQuote = rowPrice // 展示口径：主行对比单元命中报价
+      item[F.showState] = rowPrice?.[F.showState] ?? null // 是否显示列：命中的携程报价 showState
       resArr.push(item)
       // ★ 展示探针：记录业务判定实际命中的报价对象（不参与判定）；item=我方条目引用（基准行用）
       matchSink?.set(rowPrice, { outcome: 'won', cw: itemCangWei, ourPrice: totalCNY, dijia, item })
@@ -686,6 +697,7 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
       item[A3_FIELDS.XC_dijia] = sortIndicator // 全场最低有效报价，仅展示参考
       item[A3_FIELDS._outcome] = 'lost'
       item._hitQuote = refPrice // 展示口径：主行对比单元参考报价（全场最低）
+      item[F.showState] = refPrice?.[F.showState] ?? null // 是否显示列：参考报价 showState
       resArr.push(item)
       // ★ 展示探针：记录业务判定实际命中的报价对象（不参与判定）；item=我方条目引用（基准行用）
       matchSink?.set(refPrice, { outcome: 'lost', cw: itemCangWei, ourPrice: totalCNY, dijia, item })
@@ -772,6 +784,10 @@ function journeySegmentsOf(flightById, refs) {
       no: String(sf[TRIP_RESPONSE_FIELDS.flightNo] ?? ''),
       dep: String(sf[TRIP_RESPONSE_FIELDS.departAirport] ?? ''),
       arr: String(sf[TRIP_RESPONSE_FIELDS.arriveAirport] ?? ''),
+      depCity: String(sf[TRIP_RESPONSE_FIELDS.departCity] ?? ''),
+      arrCity: String(sf[TRIP_RESPONSE_FIELDS.arriveCity] ?? ''),
+      takeOffDateTime: sf[TRIP_RESPONSE_FIELDS.takeOffDateTime] ? String(sf[TRIP_RESPONSE_FIELDS.takeOffDateTime]) : '',
+      arriveDateTime: sf[TRIP_RESPONSE_FIELDS.arriveDateTime] ? String(sf[TRIP_RESPONSE_FIELDS.arriveDateTime]) : '',
       date: sf[TRIP_RESPONSE_FIELDS.takeOffDateTime] ? String(sf[TRIP_RESPONSE_FIELDS.takeOffDateTime]).split(' ')[0] : ''
     })
   }
@@ -855,11 +871,13 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
   for (const f of flights) {
     if (f?.[F.flightId] != null) flightById.set(f[F.flightId], f)
   }
-  // 报价→其父级 lowPrices（isInit 标记的父级兜底）
+  // 报价→其父级 lowPrices（isInit 标记的父级兜底 + 携程自身航班信息溯源）
   const priceParentRemark = new Map()
+  const priceToLp = new Map()
   for (const lp of lowPrices) {
     for (const pr of (Array.isArray(lp?.[F.prices]) ? lp[F.prices] : [])) {
       if (pr && !priceParentRemark.has(pr)) priceParentRemark.set(pr, lp?.[F.quantifyFlagRemark] ?? '')
+      if (pr && !priceToLp.has(pr)) priceToLp.set(pr, lp)
     }
   }
 
@@ -868,7 +886,7 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
   // ★ 对比单元分块产出：官方行（role=official，我方数据+总体判定）+ 逐条携程行（role=ctrip，
   //   该单元行李匹配到的全部携程报价：能比过的 won / 比不过的 lost / 我方投放 own 态）
   const emitUnit = (base, unit) => {
-    const { kind, seatClass, cabinClass, pkgIndex, ourBaggageShort, ourPrice, ourFloor, status, unmatchedReason, note, matched, hitQuote, ourBrand } = unit
+    const { kind, seatClass, cabinClass, pkgIndex, ourBaggageShort, ourPrice, ourFloor, status, unmatchedReason, note, matched, hitQuote, ourBrand, official } = unit
     const unitKey = `${base.flightNo}|${base.date}|${base.depAirport}|${base.arrAirport}|${kind}|${seatClass}|${pkgIndex ?? ''}`
     rows.push({
       ...base,
@@ -883,6 +901,13 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
       ourBrand: ourBrand ?? '',
       ourPrice,
       ourFloor,
+      // ★ 锦绣官网字段（2026-09-26 起）：底价检查文件官网行从这些取值
+      depCity: official?.depCity ?? '',
+      arrCity: official?.arrCity ?? '',
+      airlineName: official?.airlineName ?? '',
+      depTime: official?.depTime ?? '',
+      arrTime: official?.arrTime ?? '',
+      floorMeta: official?.floorMeta ?? null,
       xcPrice: null,
       xcBaggage: '',
       xcBaggageShort: '—',
@@ -907,6 +932,11 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
       const qStatus = isOwn
         ? (shown ? 'ownShown' : 'ownHidden')
         : (Number.isFinite(floorN) && floorN > 0 && qPrice != null && qPrice >= floorN ? 'won' : 'lost')
+      // ★ 携程自身航班信息（2026-09-26 起）：底价检查文件携程行用携程自己的航班/城市/时间/舱位
+      const lp = priceToLp.get(q)
+      const segs = journeySegmentsOf(flightById, lp?.[F.flightRefs])
+      const s0 = segs[0] || {}
+      const sN = segs[segs.length - 1] || {}
       rows.push({
         ...base,
         role: 'ctrip',
@@ -923,8 +953,18 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
         xcBaggageShort: formatBaggageShort(q[F.baggage]),
         // ★ 携程报价品牌名（2026-09-23 起）：UI/日志在行李信息后展示
         xcBrand: formatQuoteBrandNames(q),
+        // 携程自身航班/舱位/城市/时间（底价检查文件携程行数据源）
+        xcFlightNo: segs.map(s => s.no).filter(Boolean).join('-'),
+        xcSeatClass: q[F.seatClass] != null ? String(q[F.seatClass]) : '',
+        xcDepAirport: s0.dep ?? '',
+        xcArrAirport: sN.arr ?? '',
+        xcDepCity: s0.depCity ?? '',
+        xcArrCity: sN.arrCity ?? '',
+        xcTakeOffDateTime: s0.takeOffDateTime ?? '',
+        xcArriveDateTime: sN.arriveDateTime ?? '',
         isOwn,
         shown,
+        showState: q[F.showState] ?? null,
         flagRemark: String(flagRemark ?? ''),
         isInit: /initSelected/i.test(String(flagRemark ?? '')),
         // ★ 实际命中标记（2026-09-23 起）：依次比价中真实比赢的那一条（我方底价≤其价的最低报价），
@@ -968,7 +1008,15 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
         matched: item._matchedQuotes ?? [],
         // 主行命中报价（仅 won 时是真实命中；lost 时 _hitQuote 为全场最低参考价，不点亮）
         hitQuote: outcome === 'won' ? (item._hitQuote || null) : null,
-        ourBrand: '' // 主行无品牌（品牌只属于套餐）
+        ourBrand: '', // 主行无品牌（品牌只属于套餐）
+        official: {
+          depCity: item[A3_FIELDS.C出发城市] ?? '',
+          arrCity: item[A3_FIELDS.D到达城市] ?? '',
+          airlineName: item[A3_FIELDS.H航司名] ?? '',
+          depTime: item[A3_FIELDS.C出发时间_Date] ?? '',
+          arrTime: item[A3_FIELDS.D到达时间_Date] ?? '',
+          floorMeta: item[A3_FIELDS._floorMeta] ?? null
+        }
       })
     }
 
@@ -1009,7 +1057,15 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
         note,
         matched: acai._matchedQuotes ?? [],
         hitQuote: hit, // 仅 won 有值（比赢那一条被点亮）
-        ourBrand: acai['品牌名'] ?? ''
+        ourBrand: acai['品牌名'] ?? '',
+        official: {
+          depCity: item[A3_FIELDS.C出发城市] ?? '',
+          arrCity: item[A3_FIELDS.D到达城市] ?? '',
+          airlineName: item[A3_FIELDS.H航司名] ?? '',
+          depTime: item[A3_FIELDS.C出发时间_Date] ?? '',
+          arrTime: item[A3_FIELDS.D到达时间_Date] ?? '',
+          floorMeta: acai['_floorMeta'] ?? null
+        }
       })
     }
   }
@@ -1055,8 +1111,18 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
         xcBaggage: p[F.baggage] ?? '',
         xcBaggageShort: formatBaggageShort(p[F.baggage]),
         xcBrand: formatQuoteBrandNames(p),
+        // 携程自身航班/舱位/城市/时间（底价检查文件携程行数据源，与匹配行同口径）
+        xcFlightNo: segments.length > 0 ? segments.map(s => s.no).filter(Boolean).join('-') : '',
+        xcSeatClass: p[F.seatClass] != null ? String(p[F.seatClass]) : '',
+        xcDepAirport: segments[0]?.dep ?? '',
+        xcArrAirport: segments[segments.length - 1]?.arr ?? '',
+        xcDepCity: segments[0]?.depCity ?? '',
+        xcArrCity: segments[segments.length - 1]?.arrCity ?? '',
+        xcTakeOffDateTime: segments[0]?.takeOffDateTime ?? '',
+        xcArriveDateTime: segments[segments.length - 1]?.arriveDateTime ?? '',
         isOwn,
         shown,
+        showState: p[F.showState] ?? null,
         flagRemark: String(flagRemark ?? ''),
         isInit: /initSelected/i.test(String(flagRemark ?? '')),
         status: isOwn ? (shown ? 'ownShown' : 'ownHidden') : 'other',

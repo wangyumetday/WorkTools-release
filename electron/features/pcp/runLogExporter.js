@@ -25,9 +25,8 @@ import os from 'node:os'
 import { app } from 'electron'
 
 const LOG_ROOT_DIR = 'work tools运行日志'
-// 分片导出：总览页 + 每任务一个文件 + 失败兜底文件
+// 单文件导出：index.html（主页统计 + 分组折叠任务列表 + 内联详情弹框）+ 失败兜底文件
 const INDEX_FILENAME = 'index.html'
-const TASKS_DIR = 'tasks'
 const ERROR_FILENAME = 'error.txt'
 
 // ========== 工具 ==========
@@ -310,6 +309,8 @@ function renderTaskCard(task) {
   const started = task.startedAt ? new Date(task.startedAt).toLocaleString('zh-CN', { hour12: false }) : '—'
   const finished = task.finishedAt ? new Date(task.finishedAt).toLocaleString('zh-CN', { hour12: false }) : '—'
 
+  // ★ 详情布局（2026-09-26 改）：对比块是用户主要想看的内容，放主体默认展开；
+  //   请求参数/返回数据/任务数据三个原始快照合并到底部 <details> 默认关闭（一般不看）
   return `
   <div class="task-card">
     <div class="task-head">
@@ -326,30 +327,27 @@ function renderTaskCard(task) {
       <span><span class="mk">结束:</span> ${finished}</span>
     </div>
     ${errBlock}
-    <div class="block">
-      <div class="block-title">▶ 请求参数 (preRequest)</div>
-      <div class="block-body"><pre>${escapeHtml(preqJson)}</pre></div>
-    </div>
     ${renderQuoteBlock(task)}
-    <div class="block">
-      <div class="block-title">▶ 返回数据 (result)</div>
-      <div class="block-body"><pre>${escapeHtml(resultJson)}</pre></div>
-    </div>
-    <div class="block">
-      <div class="block-title">▶ 任务数据 (data)</div>
-      <div class="block-body"><pre>${escapeHtml(dataJson)}</pre></div>
-    </div>
+    <details class="snapshot">
+      <summary>请求与数据快照（默认收起）</summary>
+      <div class="block">
+        <div class="block-title">请求参数 (preRequest)</div>
+        <div class="block-body"><pre>${escapeHtml(preqJson)}</pre></div>
+      </div>
+      <div class="block">
+        <div class="block-title">返回数据 (result)</div>
+        <div class="block-body"><pre>${escapeHtml(resultJson)}</pre></div>
+      </div>
+      <div class="block">
+        <div class="block-title">任务数据 (data)</div>
+        <div class="block-body"><pre>${escapeHtml(dataJson)}</pre></div>
+      </div>
+    </details>
   </div>`
 }
 
-/** 页面外壳：深色终端风格 + 共用的全部样式 + 折叠交互脚本 */
-function pageShell(title, bodyHtml) {
-  return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <title>${escapeHtml(title)}</title>
-  <style>
+// ===== 全局样式表（单文件，head 内引入；detail 弹框 + 分组折叠 + 任务列表共用）=====
+const STYLE_BLOCK = `<style>
     * { box-sizing: border-box; }
     body {
       background: #1e1e1e; color: #d4d4d4;
@@ -509,113 +507,148 @@ function pageShell(title, bodyHtml) {
     .qrow--regionStart > td { border-top: 2px solid transparent; }
     .qrow--regionStart.qrow--region-official > td { border-top-color: #4fc3f7; }
     .qrow--regionStart.qrow--region-external > td { border-top-color: #ffb74d; }
+    /* ===== 主页任务列表 ===== */
     .idx-row {
       display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
       padding: 5px 8px; border-bottom: 1px solid #2a2a2a; font-size: 11px;
+      cursor: pointer;
     }
     .idx-row:hover { background: #242424; }
     .idx-id { color: #4fc3f7; font-weight: 600; }
     .idx-type { color: #b0bec5; }
     .idx-route { color: #fff; flex: 1; min-width: 160px; }
     .idx-meta { color: #888; }
-    .idx-link { color: #4fc3f7; text-decoration: none; }
-    .idx-link:hover { text-decoration: underline; }
+    .idx-open { color: #4fc3f7; }
     .foot { color: #555; font-size: 11px; margin-top: 24px; padding-top: 8px; border-top: 1px dashed #333; }
-  </style>
-</head>
-<body>
-${bodyHtml}
-  <script>
-    (function () {
-      var titles = document.querySelectorAll('.block-title');
-      titles.forEach(function (t) {
-        t.addEventListener('click', function () {
-          var body = t.nextElementSibling;
-          if (!body) return;
-          var hidden = body.style.display === 'none';
-          body.style.display = hidden ? 'block' : 'none';
-          t.firstChild.textContent = hidden ? '▼ ' : '▶ ';
-        });
-      });
-    })();
-  </script>
-</body>
-</html>`
+    /* ===== 分组折叠（锦绣请求 / 携程请求，默认收起）===== */
+    details.group { margin: 8px 0; border: 1px solid #333; border-radius: 2px; }
+    details.group > summary {
+      cursor: pointer; user-select: none; list-style: none;
+      padding: 8px 12px; font-size: 13px; font-weight: 600;
+      color: #ffb74d; background: #252525;
+    }
+    details.group > summary::before { content: '▶ '; }
+    details.group[open] > summary::before { content: '▼ '; }
+    /* ===== 详情弹框（dialog）===== */
+    dialog.task-dialog {
+      background: #1e1e1e; color: #d4d4d4;
+      border: 1px solid #555; border-radius: 4px;
+      padding: 0; max-width: 1080px; width: 92vw;
+    }
+    dialog.task-dialog::backdrop { background: rgba(0, 0, 0, 0.65); }
+    .dialog-head {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 14px; border-bottom: 1px solid #444;
+      position: sticky; top: 0; background: #2a2a2a; z-index: 2;
+    }
+    .dialog-title { flex: 1; color: #4fc3f7; font-size: 13px; font-weight: 600; }
+    .dialog-close {
+      background: #3a1a1a; color: #ffb4b4; border: 1px solid #f44336;
+      border-radius: 2px; padding: 4px 12px; font-size: 12px; cursor: pointer;
+    }
+    .dialog-close:hover { background: #4a2020; }
+    .dialog-body { padding: 12px 14px; max-height: 78vh; overflow-y: auto; }
+    .dialog-body .task-card { margin: 0; }
+    /* 请求快照折叠块 */
+    details.snapshot { margin-top: 8px; border: 1px solid #333; border-radius: 2px; }
+    details.snapshot > summary {
+      cursor: pointer; user-select: none; list-style: none;
+      padding: 6px 10px; font-size: 11px; color: #888; background: #222;
+    }
+    details.snapshot > summary::before { content: '▶ '; }
+    details.snapshot[open] > summary::before { content: '▼ '; }
+    details.snapshot .block { border-left: 3px solid #333; }
+  </style>`
+
+/** 详情弹框：单任务完整详情（对比块 + 底部折叠的请求快照），用 <dialog> 承载 */
+function renderTaskDialog(task, dlgId) {
+  const route = escapeHtml(extractRoute(task))
+  return `<dialog class="task-dialog" id="${dlgId}">
+    <div class="dialog-head">
+      <span class="dialog-title">任务详情 · ${route}</span>
+      <button class="dialog-close" onclick="document.getElementById('${dlgId}').close()">✕ 关闭 (Esc)</button>
+    </div>
+    <div class="dialog-body">${renderTaskCard(task)}</div>
+  </dialog>`
 }
 
-function renderTaskHtml(task) {
-  return pageShell(`任务 ${String(task?.id ?? '')} ${task?.type ?? ''}`, renderTaskCard(task))
+/** 任务列表一行（点击弹出对应详情框） */
+function renderIndexRow(t, dlgId) {
+  const cls = statusToClass(t.status)
+  const route = escapeHtml(extractRoute(t))
+  const tripSum = t.type === 'trip' ? tripSummary(t) : ''
+  return `<div class="idx-row" onclick="document.getElementById('${dlgId}').showModal()">
+    <span class="dot dot--${cls}"></span>
+    <span class="idx-id">${escapeHtml(t.id || '')}</span>
+    <span class="idx-type">[${escapeHtml(t.type || '')}]</span>
+    <span class="idx-route">${route}</span>
+    <span class="idx-meta">${Math.round(t.progress || 0)}% · ${escapeHtml(t.stage || '')}</span>
+    ${tripSum ? `<span class="idx-meta">${tripSum}</span>` : ''}
+    <span class="idx-open">详情</span>
+  </div>`
+}
+
+/** trip 任务行摘要：匹配/胜出率/比赢/比输/未匹配/无对应 */
+function tripSummary(t) {
+  const s = t?.result?.summary
+  if (!s) return ''
+  const won = s.quoteWon ?? 0
+  const lost = s.quoteLost ?? 0
+  const total = s.quoteTotal ?? 0
+  const winRate = total > 0 ? `${Math.round(((s.quoteOwnShown ?? 0) / total) * 100)}%` : '—'
+  return `匹配 ${won + lost} · 胜出率 ${winRate} · 比赢 ${won} · 比输 ${lost} · 未匹配 ${s.quoteUnmatched ?? 0} · 无对应 ${s.otherCount ?? 0}`
+}
+
+/** 分组开（默认折叠：<details class="group"> 不写 open） */
+function renderGroupOpen(label, count) {
+  return `<details class="group"><summary>${escapeHtml(label)} (${count})</summary>`
+}
+function renderGroupClose() {
+  return `</details>`
 }
 
 /**
- * 总览页：meta/统计/任务列表（每任务一行，点击进 tasks/task-XXXX.html）
+ * 主页头：doctype + head(style) + h1 + meta + stat-row（统计信息）
+ * @param {object} meta { datetimeStr, airline, routeCount, trigger, mode, businessMode }
+ * @param {object} stats { total, completed, failed, aborted, other, trip 聚合 }
  */
-function renderIndexHtml({ tasks, meta, taskLinks, failedTaskIds }) {
-  const jxgjTasks = tasks.filter(t => t.type === 'jxgj')
-  const tripTasks = tasks.filter(t => t.type === 'trip' || t.type === 'reserved')
-  const otherTasks = tasks.filter(t => t.type !== 'jxgj' && t.type !== 'trip' && t.type !== 'reserved')
+function renderIndexHead(meta, stats) {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(`PCP 运行日志 - ${meta.airline} ${meta.routeCount}航线 - ${meta.datetimeStr}`)}</title>
+  ${STYLE_BLOCK}
+</head>
+<body>
+<h1>PCP 运行日志</h1>
+<div class="meta">
+  <div><span class="k">运行结束时间</span><span class="v">${escapeHtml(meta.datetimeStr)}</span></div>
+  <div><span class="k">航司</span><span class="v">${escapeHtml(meta.airline)}</span></div>
+  <div><span class="k">航线数量</span><span class="v">${meta.routeCount}</span></div>
+  <div><span class="k">结束原因</span><span class="v">${escapeHtml(triggerLabel(meta.trigger))}</span></div>
+  <div><span class="k">运行模式</span><span class="v">${escapeHtml(meta.mode === 'auto' ? '自动 (auto)' : '开发 (dev)')}</span></div>
+  <div><span class="k">业务模式</span><span class="v">${escapeHtml(meta.businessMode === 'policy' ? '政策导入' : '底价检查')}</span></div>
+</div>
+<div class="stat-row">
+  <span class="stat">总任务<span class="n">${stats.total}</span></span>
+  <span class="stat ok">成功<span class="n">${stats.completed}</span></span>
+  <span class="stat fail">失败<span class="n">${stats.failed}</span></span>
+  <span class="stat aborted">终止<span class="n">${stats.aborted}</span></span>
+  ${stats.other > 0 ? `<span class="stat other">其它<span class="n">${stats.other}</span></span>` : ''}
+  <span class="stat">携程报价总数<span class="n">${stats.quoteTotal}</span></span>
+  <span class="stat">匹配<span class="n">${stats.matched}</span></span>
+  <span class="stat">比赢<span class="n">${stats.won}</span></span>
+  <span class="stat">比输<span class="n">${stats.lost}</span></span>
+  <span class="stat">无对应<span class="n">${stats.otherCount}</span></span>
+</div>`
+}
 
-  const completed = tasks.filter(t => t.status === 'completed').length
-  const failed = tasks.filter(t => t.status === 'failed').length
-  const aborted = tasks.filter(t => t.status === 'aborted').length
-  const other = tasks.length - completed - failed - aborted
-
-  const tripSummary = (t) => {
-    const s = t?.result?.summary
-    if (!s) return ''
-    const won = s.quoteWon ?? 0
-    const lost = s.quoteLost ?? 0
-    const total = s.quoteTotal ?? 0
-    const winRate = total > 0 ? `${Math.round(((s.quoteOwnShown ?? 0) / total) * 100)}%` : '—'
-    return ` · 匹配 ${won + lost} · 胜出率 ${winRate} · 比赢 ${won} · 比输 ${lost} · 未匹配 ${s.quoteUnmatched ?? 0} · 无对应 ${s.otherCount ?? 0}`
-  }
-
-  const renderIndexRows = (list) => list.map((t, i) => {
-    const cls = statusToClass(t.status)
-    const route = escapeHtml(extractRoute(t))
-    const link = taskLinks.get(t.id)
-    const failMark = failedTaskIds.has(t.id) ? '<span class="stat fail">导出失败</span>' : ''
-    return `<div class="idx-row">
-      <span class="dot dot--${cls}"></span>
-      <span class="idx-id">${escapeHtml(t.id || '')}</span>
-      <span class="idx-type">[${escapeHtml(t.type || '')}]</span>
-      <span class="idx-route">${route}</span>
-      <span class="idx-meta">${Math.round(t.progress || 0)}% · ${escapeHtml(t.stage || '')}</span>
-      ${t.type === 'trip' ? `<span class="idx-meta">${tripSummary(t)}</span>` : ''}
-      ${failMark}
-      ${link ? `<a class="idx-link" href="${escapeHtml(link)}">详情 ↗</a>` : ''}
-    </div>`
-  }).join('')
-
-  const bodyHtml = `
-  <h1>PCP 运行日志</h1>
-  <div class="meta">
-    <div><span class="k">运行结束时间</span><span class="v">${escapeHtml(meta.datetimeStr)}</span></div>
-    <div><span class="k">航司</span><span class="v">${escapeHtml(meta.airline)}</span></div>
-    <div><span class="k">航线数量</span><span class="v">${meta.routeCount}</span></div>
-    <div><span class="k">结束原因</span><span class="v">${escapeHtml(triggerLabel(meta.trigger))}</span></div>
-    <div><span class="k">运行模式</span><span class="v">${escapeHtml(meta.mode === 'auto' ? '自动 (auto)' : '开发 (dev)')}</span></div>
-    <div><span class="k">业务模式</span><span class="v">${escapeHtml(meta.businessMode === 'policy' ? '政策导入' : '底价检查')}</span></div>
-  </div>
-  <div class="stat-row">
-    <span class="stat">总任务<span class="n">${tasks.length}</span></span>
-    <span class="stat ok">成功<span class="n">${completed}</span></span>
-    <span class="stat fail">失败<span class="n">${failed}</span></span>
-    <span class="stat aborted">终止<span class="n">${aborted}</span></span>
-    ${other > 0 ? `<span class="stat other">其它<span class="n">${other}</span></span>` : ''}
-  </div>
-
-  <h2>锦绣请求 (${jxgjTasks.length})</h2>
-  ${jxgjTasks.length ? renderIndexRows(jxgjTasks) : '<div class="empty">无任务</div>'}
-
-  <h2>携程请求 (${tripTasks.length})</h2>
-  ${tripTasks.length ? renderIndexRows(tripTasks) : '<div class="empty">无任务</div>'}
-
-  ${otherTasks.length ? `<h2>其它任务 (${otherTasks.length})</h2>${renderIndexRows(otherTasks)}` : ''}
-
-  <div class="foot">由 PCP Pipeline 自动生成 · 分片目录：index.html 总览 + tasks/ 每任务详情 · 目录名格式: 日期_时间_航司_航线数量</div>`
-
-  return pageShell(`PCP 运行日志 - ${meta.airline} ${meta.routeCount}航线 - ${meta.datetimeStr}`, bodyHtml)
+/** 主页尾：交互脚本 + 分组默认折叠说明 + </body></html> */
+function renderIndexFoot() {
+  return `<div class="foot">由 PCP Pipeline 自动生成 · 点击任务行查看详情 · 分组默认折叠 · 详情内请求快照默认收起</div>
+</body>
+</html>`
 }
 
 // ========== 导出主入口 ==========
@@ -640,7 +673,10 @@ function resolveDesktopPath() {
 }
 
 /**
- * 导出运行日志（分片 HTML：index.html 总览 + tasks/task-XXXX.html 每任务一张）
+ * 导出运行日志（单文件 index.html：主页统计 + 分组折叠任务列表 + 点击弹详情框）
+ *   - 详情内联 <dialog>，点击任务行 showModal 即时显示（无跳转链接）
+ *   - 流式写盘：逐任务 append（不整段拼超大字符串），规避 110 航线大跑曾触发的 V8 字符串上限
+ *   - 单个任务渲染失败 → 记 error.txt 继续，不阻塞其它任务
  * @param {object} opts
  *   - tasks:        Array  任务快照（来自 taskManager.getState().tasks）
  *   - fileManager:  FileManager 实例（取航司 + 航线数）
@@ -668,7 +704,7 @@ export function exportRunLog({ tasks, fileManager, pipeline, trigger }) {
     const mode = pipeline?.mode || 'auto'
     const businessMode = pipeline?.businessMode || 'policy'
 
-    // 创建日志根目录 + 子目录 + tasks 目录
+    // 创建日志根目录 + 子目录
     const desktopPath = resolveDesktopPath()
     const rootDir = path.join(desktopPath, LOG_ROOT_DIR)
     if (!fs.existsSync(rootDir)) fs.mkdirSync(rootDir, { recursive: true })
@@ -684,40 +720,67 @@ export function exportRunLog({ tasks, fileManager, pipeline, trigger }) {
       if (suffix > 999) break // 安全上限
     }
     fs.mkdirSync(subDir, { recursive: true })
-    const tasksDir = path.join(subDir, TASKS_DIR)
-    fs.mkdirSync(tasksDir, { recursive: true })
     const errorPath = path.join(subDir, ERROR_FILENAME)
 
-    // 分片写入：逐任务生成小 HTML（单任务字符串很小，不会触 V8 字符串上限）；
-    // 单个任务失败 → 记 error.txt 并继续导出其它任务
-    const taskLinks = new Map()
-    const failedTaskIds = new Set()
-    let idx = 1
-    for (const t of taskList) {
-      const fname = `task-${String(idx).padStart(4, '0')}.html`
-      try {
-        const html = renderTaskHtml(t)
-        fs.writeFileSync(path.join(tasksDir, fname), html, 'utf-8')
-        taskLinks.set(t.id, `${TASKS_DIR}/${fname}`)
-      } catch (e) {
-        failedTaskIds.add(t.id)
-        taskLinks.delete(t.id)
-        try {
-          fs.appendFileSync(errorPath, `[${new Date().toISOString()}] 任务 ${t?.id ?? ''} 渲染失败: ${e?.stack || e?.message}\n`, 'utf-8')
-        } catch { /* 连错误文件都写不进就不阻塞主体流程 */ }
-      }
-      idx++
+    // 分组
+    const jxgjTasks = taskList.filter(t => t.type === 'jxgj')
+    const tripTasks = taskList.filter(t => t.type === 'trip' || t.type === 'reserved')
+    const otherTasks = taskList.filter(t => t.type !== 'jxgj' && t.type !== 'trip' && t.type !== 'reserved')
+
+    // 主页统计
+    const sum = (arr, k) => arr.reduce((a, t) => a + (Number(t?.result?.summary?.[k]) || 0), 0)
+    const stats = {
+      total: taskList.length,
+      completed: taskList.filter(t => t.status === 'completed').length,
+      failed: taskList.filter(t => t.status === 'failed').length,
+      aborted: taskList.filter(t => t.status === 'aborted').length,
+      other: taskList.filter(t => t.status !== 'completed' && t.status !== 'failed' && t.status !== 'aborted').length,
+      quoteTotal: sum(tripTasks, 'quoteTotal'),
+      matched: sum(tripTasks, 'quoteWon') + sum(tripTasks, 'quoteLost'),
+      won: sum(tripTasks, 'quoteWon'),
+      lost: sum(tripTasks, 'quoteLost'),
+      otherCount: sum(tripTasks, 'otherCount')
     }
 
-    // 写总览页（小字符串）
-    const indexHtml = renderIndexHtml({
-      tasks: taskList,
-      meta: { datetimeStr, airline, routeCount, trigger, mode, businessMode },
-      taskLinks,
-      failedTaskIds
-    })
     const indexPath = path.join(subDir, INDEX_FILENAME)
-    fs.writeFileSync(indexPath, indexHtml, 'utf-8')
+    // 1. 写头部（meta + 统计）
+    fs.writeFileSync(indexPath, renderIndexHead(
+      { datetimeStr, airline, routeCount, trigger, mode, businessMode },
+      stats
+    ), 'utf-8')
+
+    // 2. 逐任务 as 行 + 内联详情 dialog，按分组流式 append
+    let dlgSeq = 0
+    const writeGroup = (label, list) => {
+      if (list.length === 0) return
+      fs.appendFileSync(indexPath, renderGroupOpen(label, list.length), 'utf-8')
+      for (const t of list) {
+        const dlgId = `dlg-${dlgSeq}`
+        try {
+          fs.appendFileSync(indexPath, renderIndexRow(t, dlgId), 'utf-8')
+        } catch (e) {
+          try {
+            fs.appendFileSync(errorPath, `[${new Date().toISOString()}] 任务行 ${t?.id ?? ''} 渲染失败: ${e?.stack || e?.message}\n`, 'utf-8')
+          } catch { /* ignore */ }
+        }
+        // 详情 dialog 逐个 append：紧随其行，点击即时展示
+        try {
+          fs.appendFileSync(indexPath, renderTaskDialog(t, dlgId), 'utf-8')
+        } catch (e) {
+          try {
+            fs.appendFileSync(errorPath, `[${new Date().toISOString()}] 任务详情 ${t?.id ?? ''} 渲染失败: ${e?.stack || e?.message}\n`, 'utf-8')
+          } catch { /* ignore */ }
+        }
+        dlgSeq++
+      }
+      fs.appendFileSync(indexPath, renderGroupClose(), 'utf-8')
+    }
+    writeGroup('锦绣请求', jxgjTasks)
+    writeGroup('携程请求', tripTasks)
+    writeGroup('其它任务', otherTasks)
+
+    // 3. 写尾部
+    fs.appendFileSync(indexPath, renderIndexFoot(), 'utf-8')
 
     return { success: true, dir: subDir, file: indexPath }
   } catch (e) {

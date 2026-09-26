@@ -8,7 +8,7 @@
 //
 // 阶段3 重构要点：
 //   - 移除渲染层 autoChain 链式编排（步骤流收回主进程 Pipeline）
-//   - 渲染层只发：pipelineStart / pipelineTriggerStep / pipelineSetMode / pipelinePause
+//   - 渲染层只发：pipelineStart / pipelineSetBusinessMode / pipelinePause
 //   - 收到 pipeline:gateFail 时设 blinkTarget，各组件据此闪烁引导用户补全
 //   - handleAllComplete 不再自动衔接下一步（衔接由 Pipeline 在主进程完成）
 // ============================================================
@@ -46,13 +46,12 @@ export const useTaskStore = defineStore('pcp-task', () => {
 
   const taskIndexMap = new Map()
 
-  // ==================== Pipeline 状态（阶段3）====================
-  // mode:   'auto' | 'dev'
-  // status: 'idle' | 'running' | 'paused' | 'waiting_next' | 'done'
+  // ==================== Pipeline 状态 ====================
+  // status: 'idle' | 'running' | 'paused' | 'done'
   // step:   'upload' | 'jxgj' | 'o_combo' | 'export'
-  // businessMode: 'policy' | 'floorCheck'（业务模式：产什么，与 auto/dev 运行模式正交）
+  // businessMode: 'policy' | 'floorCheck'（业务模式：产什么）
   const pipelineState = ref({
-    mode: 'auto', businessMode: 'policy', status: 'idle', step: 'upload', lastGateFail: null
+    businessMode: 'policy', status: 'idle', step: 'upload', lastGateFail: null
   })
 
   // 业务模式顺序表（与后端 businessModes.js 保持一致；后端校验 key，前端只负责轮换和显示）
@@ -97,7 +96,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
    *       只有点「开始」→ jxgj → OTA → a3_merge 这段流程才算。
    * true  when: pipelineStatus === 'running' | 'waiting_next' | 'paused' OR taskQueue isRunning
    * false when: pipelineStatus === 'idle'    | 'done'
-   * 用于：PlatformConfig / CredentialManager 进行中禁用所有编辑控件，显示锁标示
+   * 用于：AirlineConfig / CredentialManager 进行中禁用所有编辑控件，显示锁标示
    */
   const pipelineInProgress = computed(() => {
     const s = pipelineState.value?.status || 'idle'
@@ -196,7 +195,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
   // ==================== 步骤1：上传 xlsx ====================
   async function handleUploadXlsx() {
     // 先重置 Pipeline：清空旧 a1/a2/a3 + 状态回到 idle/upload
-    //   防止上一个流程的 a2/a3 残留导致 StepFlow 误判步骤为「已完成」
+    //   防止上一个流程的 a2/a3 残留导致步骤流误判为「已完成」
     //   ★ 任务列表不清空：跨轮累积，只有「清空」按钮清已结束任务（refreshTasks 合并式保留历史）
     await api.pcp.pipelineReset()
     // 注意：不在此清 policyFileName —— 政策文件路径由主进程独立持有、不随 clearAll 清空，
@@ -212,6 +211,13 @@ export const useTaskStore = defineStore('pcp-task', () => {
         hangsi: result.hangsi || '',
         cangwei: result.cangwei || '',
         routes: (result.data || []).map(r => `${r.CF_jichang || ''}→${r.DD_jichang || ''}`)
+      }
+      // ★ 航司私有化：物化该航司私有配置（未配置航司自动用默认值建一份），提示用户去配置
+      if (result.hangsi) {
+        const ac = await api.pcp.configGetAirline(result.hangsi)
+        if (ac && ac.created) {
+          message.info(`航司 ${ac.code} 暂无私有配置，已用默认值创建，请到「航司配置」页完善`)
+        }
       }
       // 刷新所有计数和状态（a2/a3 应为 0，pipelineState 应为 idle/upload）
       await refreshAll()
@@ -240,43 +246,19 @@ export const useTaskStore = defineStore('pcp-task', () => {
   // ==================== Pipeline 操作（阶段3）====================
   /**
    * 开始执行（TopToolbar "开始"按钮调用）
-   *   auto 模式：门禁通过 → 跑到底（jxgj → o_combo → done）
-   *   dev  模式：触发 jxgj（与 StepFlow 点 jxgj 步骤等价）；后续步骤靠 StepFlow triggerStep
+   *   门禁通过 → 跑到底（jxgj → o_combo → done）
    */
   async function handleStartExecution() {
     if (pipelineState.value.status === 'running') {
       message.warning('流程执行中，请勿重复操作')
       return
     }
-    if (pipelineState.value.mode === 'dev') {
-      await pipelineTriggerStep('jxgj')
-    } else {
-      const result = await api.pcp.pipelineStart()
-      if (!result.success && result.message) {
-        message.warning(result.message)
-      }
-      // 任务已入队（pending），立即拉取让 TaskMonitor 显示并开始进度动画
-      // await refreshTasks()
-    }
-  }
-
-  /** dev 模式：用户点 StepFlow 某步触发 */
-  async function pipelineTriggerStep(step) {
-    const result = await api.pcp.pipelineTriggerStep(step)
+    const result = await api.pcp.pipelineStart()
     if (!result.success && result.message) {
       message.warning(result.message)
     }
     // 任务已入队（pending），立即拉取让 TaskMonitor 显示并开始进度动画
     // await refreshTasks()
-  }
-
-  /** 切换 auto/dev 模式（Home 左下角 dev 按钮调用） */
-  async function setMode(mode) {
-    const result = await api.pcp.pipelineSetMode(mode)
-    if (result?.success) {
-      pipelineState.value = { ...pipelineState.value, mode: result.mode }
-      message.success(`已切换为${mode === 'dev' ? 'Dev' : '自动'}模式`)
-    }
   }
 
   /**
@@ -573,7 +555,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
     const firstMissing = fail.missing[0]
     const msgMap = {
       file: '请先选择 Excel 文件',
-      jxgj_config: '锦绣国际配置未启用，请在「平台配置」里启用',
+      jxgj_config: '锦绣国际配置未启用，请在「航司配置」里选中该航司并启用',
       jxgj_credential: '锦绣国际未选中账号，请在「账号管理」里选中',
       o_config: '至少需要启用一个 O 平台配置（携程OTA/O2/O3）',
       o_credential: '已启用的 O 平台未选中账号，请在「账号管理」里选中'
@@ -685,7 +667,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
     handlePolicyIssueRepick, handlePolicyIssueSkip, handlePolicyIssueCancel,
     handleSelectDownloadDir, handleOpenDownloadDir, refreshDownloadDir,
     handleDeleteTask, handleClearTasks, handlePause, handleAbort, handleSetConcurrency,
-    handleStartExecution, pipelineTriggerStep, setMode, setBusinessMode,
+    handleStartExecution, setBusinessMode,
     currentBusinessModeLabel, nextBusinessModeKey,
     init
   }

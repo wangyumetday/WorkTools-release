@@ -68,27 +68,21 @@ const mockApi = {
     credentialSelect:    () => { mockNotReady('pcp.credentialSelect');    return mockDelay({ success: false }) },
     credentialUpdate:    () => { mockNotReady('pcp.credentialUpdate');    return mockDelay({ success: false }) },
 
-    configGet:           () => {
-      mockNotReady('pcp.configGet')
-      return mockDelay({
-        jxgj: { floorPriceFormula: '', markupPercent: 0, enabled: true },
-        trip: { enabled: true, rateLimitPerMin: 200 },
-        reserved: { enabled: false }
-      })
+    configListAirlines:  () => {
+      mockNotReady('pcp.configListAirlines')
+      return mockDelay({ airlines: [], schema: { platform: {}, policyFields: [] }, vars: [] })
     },
-    configGetSchema:     () => { mockNotReady('pcp.configGetSchema'); return mockDelay({}) },
-    configSet:           () => { mockNotReady('pcp.configSet'); return mockDelay({ success: false }) },
-    policyFieldsGet:     () => { mockNotReady('pcp.policyFieldsGet'); return mockDelay({ fields: {}, schema: [] }) },
-    policyFieldsSet:     () => { mockNotReady('pcp.policyFieldsSet'); return mockDelay({ fields: {} }) },
+    configGetAirline:    (code) => { mockNotReady('pcp.configGetAirline');     return mockDelay({ code, platform: {}, policyFields: {}, created: false }) },
+    configAddAirline:    (code) => { mockNotReady('pcp.configAddAirline');     return mockDelay({ code, platform: {}, policyFields: {}, created: false }) },
+    configSaveAirline:   (code, payload) => { mockNotReady('pcp.configSaveAirline'); return mockDelay({ code, platform: {}, policyFields: {} }) },
+    configDeleteAirline: (code) => { mockNotReady('pcp.configDeleteAirline');  return mockDelay({ success: false }) },
 
-    // Pipeline：步骤流编排（auto/dev 模式 + 门禁 + 步骤触发）
+    // Pipeline：步骤流编排（auto 模式 + 门禁 + 步骤触发）
     pipelineStart:        () => { mockNotReady('pcp.pipelineStart');        return mockDelay({ success: false, message: '未连接主进程' }) },
-    pipelineTriggerStep:  () => { mockNotReady('pcp.pipelineTriggerStep');  return mockDelay({ success: false, message: '未连接主进程' }) },
-    pipelineSetMode:      () => { mockNotReady('pcp.pipelineSetMode');      return mockDelay({ success: false }) },
     pipelineSetBusinessMode: () => { mockNotReady('pcp.pipelineSetBusinessMode'); return mockDelay({ success: false }) },
     pipelinePause:        () => { mockNotReady('pcp.pipelinePause');        return mockDelay({ success: false }) },
     pipelineAbort:        () => { mockNotReady('pcp.pipelineAbort');        return mockDelay({ success: true }) },
-    pipelineGetState:     () => { mockNotReady('pcp.pipelineGetState');    return mockDelay({ mode: 'auto', status: 'idle', step: 'upload', lastGateFail: null }) },
+    pipelineGetState:     () => { mockNotReady('pcp.pipelineGetState');    return mockDelay({ status: 'idle', step: 'upload', lastGateFail: null }) },
     pipelineReset:        () => { mockNotReady('pcp.pipelineReset');        return mockDelay({ success: true }) },
     onPipelineState:      () => { mockNotReady('pcp.onPipelineState') },
     onPipelineGateFail:   () => { mockNotReady('pcp.onPipelineGateFail') }

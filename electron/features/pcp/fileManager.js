@@ -416,18 +416,26 @@ export class FileManager {
     //   品牌对不上/无套餐可归属的报价）收集起来供底价检查文件展示
     //   （任务列表/运行日志已展示；此处补齐人看文件，导出时读 this.tripOtherQuotes）
     const tripOtherQuotes = []
+    // ★ 完整对比行（2026-09-26 起）：saveA3FromOTasks 把 trip 任务的全部 quoteRows
+    //   （官网行 + 携程行 + 附加行）收集起来，供底价检查文件按「官网行 + 匹配携程行」展开
+    const tripQuoteRows = []
 
-    // 预取各平台配置 + exportTemplate + 锦绣政策字段配置
+    // 预取各平台配置 + exportTemplate + 锦绣政策字段配置（航司私有化：按当前文件航司取）
     //   from(item, ctx) 的 ctx = { ...平台配置, policyFields }：
     //     - 平台配置（cfg）：adapter 内部用（如 trip 无）
     //     - policyFields：锦绣政策字段配置（新格式 Name/航司名 等 10 字段的用户填写值）
     //       导出模板里 pf(key) 列经 resolvePolicyField 解析 ${变量} 拼接
-    const policyFields = this.configManager?.getPolicyFields().fields || {}
+    const hangsi = String(this.a1?.[0]?.hangsi || '').trim()
+    const airline = (hangsi && this.configManager)
+      ? this.configManager.getAirlineConfig(hangsi)
+      : null
+    const policyFields = airline?.policyFields || {}
+    const airlinePlatform = airline?.platform || {}
     const platformCtx = {}
     for (const p of O_PLATFORMS) {
       let template = null
       try { template = registry.get(p)?.exportTemplate || null } catch { template = null }
-      const cfg = this.configManager?.getPlatformConfig(p) || {}
+      const cfg = airlinePlatform[p] || {}
       platformCtx[p] = { template, ctx: { ...cfg, policyFields } }
     }
 
@@ -441,10 +449,11 @@ export class FileManager {
         console.warn(`  [saveA3FromOTasks] 任务=${task.id} ${p} 请求报错: ${result.error}`)
         return
       }
-      // ★ 收集无匹配携程报价（kind='other' 附加行）
+      // ★ 收集携程对比行：附加行（无对应）+ 完整 quoteRows（官网行/携程行，供底价检查文件）
       if (p === 'trip' && Array.isArray(result.quoteRows)) {
         for (const q of result.quoteRows) {
           if (q && q.kind === 'other') tripOtherQuotes.push(q)
+          if (q) tripQuoteRows.push(q)
         }
       }
       const processedData = result.processedData
@@ -483,6 +492,10 @@ export class FileManager {
         //   套餐价_CNY / 我方底价 / 携程底价 / 差值 / _floorMeta）
         row['行李信息'] = item['行李信息']
         row['套餐信息'] = item['套餐信息']
+        // 是否显示（2026-09-26）：showState 供底价检查文件「是否显示」列；
+        //   ownShowState = 我方报价自身的 showState（isOwn=true 行用，与 isOwn 同源）
+        row['showState'] = item['showState']
+        row['ownShowState'] = item['ownShowState']
         a3arr.push(row)
       }
     })
@@ -491,6 +504,7 @@ export class FileManager {
     // console.log(`[saveA3FromOTasks] 总 O 任务数=${tasks.length}；${summary} → a3 条数=${a3arr.length}`)
     this.a3 = a3arr
     this.tripOtherQuotes = tripOtherQuotes
+    this.tripQuoteRows = tripQuoteRows
     this.saveData('a3.json', a3arr)
     return a3arr
   }

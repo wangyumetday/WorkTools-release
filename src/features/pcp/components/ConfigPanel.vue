@@ -15,7 +15,7 @@
       title="步骤流进行中，基础配置已锁定"
     >
       上传文件 / 下载结果 不算真实步骤流；
-      当前为锦绣国际 / OTA / 合并阶段。完成或终止后才能编辑「账号管理」「平台配置」。
+      当前为锦绣国际 / OTA / 合并阶段。完成或终止后才能编辑「账号管理」「航司配置」。
     </n-alert>
 
     <n-tabs
@@ -29,11 +29,8 @@
       <n-tab-pane name="credential" tab="账号管理">
         <CredentialManager ref="credentialRef" :disabled="pipelineInProgress" />
       </n-tab-pane>
-      <n-tab-pane name="platform" tab="平台配置">
-        <PlatformConfig :disabled="pipelineInProgress" />
-      </n-tab-pane>
-      <n-tab-pane name="policyFields" tab="政策字段配置">
-        <PolicyFieldsConfig :disabled="pipelineInProgress" />
+      <n-tab-pane name="airline" tab="航司配置">
+        <AirlineConfig :disabled="pipelineInProgress" />
       </n-tab-pane>
       <template #suffix>
         <n-button
@@ -55,8 +52,7 @@
 import { ref, watch } from 'vue'
 import { NTabs, NTabPane } from 'naive-ui'
 import CredentialManager from './CredentialManager.vue'
-import PlatformConfig from './PlatformConfig.vue'
-import PolicyFieldsConfig from './PolicyFieldsConfig.vue'
+import AirlineConfig from './AirlineConfig.vue'
 import { useTaskStore } from '../stores/task.js'
 
 const activeTab = ref('credential')
@@ -66,12 +62,12 @@ const store = useTaskStore()
 const pipelineInProgress = store.pipelineInProgress
 
 // 阶段3：门禁失败闪烁引导
-//   *_config    → 切到「平台配置」标签页（PlatformConfig 内部再切到对应平台 sub-tab）
+//   *_config    → 切到「航司配置」标签页（AirlineConfig 内部按当前文件航司选中）
 //   *_credential→ 切到「账号管理」标签页（CredentialManager 内部抖动对应平台卡片）
 const CONFIG_BLINKS = ['jxgj_config', 'o_config']
 const CREDENTIAL_BLINKS = ['jxgj_credential', 'o_credential']
 watch(() => store.blinkTarget, (t) => {
-  if (CONFIG_BLINKS.includes(t)) activeTab.value = 'platform'
+  if (CONFIG_BLINKS.includes(t)) activeTab.value = 'airline'
   else if (CREDENTIAL_BLINKS.includes(t)) activeTab.value = 'credential'
 })
 </script>

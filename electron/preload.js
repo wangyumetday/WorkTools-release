@@ -65,18 +65,15 @@ const api = {
     credentialSelect:    (id)                => ipcRenderer.invoke('pcp:credential:select', id),
     credentialUpdate:    (credential)        => ipcRenderer.invoke('pcp:credential:update', credential),
 
-    // Config：平台配置（底价公式等）
-    configGet:           ()                  => ipcRenderer.invoke('pcp:config:get'),
-    configGetSchema:     ()                  => ipcRenderer.invoke('pcp:config:getSchema'),
-    configSet:           (config)            => ipcRenderer.invoke('pcp:config:set', config),
-    // 政策字段配置（新格式政策导入文件的 12 项锦绣配置：11 个文本字段 + 1 个主行参与开关，含 ${变量} 拼接）
-    policyFieldsGet:     ()                  => ipcRenderer.invoke('pcp:config:getPolicyFields'),
-    policyFieldsSet:     (fields)            => ipcRenderer.invoke('pcp:config:setPolicyFields', fields),
+    // Config：航司私有配置（平台配置 + 政策字段配置）
+    configListAirlines:    ()                  => ipcRenderer.invoke('pcp:config:listAirlines'),
+    configGetAirline:      (code)              => ipcRenderer.invoke('pcp:config:getAirlineConfig', code),
+    configAddAirline:      (code)              => ipcRenderer.invoke('pcp:config:addAirline', code),
+    configSaveAirline:     (code, payload)     => ipcRenderer.invoke('pcp:config:saveAirlineConfig', code, payload),
+    configDeleteAirline:   (code)              => ipcRenderer.invoke('pcp:config:deleteAirline', code),
 
-    // Pipeline：步骤流编排（阶段3：auto/dev 模式 + 前置门禁 + 步骤触发）
+    // Pipeline：步骤流编排（前置门禁 + 步骤触发）
     pipelineStart:        ()                 => ipcRenderer.invoke('pcp:pipeline:start'),
-    pipelineTriggerStep:  (step)             => ipcRenderer.invoke('pcp:pipeline:triggerStep', step),
-    pipelineSetMode:      (mode)             => ipcRenderer.invoke('pcp:pipeline:setMode', mode),
     pipelineSetBusinessMode: (mode)          => ipcRenderer.invoke('pcp:pipeline:setBusinessMode', mode),
     pipelinePause:        ()                 => ipcRenderer.invoke('pcp:pipeline:pause'),
     pipelineAbort:        ()                 => ipcRenderer.invoke('pcp:pipeline:abort'),

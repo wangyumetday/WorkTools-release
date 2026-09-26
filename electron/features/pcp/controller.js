@@ -34,7 +34,7 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
   // 设置并发数（运行时也可调，会立刻唤醒额外 worker）
   ipcMain.handle('pcp:task:setConcurrency', (_event, n) => taskManager.setConcurrency(n))
 
-  // 注：pcp:task:addBatchByStage 已删除（死代码，前端通过 pipelineStart/pipelineTriggerStep 走 pipeline._invokeAddBatchByStage）
+  // 注：pcp:task:addBatchByStage 已删除（死代码，前端通过 pipelineStart 走 pipeline._invokeAddBatchByStage）
 
   // ========== File IPC ==========
 
@@ -187,45 +187,47 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
     return credentialManager.update(credential)
   })
 
-  // ========== Config IPC ==========
-  // 设计：get/getSchema 只读永远放行；set(保存平台配置/启用开关) 必须 isInProgress===false
-  ipcMain.handle('pcp:config:get', () => configManager.get())
-  ipcMain.handle('pcp:config:getSchema', () => configManager.getSchema())
+  // ========== 航司配置 IPC（航司私有化重构）==========
+  // 设计：list/getAirlineConfig 只读永远放行（getAirlineConfig 幂等物化：未配置航司用默认值建一份）；
+  //       add/save/delete 写操作必须 isInProgress===false。
+  ipcMain.handle('pcp:config:listAirlines', () => {
+    return {
+      airlines: configManager.listAirlines(),
+      schema: {
+        platform: configManager.getSchema(),
+        policyFields: configManager.getPolicyFieldsSchema()
+      },
+      vars: configManager.getPolicyFieldVars()
+    }
+  })
+  // 取某航司配置（幂等物化：命中返回已存；未命中用默认值新建并落盘，created=true）
+  ipcMain.handle('pcp:config:getAirlineConfig', (_event, code) => configManager.getAirlineConfig(code))
+  // 显式新增航司（航司配置页「+」按钮）
+  ipcMain.handle('pcp:config:addAirline', (_event, code) => {
+    failIfInProgress('新增航司配置')
+    return configManager.addAirline(code)
+  })
   /**
-   * 用户在前端点启用 → 保存配置 → 立刻刷新运行时配置栈
-   * "一条路径"保证：保存动作完成后，taskManager.compiledConfigs 已同步为新值。
+   * 保存某航司配置 → 立刻刷新运行时配置栈
+   * "一条路径"保证：保存动作完成后，taskManager.compiledConfigs 已同步为该航司新值。
    * ★ 真实步骤流进行中（running/waiting_next/paused）直接抛错：流程中禁用保存配置，
    *   确保任务执行用的配置栈不被中途替换（否则已生成的任务结果和底价公式前后不一致）。
    */
-  ipcMain.handle('pcp:config:set', (_event, config) => {
-    failIfInProgress('保存平台配置/启用平台')
-    const merged = configManager.set(config)
-    const runtimeInfo = taskManager.reloadRuntimeConfigs('save')
-    // console.log(`[pcp:config:set] saved + runtime refreshed: revision=${runtimeInfo.revision}`)
-    return { merged, runtimeInfo }
+  ipcMain.handle('pcp:config:saveAirlineConfig', (_event, code, payload) => {
+    failIfInProgress('保存航司配置')
+    const saved = configManager.saveAirlineConfig(code, payload || {})
+    const runtimeInfo = taskManager.reloadRuntimeConfigs(saved.code, 'save')
+    return { ...saved, runtimeInfo }
   })
-
-  // ========== 锦绣政策字段配置 IPC（新格式政策导入文件的 14 项配置：13 文本 + 1 主行参与开关）==========
-  //   - get：返回 { fields, schema }，渲染层据此列出输入框 + 默认值
-  //   - set：运行中禁止保存（与平台配置同源 failIfInProgress，避免 saveA3 读到前后不一致值）
-  //   - 持久化在 userData/config/policyFields.json（独立于平台配置）
-  //   - saveA3FromOTasks 从 configManager.getPolicyFields() 取值，注入 exportTemplate.from(item, ctx)
-  ipcMain.handle('pcp:config:getPolicyFields', () => configManager.getPolicyFields())
-  ipcMain.handle('pcp:config:setPolicyFields', (_event, fields) => {
-    failIfInProgress('保存政策字段配置')
-    const saved = configManager.setPolicyFields(fields)
-    // 政策字段配置不走 compiledConfigs 编译栈（saveA3 直接读 configManager 内存），
-    //   但仍 reload 一次保持运行时栈版本号单调递增，与平台配置保存行为对齐
-    taskManager.reloadRuntimeConfigs('savePolicyFields')
-    return { fields: saved }
+  // 删除航司配置（不 reload：删除后该航司已不存在，reload 会误触「幂等物化」重建）
+  ipcMain.handle('pcp:config:deleteAirline', (_event, code) => {
+    failIfInProgress('删除航司配置')
+    return configManager.deleteAirline(code)
   })
 
   // ========== Pipeline IPC（阶段3：步骤流编排，收回主进程）==========
-  // auto 模式：开始 → 门禁 → 跑到底（jxgj → o_combo → done）
-  // dev 模式：triggerStep 触发单步，完成后停在 waiting_next
+  // 开始 → 门禁 → 跑到底（jxgj → o_combo → done）
   ipcMain.handle('pcp:pipeline:start', async () => pipeline.start())
-  ipcMain.handle('pcp:pipeline:triggerStep', async (_event, step) => pipeline.triggerStep(step))
-  ipcMain.handle('pcp:pipeline:setMode', (_event, mode) => pipeline.setMode(mode))
   // 业务模式切换（政策导入/底价检查）：后端校验合法性 + 流程进行中拒绝 + 切换即全清（含 a1）
   ipcMain.handle('pcp:pipeline:setBusinessMode', (_event, mode) => pipeline.setBusinessMode(mode))
   ipcMain.handle('pcp:pipeline:pause', async () => pipeline.pause())

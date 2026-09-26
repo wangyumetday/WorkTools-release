@@ -93,24 +93,6 @@ function expectedCut(xcPrice, gwPrice, offset) {
 }
 
 /**
- * 「底价检查」行李额列（只展示托运部分，手提不展示）：
- *   汇总 行李信息 里「托运」条目的重量总和 → 托运：20kg / 托运：0
- *   非数组或没有托运条目 → 托运：0
- */
-function formatBaggageText(list) {
-  if (!Array.isArray(list) || list.length === 0) return '托运：0'
-  let kg = 0
-  for (const x of list) {
-    // 只汇总托运（手提不展示）；锦绣源数据为中文「托运」，兼容 '2' 写法
-    if (x && (x['类型'] == '2' || x['类型'] == '托运') && x['重量'] != null) {
-      const w = Number(x['重量'])
-      if (!Number.isNaN(w)) kg += w
-    }
-  }
-  return kg > 0 ? `托运：${kg}kg` : '托运：0'
-}
-
-/**
  * 底价命中公式文本：与前端 TaskList 调试标签 formatFloorMeta 输出一致
  *   range   → 「区间 [500,700] cost*0.48」
  *   global  → 「全局 cost*0.2」
@@ -191,6 +173,21 @@ export class ExcelExporter {
     const a1Data = this.fileManager?.getA1?.()?.data || []
     const al = String(a1Data[0]?.hangsi || '').trim().toUpperCase()
     return al ? `${al}-` : ''
+  }
+
+  /**
+   * 本平台「比携程低多少元」cutOffset（航司私有化：从当前文件航司配置取）
+   *   仅 trip 平台可配；其余平台/航司未配置/取失败 → undefined（期望行为：formatPolicyAdjust 回退默认 1）
+   */
+  _airlineCutOffset(p) {
+    const fm = this.fileManager
+    const hangsi = String(fm?.a1?.[0]?.hangsi || '').trim()
+    if (!hangsi || !fm?.configManager) return undefined
+    try {
+      return fm.configManager.getAirlineConfig(hangsi).platform?.[p]?.cutOffset
+    } catch {
+      return undefined
+    }
   }
 
   /**
@@ -396,16 +393,11 @@ export class ExcelExporter {
   }
 
   /**
-   * 生成「底价检查」人看文件（业务模式重构：每平台独立一份，主行 + 套餐子行）
-   *   - 每个有 a3 数据的平台各出一份文件：{平台中文名}底价检查{日期}.xlsx
-   *   - 行布局（对齐模板 docs/pcp/携程底价检查*.xlsx）：
-   *       主行 = 舱位级数据（航班号/舱位/套餐索引/机场/城市/时间/仓等 + 票价/底价/公式/行李额全填）
-   *       主行下方紧跟该舱位行的套餐子行（只填 舱位/套餐索引/isOwn/成人总票价_CNY/{平台}底价/预计减价/携程减价比例(%)/-2%后的减价数值(元)/底价公式命中/行李额）
-   *   - 套餐没有匹配到携程价的也列出（携程底价/预计减价/减价两列留空），其余照写
-   *   - 预计减价：主行 = CUT_VALUE（携程底价 - 官网价取整 - 1；lost 行留空）；套餐行 = 差值（携程底价 - 官网套餐我方底价 - 1）
-   *   - 携程减价比例(%) = 100 − 携程价/官网价×100；-2%后的减价数值(元) = 携程价 − 官网价×0.98
-   *     （两列均保留 2 位小数；官网价 = 成人总票价_CNY 列值，携程价 = {平台}底价 列值；
-   *      任一价格缺失或非正数 → 留空；lost 行有值也算）
+   * 生成「底价检查」人看文件（2026-09-26 重构：每锦绣单元 = 官网行 + 全部匹配携程行）
+   *   - trip 平台基于完整 quoteRows（官网行 role=official + 携程行 role=ctrip + 附加行 role=other）出文件
+   *   - 官网行：锦绣字段全填，浅蓝背景；携程行：携程该报价自己的航班/城市/时间/舱位，无底色
+   *   - 官网价/携程价合一列（官网行=官网价、携程行=携程价）；isOwn/showState 原样输出
+   *   - 预计减价/减价比例/-2%数值 由「携程价 vs 所属官网价」计算，缺失或非正数 → 留空（不兜底）
    */
   async buildHumanReadableFiles(dir, dateStr, seq = null) {
     const out = []
@@ -421,7 +413,9 @@ export class ExcelExporter {
       // 2. 每个有数据的平台独立生成一份
       for (const p of O_PLATFORMS) {
         const rows = groups[p] || []
-        if (rows.length === 0) continue
+        // trip：底价检查改由完整 quoteRows（官网行+携程行）驱动；有对比行即生成，不限 a3 政策行数
+        const hasTripData = p === 'trip' && Array.isArray(this.fileManager?.tripQuoteRows) && this.fileManager.tripQuoteRows.length > 0
+        if (rows.length === 0 && !hasTripData) continue
         const file = await this._buildHumanFileForPlatform(p, rows, dir, dateStr, seq)
         if (file) out.push(file)
       }
@@ -435,95 +429,65 @@ export class ExcelExporter {
   /** 单个平台的底价检查文件：按模板列组装主行 + 套餐子行 */
   async _buildHumanFileForPlatform(p, rows, dir, dateStr, seq) {
     const pName = platformDisplayName(p)
-    // 本平台「比携程低多少元」配置（仅携程 OTA 平台可配；其余平台无此项 → resolveCutOffset 回退默认 1）
-    const cutOffset = this.fileManager?.configManager?.getPlatformConfig?.(p)?.cutOffset
-    // 表头（对齐模板：主键列 + 本平台底价三列 + 减价两列 + 行李额 + 航班详情列尾）
-    const header = ['航班号', '舱位', '套餐索引', '出发机场', '到达机场', 'isOwn', '成人总票价_CNY',
-      `${pName}底价`, '预计减价', '携程减价比例(%)', '-2%后的减价数值(元)', '底价公式命中', '行李额',
-      '出发城市', '到达城市', '航司名', '出发时间', '到达时间', '仓等']
-    // 中文表头 → 行级原始字段（仅主行填充）
-    const fieldMap = {
-      '航班号': A3_FIELDS.H航班号, '舱位': A3_FIELDS.C舱位,
-      '套餐索引': A3_FIELDS.套餐索引,
-      '出发机场': A3_FIELDS.C出发机场, '到达机场': A3_FIELDS.D到达机场,
-      'isOwn': A3_FIELDS.isOwn,
-      '出发城市': A3_FIELDS.C出发城市, '到达城市': A3_FIELDS.D到达城市,
-      '航司名': A3_FIELDS.H航司名,
-      '出发时间': A3_FIELDS.C出发时间_Date, '到达时间': A3_FIELDS.D到达时间_Date,
-      '仓等': A3_FIELDS.仓等
-    }
+    // 本平台「比携程低多少元」配置（航司私有化：从当前文件航司配置取；其余平台无此项 → 回退默认 1）
+    const cutOffset = this._airlineCutOffset(p)
+    // 新表头（2026-09-26 起）：每锦绣单元 = 官网行 + 全部匹配携程行；官网价/携程价合一列；showState/isOwn 原样
+    const header = [
+      '航班号', '舱位', '套餐索引', '出发机场', '到达机场', '官网价/携程价', '行李额',
+      '出发城市', '到达城市', '航司名', '出发时间', '到达时间', '仓等',
+      'isOwn', 'showState', '预计减价', '携程减价比例(%)', '-2%后的减价数值(元)', '底价公式命中'
+    ]
     const outRows = []
-    const rowBgColors = [] // 与 outRows 对齐，记录每行背景色（null = 不着色）
-    for (const r of rows) {
-      // ★ 原价政策行（未匹配套餐、无携程对比数据）不进入底价检查展示：
-      //   主行开启模式会与主行下套餐子行重复；关闭模式无对比基准，展示无意义
-      if (r['_原价政策'] === true) continue
-      // ===== 主行：舱位级数据（本身就是一种"套餐"） =====
-      const parent = {}
-      // 本行参与比例/减价计算的基准价：官网价 = 成人总票价_CNY，携程价 = {平台}底价
-      const pXc = r[A3_FIELDS.XC_dijia]
-      const pGw = r[A3_FIELDS.C成人总票价_CNY]
-      for (const h of header) {
-        if (fieldMap[h] != null) {
-          parent[h] = r[fieldMap[h]]
-        } else if (h === '成人总票价_CNY') {
-          parent[h] = r[A3_FIELDS.C成人总票价_CNY]
-        } else if (h === `${pName}底价`) {
-          parent[h] = r[A3_FIELDS.XC_dijia]
-        } else if (h === '预计减价') {
-          parent[h] = expectedCut(pXc, pGw, cutOffset)
-        } else if (h === '携程减价比例(%)') {
-          parent[h] = cutRatePct(pXc, pGw)
-        } else if (h === '-2%后的减价数值(元)') {
-          parent[h] = cutValueMinus2Pct(pXc, pGw)
-        } else if (h === '底价公式命中') {
-          parent[h] = formatFloorMeta(r[A3_FIELDS._floorMeta])
-        } else if (h === '行李额') {
-          parent[h] = formatBaggageText(r['行李信息'])
+    const rowBgColors = [] // 与 outRows 对齐：官网行='E2ECFF'（浅蓝）；携程行/附加行=null（无颜色）
+
+    // 数据源：trip 用完整 quoteRows（官网行 role=official + 携程行 role=ctrip + 附加行 role=other）
+    const quoteRows = (p === 'trip' && Array.isArray(this.fileManager?.tripQuoteRows))
+      ? this.fileManager.tripQuoteRows
+      : null
+
+    // 「—」是 UI 占位符，非真实值 → 导出时转空（如实：取不到就空）
+    const v = (x) => (x == null || x === '—' ? '' : x)
+
+    if (quoteRows) {
+      // 先按 unitKey 建官网价索引：携程行算「预计减价/比例」要用到所属官网行的官网价
+      const gwByUnit = new Map()
+      for (const q of quoteRows) {
+        if (q?.role === 'official') gwByUnit.set(q.unitKey, q.ourPrice ?? null)
+      }
+      for (const q of quoteRows) {
+        if (!q) continue
+        if (q.role === 'official') {
+          outRows.push({
+            '航班号': v(q.flightNo), '舱位': v(q.seatClass), '套餐索引': v(q.pkgIndex),
+            '出发机场': v(q.depAirport), '到达机场': v(q.arrAirport),
+            '官网价/携程价': (q.ourPrice == null ? '' : q.ourPrice),
+            '行李额': v(q.ourBaggageShort),
+            '出发城市': v(q.depCity), '到达城市': v(q.arrCity), '航司名': v(q.airlineName),
+            '出发时间': v(q.depTime), '到达时间': v(q.arrTime), '仓等': v(q.cabinClass),
+            'isOwn': '', 'showState': '',
+            '预计减价': '', '携程减价比例(%)': '', '-2%后的减价数值(元)': '',
+            '底价公式命中': formatFloorMeta(q.floorMeta)
+          })
+          rowBgColors.push('E2ECFF') // 官网行浅蓝
         } else {
-          parent[h] = ''
+          // 携程行（role=ctrip）或附加行（role=other）：用该条携程报价自己的航班/城市/时间/舱位
+          const gw = gwByUnit.get(q.unitKey) ?? null
+          outRows.push({
+            '航班号': v(q.xcFlightNo), '舱位': v(q.xcSeatClass), '套餐索引': '',
+            '出发机场': v(q.xcDepAirport), '到达机场': v(q.xcArrAirport),
+            '官网价/携程价': (q.xcPrice == null ? '' : q.xcPrice),
+            '行李额': v(q.xcBaggageShort),
+            '出发城市': v(q.xcDepCity), '到达城市': v(q.xcArrCity), '航司名': '',
+            '出发时间': v(q.xcTakeOffDateTime), '到达时间': v(q.xcArriveDateTime), '仓等': '',
+            'isOwn': q.isOwn ? q.isOwn : '',  // 原始 isOwn（布尔）
+            'showState': (q.showState == null ? '' : q.showState),
+            '预计减价': expectedCut(q.xcPrice, gw, cutOffset),
+            '携程减价比例(%)': cutRatePct(q.xcPrice, gw),
+            '-2%后的减价数值(元)': cutValueMinus2Pct(q.xcPrice, gw),
+            '底价公式命中': ''
+          })
+          rowBgColors.push(null) // 携程行无颜色
         }
-      }
-      outRows.push(parent)
-      rowBgColors.push(r[A3_FIELDS.isOwn] ?? null)
-
-      // ===== 套餐子行：主行下方展开，其余列留空 =====
-      const taocan = Array.isArray(r['套餐信息']) ? r['套餐信息'] : []
-      for (const acai of taocan) {
-        if (!acai) continue
-        const child = {}
-        for (const h of header) child[h] = ''
-        child['舱位'] = acai['舱位'] ?? ''
-        child['套餐索引'] = acai['套餐索引'] ?? ''
-        child['isOwn'] = acai['isOwn'] ?? ''
-        child['成人总票价_CNY'] = acai['套餐价格_CNY'] ?? ''
-        child[`${pName}底价`] = acai['携程底价'] ?? ''
-        child['预计减价'] = expectedCut(acai['携程底价'], acai['套餐价格_CNY'], cutOffset)
-        child['携程减价比例(%)'] = cutRatePct(acai['携程底价'], acai['套餐价格_CNY'])
-        child['-2%后的减价数值(元)'] = cutValueMinus2Pct(acai['携程底价'], acai['套餐价格_CNY'])
-        child['底价公式命中'] = formatFloorMeta(acai._floorMeta)
-        child['行李额'] = formatBaggageText(acai['行李信息'])
-        outRows.push(child)
-        rowBgColors.push(acai['isOwn'] ?? null)
-      }
-    }
-
-    // ★ 无匹配携程数据（2026-09-23 起）：携程「无人认领」的报价（品牌对不上/无套餐可归属，
-    //   分配制下没进任何对比组的报价）追加在文件末尾展示完整比价过程；
-    //   与任务列表「无对应」附加行、运行日志同口径；数据源 fileManager.tripOtherQuotes
-    if (p === 'trip') {
-      const others = Array.isArray(this.fileManager?.tripOtherQuotes) ? this.fileManager.tripOtherQuotes : []
-      for (const o of others) {
-        if (!o) continue
-        const row = {}
-        for (const h of header) row[h] = ''
-        row['航班号'] = o.flightNo ?? ''
-        row['舱位'] = o.seatClass ?? ''
-        row['套餐索引'] = '无对应'
-        row[`${pName}底价`] = o.xcPrice ?? ''
-        row['行李额'] = (o.xcBaggageShort && o.xcBaggageShort !== '—') ? o.xcBaggageShort : ''
-        outRows.push(row)
-        rowBgColors.push(null) // 无匹配行不着色
       }
     }
 
@@ -540,12 +504,11 @@ export class ExcelExporter {
     // 数据行
     for (let i = 0; i < outRows.length; i++) {
       const row = ws.addRow(outRows[i])
-      const bgVal = rowBgColors[i]//
-      const fgColor = (bgVal === true || bgVal === 'true') ? 'E2ECFF' : null  // isOwn=true → 极浅蓝，其他不变色
+      const bgColor = rowBgColors[i]
       row.eachCell({ includeEmpty: true }, (cell) => {
         cell.alignment = { horizontal: 'center', vertical: 'center', wrapText: true }
-        if (fgColor) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + fgColor } }
+        if (bgColor) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + bgColor } }
         }
       })
     }
