@@ -48,6 +48,25 @@ jobs:
           }
           Write-Host "OK: version=$ver matches tag=$tag"
 
+      # ================================================================
+      # Phase 0.5: 注入发布日期 —— 用 tag 的创建日期写回 package.json 的 releaseDate
+      #   用户本地从不 build/dist，由 GitHub Action 线上构建，故发布日期只能在此注入：
+      #   - annotated tag → 取 taggerdate（打 tag 的那一刻）
+      #   - lightweight tag → 无 tagger 信息，回退到 tag 指向 commit 的提交日期
+      #   AppShell 只读 pkg.releaseDate，无需本地手动维护。
+      # ================================================================
+      - name: Inject release date from tag
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $d = (git for-each-ref --format='%(creatordate:short)' "refs/tags/$tag").Trim()
+          if ([string]::IsNullOrWhiteSpace($d)) {
+            $d = (git log -1 --format=%cs "$tag").Trim()
+          }
+          Write-Host "releaseDate=$d"
+          $env:RELEASE_DATE = $d
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.releaseDate=process.env.RELEASE_DATE;fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+
       - name: Build（纯本地，不触 GitHub）
         run: npm run build && npx electron-builder --publish never
 

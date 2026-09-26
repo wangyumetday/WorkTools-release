@@ -58,8 +58,7 @@ export default defineConfig({
     },
     plugins: [vue()],
     define: {
-      __APP_VERSION__: JSON.stringify(pkg.version),
-      __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10))
+      __APP_VERSION__: JSON.stringify(pkg.version)
     },
     server: {
       // Windows 下 IDE 异步保存 / 跨盘 / 网盘场景，fs 事件偶发丢失。

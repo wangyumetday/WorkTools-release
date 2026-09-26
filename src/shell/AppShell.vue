@@ -61,7 +61,8 @@ import pkg from '../../package.json'
 // 侧边栏折叠态：默认折叠（只显示图标）
 const collapsed = ref(true)
 
-// 版本号、发布日期均直接读 package.json；发布新版本时手动更新 package.json 的 releaseDate 字段
+// 版本号、发布日期均直接读 package.json。发布日期 releaseDate 由 GitHub Action 在
+// 发布构建前自动写回（tag 的创建日期，见 .github/workflows/release.yml），本地无需手动维护
 const appVersion = pkg.version
 const buildDate = pkg.releaseDate || ''
 
