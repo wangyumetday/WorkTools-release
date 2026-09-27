@@ -22,15 +22,15 @@ export const configSchema = {
     help: '我方报价相对携程价的让利幅度（整数）。写入「调价固定加减钱」= 向下取整(携程价 − 官网价) − 本值；' +
       '默认 1（比携程价低 1 元）。填 2 即比携程价低 2 元'
   },
-  channel: {
-    type: 'select', label: '渠道（channel）', default: '',
+  channels: {
+    type: 'multiselect', label: '携程请求渠道', default: [''],
     options: [
-      { label: '不传（默认）', value: '' },
+      { label: '不传（主渠道默认）', value: '' },
       { label: 'FlightIntlOnline（主站）', value: 'FlightIntlOnline' },
       { label: 'EnglishSite', value: 'EnglishSite' },
       { label: 'Mobile', value: 'Mobile' }
     ],
-    help: '低价看板查询主渠道（API 文档 2.9.3）。实测我方投放报价只在主渠道返回；选 EnglishSite 会查不到我方未外显报价，导致统计恒 0。空值=请求体不携带该字段（实测与主渠道结果一致）'
+    help: '低价看板查询渠道（API 文档 2.9.3）。实测各渠道返回互斥报价子集（如 1638 仅在 EnglishSite、1646/1657 仅在其余渠道）。勾选多个=每勾一项发一次请求、结果合并去重（我方报价只计一次、各渠道互斥对手报价取并集）。一项都不勾=只发主渠道（不传）'
   }
 }
 
@@ -38,7 +38,7 @@ export const defaults = {
   enabled: true,
   rateLimitPerMin: 200,
   cutOffset: 1,
-  channel: ''
+  channels: ['']
 }
 
 export default { configSchema, defaults }

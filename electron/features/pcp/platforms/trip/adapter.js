@@ -33,6 +33,13 @@ const REQUEST_CONST = {
   specialParam: null//'SpecialSupply-特价产品'
 }
 
+// ★ 全部渠道合并（channel 配置='ALL'，2026-09-27 起）：低价看板按渠道返回互斥报价子集——
+//   实测 15kg 对手外显价 1638 仅在 EnglishSite、1646/1657 仅在 不传/Mobile/FlightIntlOnline 出现。
+//   携程服务端不支持单请求组合多渠道（逗号串返回空结果、数组反序列化失败），
+//   因此 'ALL' = 依次发这 4 个渠道请求，再由 mergeChannelResponses 去重合并为一份响应。
+//   顺序影响同报价重复出现时保留哪份字段拷贝（如 minReduceAmount 渠道间不同），主渠道（不传）在前。
+const ALL_CHANNELS = ['', 'FlightIntlOnline', 'EnglishSite', 'Mobile']
+
 /** TRIP 无公式编译，透传字符串配置 */
 export const compileConfig = (raw = {}) => ({ ...raw })
 
@@ -208,6 +215,112 @@ function postGzip(baseURL, gzippedBody, timeout) {
     req.end()
   })
 }
+// ===== 全渠道合并（channel 配置='ALL' 时 request 使用；纯函数，供回归测试锁定）=====
+// 把同航线同参数的多个渠道原始响应合并成一份响应：
+//   - 逐份解压/解析/校验（HTTP 2xx + Ack=Success + replyStatus success），任何一份失败即抛错（带渠道名）
+//   - flights 按物理航班去重（航班号+起降机场+起飞时刻，保留首现）：同一趟航班在不同渠道响应里
+//     flightId 不同——各渠道 lowPrice 的 flightRefs.flightId 统一重映射到保留的那份 id，
+//     否则 priceComparisonPolicy 的航班关联（refs 含匹配 flightId）会漏掉后续渠道的报价组
+//   - lowPrices[].prices 按报价业务键去重（保留首现）：我方报价各渠道重复出现，对手互斥报价只在
+//     各自渠道出现——合并后 = 各渠道并集；清空的 lowPrice 组（组内报价全重复）不保留
+//   - 输出仍为 { statusCode, headers, body(Buffer gzip) }，下游 mergeResult 零改动
+const priceDedupeKey = (p) => {
+  const F = TRIP_RESPONSE_FIELDS
+  return [
+    p?.[F.sortIndicator], p?.[F.baggage], p?.[F.seatClass], p?.[F.isOwn],
+    p?.[F.showState], p?.[F.productType], p?.[F.gds]
+  ].map(v => v ?? '').join('|')
+}
+
+const flightIdentityKey = (f) => {
+  const F = TRIP_RESPONSE_FIELDS
+  return [f?.[F.flightNo], f?.[F.departAirport], f?.[F.arriveAirport], f?.[F.takeOffDateTime]]
+    .map(v => String(v ?? '')).join('|')
+}
+
+export function mergeChannelResponses(rawResponses, channels) {
+  const parsed = []
+  rawResponses.forEach((rawResponse, i) => {
+    const channel = channels?.[i] ?? `#${i + 1}`
+    const label = channel || '(不传)'
+    let bodyBuf = rawResponse.body
+    const enc = String(rawResponse.headers?.['content-encoding'] || '').toLowerCase()
+    if (enc.includes('gzip') && bodyBuf.length > 0) {
+      try { bodyBuf = gunzipSync(bodyBuf) }
+      catch (e) { throw new Error(`O1平台响应 gunzip 解压失败（channel=${label}）：${e.message}`) }
+    }
+    if (rawResponse.statusCode < 200 || rawResponse.statusCode >= 300) {
+      throw new Error(`O1平台 HTTP ${rawResponse.statusCode}（channel=${label}）`)
+    }
+    let resData
+    try { resData = JSON.parse(bodyBuf.toString('utf-8')) }
+    catch (e) { throw new Error(`O1平台响应 JSON 解析失败（channel=${label}）：${e.message}`) }
+    const ack = resData?.ResponseStatus?.Ack
+    if (ack && ack !== 'Success') {
+      const errors = resData?.ResponseStatus?.Errors || []
+      const errMsg = errors.map(e => e?.Message || e?.message || JSON.stringify(e)).join('; ')
+      throw new Error(`O1平台请求业务失败（channel=${label}）：Ack=${ack} - ${errMsg}`)
+    }
+    const replyStatus = String(resData?.responseHeader?.replyStatus || '').toLowerCase()
+    if (replyStatus && replyStatus !== 'success') {
+      const errMsg = resData?.responseHeader?.message || `replyStatus=${replyStatus}`
+      throw new Error(`O1平台业务错误（channel=${label}）：${errMsg}`)
+    }
+    parsed.push(resData)
+  })
+
+  const F = TRIP_RESPONSE_FIELDS
+  const merged = { ...parsed[0] }
+  // flights：按物理航班（航班号+起降+时刻）去重；每渠道响应先给本渠道 lowPrice refs 做 flightId 重映射
+  const flights = []
+  const keptByKey = new Map()
+  for (const res of parsed) {
+    const resFlights = res?.responseBody?.flights ?? []
+    const oldById = new Map()
+    for (const f of resFlights) if (f?.[F.flightId] != null) oldById.set(f[F.flightId], f)
+    const idRemap = new Map()
+    for (const f of Array.isArray(resFlights) ? resFlights : []) {
+      const key = flightIdentityKey(f)
+      const kept = keptByKey.get(key)
+      if (kept) {
+        if (kept[F.flightId] != null && kept[F.flightId] !== f?.[F.flightId]) idRemap.set(f[F.flightId], kept[F.flightId])
+      } else {
+        keptByKey.set(key, f)
+        flights.push(f)
+      }
+    }
+    if (idRemap.size > 0) {
+      for (const lp of (Array.isArray(res?.responseBody?.lowPrices) ? res.responseBody.lowPrices : [])) {
+        for (const r of (Array.isArray(lp?.[F.flightRefs]) ? lp[F.flightRefs] : [])) {
+          if (r && idRemap.has(r[F.flightId])) r[F.flightId] = idRemap.get(r[F.flightId])
+        }
+      }
+    }
+  }
+  // lowPrices：报价去重合并
+  const seenPrices = new Set()
+  const lowPrices = []
+  for (const res of parsed) {
+    for (const lp of (Array.isArray(res?.responseBody?.lowPrices) ? res.responseBody.lowPrices : [])) {
+      const kept = []
+      for (const p of (Array.isArray(lp?.[F.prices]) ? lp[F.prices] : [])) {
+        if (!p) continue
+        const key = priceDedupeKey(p)
+        if (seenPrices.has(key)) continue
+        seenPrices.add(key)
+        kept.push(p)
+      }
+      if (kept.length > 0) lowPrices.push({ ...lp, [F.prices]: kept })
+    }
+  }
+  merged.responseBody = { ...(parsed[0]?.responseBody ?? {}), flights, lowPrices }
+  return {
+    statusCode: 200,
+    headers: { 'content-encoding': 'gzip' },
+    body: gzipSync(Buffer.from(JSON.stringify(merged), 'utf-8'))
+  }
+}
+
 // ===== 行李归一化匹配（业务模式重构新增）=====
 /**
  * 携程 prices[].baggage 存在两种格式，无法预知本次返回哪种：
@@ -1164,23 +1277,35 @@ export async function request(prepared, ctx) {
   // ★ 滑动窗口限流：acquire 串行排队，等到窗口内请求数 < rateLimitPerMin 才放行
   //   rateLimitPerMin 来自 cfg（= compiledConfig.rateLimitPerMin，TaskManager 启动时已编译为快照）
   //   设为 0 / 负数 = 关闭限流（dev 调试可设 0 跳过限流）
-  await _rateLimiter.acquire(cfg.rateLimitPerMin)
+  // ★ 渠道多选（2026-09-27 起，cfg.channels 数组）：页面（Parity Platform）与 OpenAPI 不同源，
+  //   OpenAPI 各渠道返回互斥子集，单请求组合多渠道实测不被支持（逗号串返回空、数组报错）
+  //   → 勾选的每个渠道各发一次请求，多选时 mergeChannelResponses 合并去重为一份响应
+  //   → 空数组/未配置 = 只发主渠道（不传）
+  const picked = Array.isArray(cfg.channels) ? cfg.channels : []
+  const unique = [...new Set(picked.map(v => String(v)).filter(v => ALL_CHANNELS.includes(v)))]
+  const channels = unique.length > 0 ? unique : ['']
+  const rawResponses = []
+  for (const ch of channels) {
+    await _rateLimiter.acquire(cfg.rateLimitPerMin)
 
-  const requestBody = buildRequestBody(loginName, password, segments, validatingCarrier, cfg.channel)
-  const gzippedBody = gzipSync(Buffer.from(JSON.stringify(requestBody), 'utf-8'))
-  const rawResponse = await postGzip(REQUEST_CONST.baseURL, gzippedBody, REQUEST_CONST.timeout)
+    const requestBody = buildRequestBody(loginName, password, segments, validatingCarrier, ch)
+    const gzippedBody = gzipSync(Buffer.from(JSON.stringify(requestBody), 'utf-8'))
+    const rawResponse = await postGzip(REQUEST_CONST.baseURL, gzippedBody, REQUEST_CONST.timeout)
 
-  // ★ 429 被动冷却：携程服务端限流时返 429 + Retry-After（秒）
-  //   触发 cooldown 后，后续所有 acquire 会自动等待冷却到期再放行
-  //   这里抛错让 platformRunner 标记本任务 fail（避免无效重试打爆携程）
-  if (rawResponse.statusCode === 429) {
-    const retryAfterSec = rawResponse.headers?.['retry-after']
-    _rateLimiter.cooldown(retryAfterSec)
-    const cooldownDesc = Number(retryAfterSec) > 0 ? `${retryAfterSec}s` : '30s（默认）'
-    throw new Error(`O1平台 429 限流：触发被动冷却 ${cooldownDesc}（Retry-After: ${retryAfterSec || '(无)'}）`)
+    // ★ 429 被动冷却：携程服务端限流时返 429 + Retry-After（秒）
+    //   触发 cooldown 后，后续所有 acquire 会自动等待冷却到期再放行
+    //   这里抛错让 platformRunner 标记本任务 fail（避免无效重试打爆携程）
+    if (rawResponse.statusCode === 429) {
+      const retryAfterSec = rawResponse.headers?.['retry-after']
+      _rateLimiter.cooldown(retryAfterSec)
+      const cooldownDesc = Number(retryAfterSec) > 0 ? `${retryAfterSec}s` : '30s（默认）'
+      throw new Error(`O1平台 429 限流：触发被动冷却 ${cooldownDesc}（Retry-After: ${retryAfterSec || '(无)'}）`)
+    }
+    rawResponses.push(rawResponse)
   }
 
-  return rawResponse
+  if (rawResponses.length === 1) return rawResponses[0]
+  return mergeChannelResponses(rawResponses, channels)
 }
 
 /**
@@ -1557,8 +1682,8 @@ export async function verifyCredential(credential) {
 export default {
   key, displayName, configSchema, defaults,
   compileConfig, login, prepareRequest, request, mergeResult, exportTemplate, verifyCredential, buildRequestBody,
-  getRateLimitState, onRateLimitChange
+  mergeChannelResponses, getRateLimitState, onRateLimitChange
 }
 
-// ★ 供回归测试锁定 channel 组装行为（2026-09-24）
+// ★ 供回归测试锁定 channel 组装行为（2026-09-24）；mergeChannelResponses 已在函数声明处导出
 export { buildRequestBody }

@@ -24,6 +24,7 @@
 import registry, { O_PLATFORM_KEYS } from './platforms/registry.js'
 import { DEFAULT_BUSINESS_MODE, isValidBusinessMode } from './businessModes.js'
 import { exportRunLog } from './runLogExporter.js'
+import { exportPolicyReview } from './policyReviewExporter.js'
 
 // ===== 细粒度阶段定义（单一权威：顺序 = 依赖顺序）=====
 // 任何地方要列阶段，都应该遍历这个数组而不是自己硬编码顺序
@@ -742,6 +743,14 @@ export class Pipeline {
       })
       if (r.success) {
         console.log(`[Pipeline] 运行日志已导出: ${r.file}`)
+        // ★ 政策复盘文件：与运行日志写到同一子目录（单独文件，纯展示层，不改变任何业务结果）
+        try {
+          const pr = exportPolicyReview({ tasks, fileManager: this.fileManager, dir: r.dir })
+          if (pr.success) console.log(`[Pipeline] 政策复盘已导出: ${pr.file}（${pr.count} 条政策）`)
+          else console.warn(`[Pipeline] 政策复盘导出跳过: ${pr.error}`)
+        } catch (e) {
+          console.warn('[Pipeline] 政策复盘导出异常:', e)
+        }
       } else {
         console.warn(`[Pipeline] 运行日志导出失败: ${r.error}`)
       }

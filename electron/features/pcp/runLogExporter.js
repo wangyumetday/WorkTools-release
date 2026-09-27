@@ -488,25 +488,26 @@ const STYLE_BLOCK = `<style>
     .rb-light--off { background: #ffca28; box-shadow: 0 0 4px 1px rgba(255, 202, 40, .6); }
     .rb-owner--official { color: #4fc3f7; background: #12293a; border-color: #4fc3f7; }
     .rb-owner--ctrip { color: #ffb74d; background: #3a2c10; border-color: #ffb74d; }
-    /* 对比块分隔（暗色，与任务列表同款式）：块四周 2px 醒目描边 #5a5a5a + 块间距 12px + 块顶 2px 内描边 */
-    .rb-table--quotes tbody td:first-child { border-left: 2px solid #5a5a5a; }
-    .rb-table--quotes tbody td:last-child { border-right: 2px solid #5a5a5a; }
-    .rb-table--quotes tbody tr:first-child > td { border-top: 2px solid #5a5a5a; }
+    /* 对比块分隔（暗色，与任务列表同款式）：块四周 2px 深描边 #6e6e6e + 块间距 16px（白槽宽于块内线，双层分隔） */
+    .rb-table--quotes tbody td:first-child { border-left: 2px solid #6e6e6e; }
+    .rb-table--quotes tbody td:last-child { border-right: 2px solid #6e6e6e; }
+    .rb-table--quotes tbody tr:first-child > td { border-top: 2px solid #6e6e6e; }
     .rb-table--quotes tbody:not(:first-child) tr:first-child > td {
-      border-top: 12px solid #1e1e1e;
-      box-shadow: inset 0 2px 0 #5a5a5a;
+      border-top: 16px solid #1e1e1e;
+      box-shadow: inset 0 2px 0 #6e6e6e;
     }
-    .rb-table--quotes tbody tr:last-child > td { border-bottom: 2px solid #5a5a5a; }
+    .rb-table--quotes tbody tr:last-child > td { border-bottom: 2px solid #6e6e6e; }
     /* 块内三区背景（暗色同族浅色版）：own 暗绿 / official 暗蓝 / external 暗橙；比输行深红压过区域色 */
     tr.qrow--region-own > td { background: #1a2a1a; }
     tr.qrow--region-official > td { background: #12293a; }
     tr.qrow--region-external > td { background: #2a1f10; }
     tr.qrow--lost > td { background: #3a1a1a; }
     tr.qrow--other:not(.qrow--ownShown):not(.qrow--ownHidden) td { color: #9e9e9e; }
-    /* 块内三区分隔：区首行上方 2px 主题色描边（蓝=官网区、橙=外部投放区；我方投放区恒为块首行） */
-    .qrow--regionStart > td { border-top: 2px solid transparent; }
-    .qrow--regionStart.qrow--region-official > td { border-top-color: #4fc3f7; }
-    .qrow--regionStart.qrow--region-external > td { border-top-color: #ffb74d; }
+    /* 块内三区分隔：区首行上方 1px 弱化描边（蓝=官网区、橙=外部投放区；我方投放区恒为块首行）
+       —— 1px 弱于块描边 2px，避免与块边界混淆（与任务列表同口径） */
+    .qrow--regionStart > td { border-top: 1px solid transparent; }
+    .qrow--regionStart.qrow--region-official > td { border-top-color: #3a7fa6; }
+    .qrow--regionStart.qrow--region-external > td { border-top-color: #b07a35; }
     /* ===== 主页任务列表 ===== */
     .idx-row {
       display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

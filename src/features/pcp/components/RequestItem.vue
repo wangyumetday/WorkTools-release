@@ -940,23 +940,23 @@ const tripStats = computed(() => {
 
 /* ===== 航班块（tbody）层级分隔 =====
    tbody 不渲染 margin/border/border-radius，靠 td 拼接：
-   - 块四边 2px 醒目描边（#b0b6c4），一眼看清每一块的边界
-   - 块间距 12px（用内容区白色作槽）
+   - 块四边 2px 深描边（#8a93a4，比块内线重一档），一眼看清每一块的边界
+   - 块间距 16px（用内容区白色作槽，块与块之间有明显的白槽 + 深描边双重分隔）
    - 块内三区全体行铺浅背景色区分（见下），比输行保留浅棕红 */
 .rb-table--quotes tbody {
   background: var(--bg-block);
 }
-.rb-table--quotes tbody td:first-child { border-left: 2px solid #b0b6c4; }
-.rb-table--quotes tbody td:last-child  { border-right: 2px solid #b0b6c4; }
+.rb-table--quotes tbody td:first-child { border-left: 2px solid #8a93a4; }
+.rb-table--quotes tbody td:last-child  { border-right: 2px solid #8a93a4; }
 .rb-table--quotes tbody tr:first-child > td {
-  border-top: 2px solid #b0b6c4;
+  border-top: 2px solid #8a93a4;
 }
 .rb-table--quotes tbody:not(:first-child) tr:first-child > td {
-  border-top: 12px solid var(--bg-content);
-  box-shadow: inset 0 2px 0 #b0b6c4;
+  border-top: 16px solid var(--bg-content);
+  box-shadow: inset 0 2px 0 #8a93a4;
 }
 .rb-table--quotes tbody tr:last-child > td {
-  border-bottom: 2px solid #b0b6c4;
+  border-bottom: 2px solid #8a93a4;
 }
 .rb-table--quotes thead th {
   border-bottom: 1px solid var(--border-soft);
@@ -964,13 +964,14 @@ const tripStats = computed(() => {
 
 /* 块内三区（我方投放 / 官网 / 外部投放）：
    - 全体行铺浅背景：own 浅绿 #f0fff9 / official 浅蓝 #eef6ff / external 浅橙 #fff7ed（与 chip 色同族）
-   - 区首行上方 2px 主题色分隔线（蓝=官网区起始、橙=外部投放区起始）；我方投放区恒为块首行，无分隔线 */
+   - 区首行上方 1px 柔色分隔线（蓝=官网区起始、橙=外部投放区起始）——刻意弱于块描边（1px vs 2px），
+     避免与块边界混淆；我方投放区恒为块首行，无分隔线 */
 tr.qrow--region-own > td { background: #f0fff9; }
 tr.qrow--region-official > td { background: #eef6ff; }
 tr.qrow--region-external > td { background: #fff7ed; }
-tr.qrow--regionStart > td { border-top: 2px solid transparent; }
-tr.qrow--regionStart.qrow--region-official > td { border-top-color: #0958d9; }
-tr.qrow--regionStart.qrow--region-external > td { border-top-color: #fa8c16; }
+tr.qrow--regionStart > td { border-top: 1px solid transparent; }
+tr.qrow--regionStart.qrow--region-official > td { border-top-color: #9db8ef; }
+tr.qrow--regionStart.qrow--region-external > td { border-top-color: #f6b26b; }
 
 /* 状态覆盖（声明于区域背景之后）：比输行保留浅棕红；附加行（非我方投放）灰字弱化 */
 tr.qrow--lost > td { background: #fbe4dc; }

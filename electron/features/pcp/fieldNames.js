@@ -77,6 +77,10 @@ export const TRIP_RESPONSE_FIELDS = {
   showState: 'showState',
   isOwn: 'isOwn',
   sortIndicator: 'sortIndicator',
+  // 产品类型（CsdPrivate=私有运价 / PublishToPrivate=公转私 等；页面口径「产品类型」列）
+  productType: 'productType',
+  productTypeName: 'productTypeName',
+  gds: 'gds',
   // OTA 航班卡选中标记：值形如 'NEW_QUANTIFY_COMPARE:initSelected'（选中）/
   //   'NEW_QUANTIFY_COMPARE:skipAllBeat' / '...beatAllSelected'；可能挂在 price 上或其父 lowPrices 上
   quantifyFlagRemark: 'quantifyFlagRemark'

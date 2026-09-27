@@ -44,85 +44,112 @@
         <n-empty v-if="!activeCode" description="请在左侧选择航司，或点击「＋ 添加」" style="margin: auto" />
 
         <template v-else>
-          <div class="ac-scroll">
-            <!-- 平台配置（按平台分组） -->
-            <div class="ac-section-title">平台配置</div>
-            <div v-for="pk in platformKeys" :key="pk" class="ac-group">
-              <div class="ac-group-title">{{ platformLabel(pk) }}</div>
-              <div v-for="f in fieldsOf(pk)" :key="f.key" class="ac-row">
-                <label class="ac-label" :title="f.key">{{ f.label }}</label>
-                <n-switch
-                  v-if="f.type === 'boolean'"
-                  v-model:value="form.platform[pk][f.key]"
-                  :disabled="disabled"
-                  class="ac-switch"
-                />
-                <n-input-number
-                  v-else-if="f.type === 'number'"
-                  v-model:value="form.platform[pk][f.key]"
-                  :disabled="disabled"
-                  class="ac-input"
-                />
-                <n-select
-                  v-else-if="f.type === 'select'"
-                  v-model:value="form.platform[pk][f.key]"
-                  :options="selectOptions(f)"
-                  :disabled="disabled"
-                  class="ac-input"
-                />
-                <RangePricing
-                  v-else-if="f.type === 'PriceRange'"
-                  v-model="form.platform[pk][f.key]"
-                  :disabled="disabled"
-                />
-                <n-input
-                  v-else
-                  v-model:value="form.platform[pk][f.key]"
-                  :placeholder="f.help ? f.help : ''"
-                  :disabled="disabled"
-                  class="ac-input"
-                />
-                <span v-if="f.help && f.type !== 'string' && f.type !== 'formula'" class="ac-help">{{ f.help }}</span>
-              </div>
-            </div>
+          <div class="ac-main-body">
+            <!-- 左：表单（平台配置 + 政策字段配置） -->
+            <div class="ac-scroll">
+              <div class="ac-form-col">
+                <!-- 平台配置（按平台分组） -->
+                <div class="ac-section-title">平台配置</div>
+                <div v-for="pk in platformKeys" :key="pk" class="ac-group">
+                  <div class="ac-group-title">{{ platformLabel(pk) }}</div>
+                  <div v-for="f in fieldsOf(pk)" :key="f.key" class="ac-row">
+                    <label class="ac-label" :title="f.key">{{ f.label }}</label>
+                    <div class="ac-field">
+                      <div class="ac-control">
+                        <n-switch
+                          v-if="f.type === 'boolean'"
+                          v-model:value="form.platform[pk][f.key]"
+                          :disabled="disabled"
+                          class="ac-switch"
+                        />
+                        <n-input-number
+                          v-else-if="f.type === 'number'"
+                          v-model:value="form.platform[pk][f.key]"
+                          :disabled="disabled"
+                          class="ac-input"
+                        />
+                        <n-select
+                          v-else-if="f.type === 'select'"
+                          v-model:value="form.platform[pk][f.key]"
+                          :options="selectOptions(f)"
+                          :disabled="disabled"
+                          class="ac-input"
+                        />
+                        <n-checkbox-group
+                          v-else-if="f.type === 'multiselect'"
+                          v-model:value="form.platform[pk][f.key]"
+                          :disabled="disabled"
+                          class="ac-checkgroup"
+                        >
+                          <n-checkbox
+                            v-for="o in selectOptions(f)"
+                            :key="String(o.value)"
+                            :value="o.value"
+                            :label="o.label"
+                          />
+                        </n-checkbox-group>
+                        <RangePricing
+                          v-else-if="f.type === 'PriceRange'"
+                          v-model="form.platform[pk][f.key]"
+                          :disabled="disabled"
+                        />
+                        <n-input
+                          v-else
+                          v-model:value="form.platform[pk][f.key]"
+                          :disabled="disabled"
+                          class="ac-input"
+                        />
+                      </div>
+                      <div v-if="f.help" class="ac-help">{{ f.help }}</div>
+                    </div>
+                  </div>
+                </div>
 
-            <!-- 政策字段配置 -->
-            <div class="ac-section-title">政策字段配置</div>
-            <div v-for="f in policyFieldsSchema" :key="f.key" class="ac-row">
-              <label class="ac-label" :title="f.key">{{ f.label }}</label>
-              <n-switch
-                v-if="f.type === 'switch'"
-                v-model:value="form.policyFields[f.key]"
-                :disabled="disabled"
-                class="ac-switch"
-              />
-              <n-input
-                v-else
-                v-model:value="form.policyFields[f.key]"
-                :placeholder="`默认：${f.default ?? ''}`"
-                :disabled="disabled"
-                type="textarea"
-                :autosize="{ minRows: 1, maxRows: 3 }"
-                class="ac-input"
-              />
-            </div>
-
-            <!-- 可用变量参考 -->
-            <template v-if="vars.length">
-              <div class="ac-section-title">可用变量（点击复制）</div>
-              <div class="ac-vars">
-                <div
-                  v-for="v in vars"
-                  :key="v.name"
-                  class="ac-var"
-                  :title="`点击复制 \${${v.name}}`"
-                  @click="copyVar(v.name)"
-                >
-                  <code class="ac-var-name">{{ '${' + v.name + '}' }}</code>
-                  <span class="ac-var-desc">{{ v.desc }}</span>
+                <!-- 政策字段配置 -->
+                <div class="ac-section-title">政策字段配置</div>
+                <div v-for="f in policyFieldsSchema" :key="f.key" class="ac-row">
+                  <label class="ac-label" :title="f.key">{{ f.label }}</label>
+                  <div class="ac-field">
+                    <div class="ac-control">
+                      <n-switch
+                        v-if="f.type === 'switch'"
+                        v-model:value="form.policyFields[f.key]"
+                        :disabled="disabled"
+                        class="ac-switch"
+                      />
+                      <n-input
+                        v-else
+                        v-model:value="form.policyFields[f.key]"
+                        :placeholder="`默认：${f.default ?? ''}`"
+                        :disabled="disabled"
+                        type="textarea"
+                        :autosize="{ minRows: 1, maxRows: 3 }"
+                        class="ac-input"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </template>
+            </div>
+
+            <!-- 右：可用变量参考（高度 = 父容器，内部滚动） -->
+            <div v-if="vars.length" class="ac-vars-col">
+              <div class="ac-vars">
+                <div class="ac-vars-title">可用变量（点击复制）</div>
+                <div class="ac-vars-list">
+                  <div
+                    v-for="v in vars"
+                    :key="v.name"
+                    class="ac-var"
+                    :title="`点击复制 \${${v.name}}`"
+                    @click="copyVar(v.name)"
+                  >
+                    <code class="ac-var-name">{{ '${' + v.name + '}' }}</code>
+                    <span class="ac-var-desc">{{ v.desc }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- 底部操作：删除居左、保存居右（右下角固定） -->
@@ -160,7 +187,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { NAlert, NButton, NInput, NInputNumber, NSwitch, NSelect, NEmpty, NModal, NForm, NFormItem } from 'naive-ui'
+import { NAlert, NButton, NInput, NInputNumber, NSwitch, NSelect, NCheckboxGroup, NCheckbox, NEmpty, NModal, NForm, NFormItem } from 'naive-ui'
 import RangePricing from './RangePricing.vue'
 import message from '@/shared/message.js'
 import dialog from '@/shared/dialog.js'
@@ -403,11 +430,21 @@ watch(() => store.routesInfo?.hangsi, (nv, ov) => {
   border-radius: 4px;
   overflow: hidden;
 }
-.ac-scroll {
+.ac-main-body {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
   padding: 12px 16px;
+}
+.ac-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+.ac-form-col {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -430,51 +467,102 @@ watch(() => store.routesInfo?.hangsi, (nv, ov) => {
 .ac-row {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 10px;
 }
 .ac-label {
-  width: 170px;
+  width: 160px;
   flex-shrink: 0;
   font-size: 13px;
   color: #333;
-  line-height: 32px;
-  text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.5;
+  padding-top: 5px;
+  text-align: left;
+  word-break: break-all;
 }
-.ac-input { flex: 1; min-width: 200px; }
-.ac-switch { margin-top: 6px; }
+.ac-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ac-control {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+}
+.ac-input { flex: 1; min-width: 0; }
+.ac-switch { flex-shrink: 0; }
+.ac-checkgroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  min-height: 32px;
+}
 .ac-help {
-  flex-basis: 100%;
   font-size: 12px;
   color: #999;
   line-height: 1.5;
-  padding-left: 178px;
+  word-break: break-word;
 }
 
-/* 变量参考 */
-.ac-vars { display: flex; flex-direction: column; gap: 4px; }
+/* 右栏：变量参考（高度 = 父容器，内部列表滚动） */
+.ac-vars-col {
+  flex: 0 0 250px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ac-vars {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  background: #fafafa;
+  overflow: hidden;
+}
+.ac-vars-title {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee;
+  background: #f5f5f5;
+}
+.ac-vars-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
 .ac-var {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 3px 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
   cursor: pointer;
   border-bottom: 1px dashed #eee;
 }
 .ac-var:last-child { border-bottom: none; }
-.ac-var:hover { background: #f6f8fa; }
+.ac-var:hover { background: #f0f7ff; }
 .ac-var-name {
+  align-self: flex-start;
   font-size: 12px;
   color: #0a7;
   background: #eef7f3;
-  padding: 1px 4px;
+  padding: 1px 5px;
   border-radius: 2px;
-  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
-.ac-var-desc { font-size: 12px; color: #888; }
+.ac-var-desc {
+  font-size: 11.5px;
+  color: #888;
+  line-height: 1.5;
+  word-break: break-word;
+}
 
 /* 底部操作：删除居左、保存居右 */
 .ac-actions {
