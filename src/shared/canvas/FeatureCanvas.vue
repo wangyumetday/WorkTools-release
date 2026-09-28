@@ -28,6 +28,8 @@
       @node-drag-stop="scheduleSave"
       @move-end="onMoveEnd"
     >
+      <!-- 终端风浅色网格：单个 SVG pattern 随视口变换，无逐节点成本 -->
+      <Background :gap="24" variant="lines" color="rgba(255, 255, 255, 0.06)" />
       <!-- 通用面板节点：整块可拖动（标题栏+内容都可按住移动），
            内容区内交互控件（输入框/文本域/下拉/滑块/选区）按下时不触发节点拖动 -->
       <template #node-panel="nodeProps">
@@ -88,6 +90,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { NodeResizer } from '@vue-flow/node-resizer'
 import { MiniMap } from '@vue-flow/minimap'
+import { Background } from '@vue-flow/background'
 // vue-flow 基础样式（库内部组件类名，需全局生效）
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
