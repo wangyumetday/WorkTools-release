@@ -12,12 +12,16 @@
 
 <template>
   <n-layout has-sider class="app-shell">
-    <!-- 左侧边栏：可折叠 -->
+    <!-- 左侧边栏：悬浮在画布之上的功能栏（不参与布局流，画布铺满整个窗口）
+         position="absolute" → naive-ui 使 sider 绝对定位（left:0 top:0 bottom:0 全高），
+         展开/收起只改自身宽度，不推挤画布；z-index 保证永远显示在最前面 -->
     <n-layout-sider
       bordered
       collapse-mode="width"
       :collapsed-width="52"
       :width="180"
+      position="absolute"
+      class="floating-sider"
       :collapsed="collapsed"
       show-trigger
       :content-style="{ display: 'flex', flexDirection: 'column' }"
@@ -113,6 +117,12 @@ onBeforeUnmount(() => {
 .app-shell {
   width: 100%;
   height: 100vh;
+}
+
+/* 悬浮侧栏：浮在画布最上层；浅投影强调悬浮感（终端极简，不加多余装饰） */
+.floating-sider {
+  z-index: 100;
+  box-shadow: 1px 0 10px rgba(0, 0, 0, 0.25);
 }
 
 .menu-wrap {
