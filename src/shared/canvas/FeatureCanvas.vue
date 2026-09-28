@@ -28,12 +28,17 @@
       @node-drag-stop="scheduleSave"
       @move-end="onMoveEnd"
     >
-      <!-- 通用面板节点：标题栏（拖动把手）+ 内容区（内部滚动，不参与缩放/拖动/平移） -->
+      <!-- 通用面板节点：整块可拖动（标题栏+内容都可按住移动），
+           内容区内交互控件（输入框/文本域/下拉/滑块/选区）按下时不触发节点拖动 -->
       <template #node-panel="nodeProps">
-        <div class="cf-node" :class="{ 'is-selected': !!nodeProps.selected }">
+        <div
+          class="cf-node"
+          :class="{ 'is-selected': !!nodeProps.selected }"
+          @mousedown.capture="onNodeMouseDown"
+        >
           <div class="cf-node__header">{{ nodeProps.data.title }}</div>
           <div
-            class="cf-node__content nowheel nodrag nopan"
+            class="cf-node__content nowheel nopan"
             :class="{ 'is-fill': nodeProps.data.fill !== false }"
           >
             <component :is="nodeProps.data.component" />
@@ -66,6 +71,15 @@
         :node-border-radius="3"
       />
     </VueFlow>
+
+    <!-- 定位按钮：搭在小地图右下角，一键 fitView 找回组件（不管拖/缩到哪里都回到全览） -->
+    <button class="cf-locate-btn" title="定位到组件" @click="locateNodes">
+      <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+        <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.6" />
+        <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+      </svg>
+    </button>
   </div>
 </template>
 
@@ -90,17 +104,22 @@ const MIN_ZOOM = 0.3
 const MAX_ZOOM = 2.5
 
 // useVueFlow 与 VueFlow 组件用同一实例 id（featureKey）绑定，组件挂载后 store 自动可用
-const { setViewport, getViewport } = useVueFlow(props.featureKey)
+const { setViewport, getViewport, fitView } = useVueFlow(props.featureKey)
+
+// ===== 定位按钮：fitView 把所有节点收进视野（缩放+居中，动画 200ms） =====
+//   找回丢失组件用；结束后走 moveEnd → 视口正常持久化、虚拟列表正常重测量
+function locateNodes() {
+  fitView({ padding: 0.15, duration: 200 })
+}
 
 // ===== 由 nodeDefs 构造 vue-flow 节点对象 =====
 //   尺寸用 style 固定（内容 100% 填充后由 ResizeObserver 实测回填 dimensions）；
-//   dragHandle 限定只有标题栏能拖动节点；data.component 由父层 markRaw 传入
+//   不设 dragHandle → 整块节点可拖动；data.component 由父层 markRaw 传入
 const nodes = ref(props.nodeDefs.map((d) => ({
   id: d.id,
   type: 'panel',
   position: { x: d.x, y: d.y },
   style: { width: `${d.w}px`, height: `${d.h}px` },
-  dragHandle: '.cf-node__header',
   data: { title: d.title, component: d.component, minW: d.minW, minH: d.minH, fill: d.fill }
 })))
 
@@ -154,6 +173,24 @@ function onWheel(e) {
   const fx = (cx - vp.x) / vp.zoom
   const fy = (cy - vp.y) / vp.zoom
   setViewport({ x: cx - fx * zoom, y: cy - fy * zoom, zoom })
+}
+
+// ===== 节点整块拖动 / 内部交互优先 =====
+//   按下「内部有自己的拖动语义」的控件（输入框文本选择、文本域、下拉、滑块、手动标记
+//   data-nodrag 的元素）时，给事件目标临时加 nodrag 类：vue-flow 的拖动过滤（事件冒泡
+//   阶段，晚于本 capture 监听器）看到 nodrag 会放弃节点拖动，交互交还给内部控件；
+//   mouseup 后清除临时类。其余位置（含标题栏）按住即拖动节点。
+const NODE_INTERACTIVE = 'input, textarea, select, .n-slider, [data-nodrag]'
+
+function onNodeMouseDown(e) {
+  const t = e.target
+  if (!(t instanceof Element) || !t.closest(NODE_INTERACTIVE)) return
+  t.classList.add('nodrag')
+  const clear = () => {
+    t.classList.remove('nodrag')
+    window.removeEventListener('mouseup', clear, true)
+  }
+  window.addEventListener('mouseup', clear, true)
 }
 
 // ===== 布局保存：节点尺寸（dimensions 缺失时从 style 兜底解析） =====
@@ -228,6 +265,32 @@ onBeforeUnmount(() => {
   background: rgba(20, 21, 24, 0.72);
 }
 
+/* 定位按钮：搭在小地图右下角曲线处（小地图边距 15px → 角点距右/下各 15px，
+   28px 圆形按钮中心即对准角点：right = 15 - 28/2 = 1px）；悬浮于小地图之上 */
+.cf-locate-btn {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  z-index: 20;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid #4a4d55;
+  background: #26262b;
+  color: #c9cdd4;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.cf-locate-btn:hover {
+  border-color: #5b8ff9;
+  color: #5b8ff9;
+}
+
 /* 节点 wrapper：去掉 theme-default 的白底/边框/内边距，样式全部收进 .cf-node */
 .feature-canvas :deep(.vue-flow__node-panel) {
   padding: 0;
@@ -237,7 +300,9 @@ onBeforeUnmount(() => {
   box-shadow: none;
 }
 
-/* 面板节点：标题栏 + 内容区（内容 100% 填充节点尺寸） */
+/* 面板节点：内容区（内容 100% 填充节点尺寸）
+   ★ 不设 overflow:hidden（会裁剪伸到节点外的缩放手柄命中区），
+   圆角裁剪分别交给 header（上圆角）与内容区自己的 overflow（下圆角） */
 .cf-node {
   width: 100%;
   height: 100%;
@@ -247,7 +312,6 @@ onBeforeUnmount(() => {
   background: #fff;
   border: 1px solid #4a4d55;
   border-radius: 4px;
-  overflow: hidden;
 }
 
 .cf-node.is-selected {
@@ -255,7 +319,7 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 1px #5b8ff9;
 }
 
-/* 标题栏 = 拖动把手：终端风深色细条 */
+/* 标题栏：终端风深色细条（上圆角与节点边框贴合） */
 .cf-node__header {
   flex: 0 0 auto;
   height: 26px;
@@ -266,15 +330,17 @@ onBeforeUnmount(() => {
   color: #c9cdd4;
   font-size: 12px;
   user-select: none;
+  border-radius: 3px 3px 0 0;
   border-bottom: 1px solid #141416;
 }
 
 /* 内容区：占满节点剩余空间；内部组件自行滚动，
-   nowheel/nodrag/nopan 让滚轮滚动内容而非缩放、按住内容不拖动节点/画布 */
+   nowheel 让滚轮滚动内容而非缩放、nopan 按住内容不拖动画布（节点拖动由整块接管） */
 .cf-node__content {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  border-radius: 0 0 3px 3px;
 }
 
 /* fill=true（默认）：内容组件撑满节点（Config 表单/任务列表整页填充）；
@@ -288,5 +354,34 @@ onBeforeUnmount(() => {
 .cf-node__content.is-fill > * {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* ===== 缩放手柄命中区放大 =====
+   库默认边线仅 1px、角点 5px，鼠标难对准：
+   - 角点放大到 12×12 圆点（白描边 + 蓝底）
+   - 边线扩宽为 8px 宽命中条（视觉仍是 1px 细线 + 微透亮蓝提示区）
+   ★ 命中区一半伸出节点外，靠 .cf-node 不裁剪保证可点（见上） */
+.feature-canvas :deep(.vue-flow__resize-control.handle) {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background-color: #5b8ff9;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
+}
+
+.feature-canvas :deep(.vue-flow__resize-control.line) {
+  border-color: #5b8ff9;
+  background-color: rgba(91, 143, 249, 0.16);
+}
+
+.feature-canvas :deep(.vue-flow__resize-control.line.left),
+.feature-canvas :deep(.vue-flow__resize-control.line.right) {
+  width: 8px;
+}
+
+.feature-canvas :deep(.vue-flow__resize-control.line.top),
+.feature-canvas :deep(.vue-flow__resize-control.line.bottom) {
+  height: 8px;
 }
 </style>
