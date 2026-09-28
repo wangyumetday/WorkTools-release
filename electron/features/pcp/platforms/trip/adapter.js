@@ -488,7 +488,7 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
   //   （航段号序列全等 + 首起末降 + 首段日期一致 才算同一行程；直飞=单段，走原四元组逻辑保持不变）
   const flightById = new Map()
   for (const f of flights) {
-    if (f?.[F.flightId] != null) flightById.set(f[F.flightId], f)
+    if (f?.[F.flightId] != null) flightById.set(String(f[F.flightId]), f)
   }
   const journeys = lowPrices.map(lp => ({
     lp,
@@ -551,17 +551,19 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
 
     // ★ 收集与该行程相关的全部携程套餐报价（prices 是平级套餐列表，可能分散在多个 lowPrices 组里）
     //   直飞：沿用原四元组全等 + flightId 关联（结果与改造前一致）；
-    //   中转/联程：航段号序列逐段全等（两端连接符归一）+ 中转三字码一致
-    //     + 首起末降一致 + 首段日期一致（全部满足才算同一行程）
-    const oursNos = splitCombinedFlightNo(itemFlightNo)
+    //   中转/联程：双方航段号序列逐段全等 + 中转三字码一致 + 首起末降一致 + 首段日期一致
+    //   ★ 携程侧口径按文档（2.9.4 / 2.9.10，2026-09-28 起）：
+    //     - 一条 flightRef = 一个航班（自带 flightNo，flights[].flightNo 也是单一航班号）
+    //     - 行程内航班顺序 = segmentNo（用户行程段号）→ sequenceNo（段内航班序号），
+    //       journeySegmentsOf 已按此排序还原，这里直接逐段比对，不做任何连接符拆分
+    const oursNos = splitCombinedFlightNo(itemFlightNo) // 我方锦绣组合号拆段（我方数据口径）
     const relatedPrices = []
     if (isTransit || oursNos.length >= 2) {
       for (const j of journeys) {
         const segs = j.segments
-        // 连接符归一：携程单条组合号（XQ152-XQ4162）也拆成多段号再逐段比
-        const flatNos = segs.flatMap(s => splitCombinedFlightNo(s.no))
-        if (flatNos.length !== oursNos.length) continue
-        if (!flatNos.every((n, i) => n === oursNos[i])) continue
+        const ctripNos = segs.map(s => s.no)
+        if (ctripNos.length !== oursNos.length) continue
+        if (!ctripNos.every((n, i) => n === oursNos[i])) continue
         if (String(segs[0].dep) !== String(itemDepAirport)) continue
         if (String(segs[segs.length - 1].arr) !== String(itemArrAirport)) continue
         if (segs[0].date == null || String(segs[0].date) !== String(itemDate)) continue
@@ -880,21 +882,33 @@ function extractTripTransitCode(baggage) {
 }
 
 /**
- * 携程侧行程还原：按 flightRefs 顺序（航段顺序）还原一条 lowPrice 对应报价的全部航段
+ * 携程侧行程还原：按 flightRefs 还原一条 lowPrice 对应报价的全部航段
  *   （flights[] 按航段存放：直飞 1 段、联程多段；与诊断/展示共用同一口径）
- * @returns {Array<{no:string, dep:string, arr:string, date:string}>} 按序航段；引用缺失时跳过
+ * ★ 文档口径（2.9.10，2026-09-28 起）：
+ *   - 航段顺序 = segmentNo 升序、段内 sequenceNo 升序（不再依赖服务端返回的数组顺序）
+ *   - flightId 关联不到 flights 记录时（数据异常）不再整段丢弃：用 flightRefs 自带的
+ *     flightNo 兜底（起降机场/时刻留空），保证航班号层面的比对/展示不丢段
+ * @returns {Array<{no:string, dep:string, arr:string, date:string}>} 按序航段
  */
 function journeySegmentsOf(flightById, refs) {
+  const segNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
+  const list = (Array.isArray(refs) ? refs : [])
+    .slice()
+    .sort((a, b) =>
+      segNum(a?.[TRIP_RESPONSE_FIELDS.segmentNo]) - segNum(b?.[TRIP_RESPONSE_FIELDS.segmentNo])
+      || segNum(a?.[TRIP_RESPONSE_FIELDS.sequenceNo]) - segNum(b?.[TRIP_RESPONSE_FIELDS.sequenceNo])
+    )
   const seenFid = new Set()
   const segments = []
-  for (const r of Array.isArray(refs) ? refs : []) {
+  for (const r of list) {
     const fid = r?.[TRIP_RESPONSE_FIELDS.flightId]
-    if (fid == null || seenFid.has(fid)) continue
-    const sf = flightById.get(fid)
-    if (!sf) continue
-    seenFid.add(fid)
+    if (fid == null || seenFid.has(String(fid))) continue
+    const sf = flightById.get(String(fid)) || {}
+    seenFid.add(String(fid))
+    const no = String(sf[TRIP_RESPONSE_FIELDS.flightNo] ?? r?.[TRIP_RESPONSE_FIELDS.flightNo] ?? '')
+    if (!no) continue // 连引用自带航班号都没有 → 该段无法构成行程，跳过
     segments.push({
-      no: String(sf[TRIP_RESPONSE_FIELDS.flightNo] ?? ''),
+      no,
       dep: String(sf[TRIP_RESPONSE_FIELDS.departAirport] ?? ''),
       arr: String(sf[TRIP_RESPONSE_FIELDS.arriveAirport] ?? ''),
       depCity: String(sf[TRIP_RESPONSE_FIELDS.departCity] ?? ''),
@@ -982,7 +996,7 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
   // flightId → 航班信息（一个报价可挂多个 flightRef，OW 单程通常 1 个）
   const flightById = new Map()
   for (const f of flights) {
-    if (f?.[F.flightId] != null) flightById.set(f[F.flightId], f)
+    if (f?.[F.flightId] != null) flightById.set(String(f[F.flightId]), f)
   }
   // 报价→其父级 lowPrices（isInit 标记的父级兜底 + 携程自身航班信息溯源）
   const priceParentRemark = new Map()

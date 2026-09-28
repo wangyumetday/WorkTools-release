@@ -25,12 +25,14 @@ export const configSchema = {
   channels: {
     type: 'multiselect', label: '携程请求渠道', default: ['FlightIntlOnline', 'EnglishSite'],
     options: [
-      { label: '不传（默认主渠道）', value: '', group: '主渠道（选一个即可，可多选）' },
-      { label: 'FlightIntlOnline（主站）', value: 'FlightIntlOnline', group: '主渠道（选一个即可，可多选）' },
-      { label: 'Mobile', value: 'Mobile', group: '主渠道（选一个即可，可多选）' },
-      { label: 'EnglishSite', value: 'EnglishSite', group: 'EnglishSite（独立口径·建议必勾）' }
+      // 第一行：实测决定好的推荐组合（主渠道选一个 + EnglishSite），正常视觉权重
+      { label: 'FlightIntlOnline（主站）', value: 'FlightIntlOnline', group: '推荐组合' },
+      { label: 'EnglishSite', value: 'EnglishSite', group: '推荐组合' },
+      // 第二行：其余两个主渠道（与 FlightIntlOnline 等价），降视觉权重但仍可选
+      { label: '不传（默认主渠道）', value: '', group: '其他渠道', light: true },
+      { label: 'Mobile', value: 'Mobile', group: '其他渠道', light: true }
     ],
-    help: '低价看板查询渠道。实测（RS/FA/XQ 三航司，2026-09-27）：主渠道组内各值返回集完全一致（选一个即可；主渠道组全不选=请求体不携带 channel 字段）；EnglishSite 是独立口径、与主渠道互有独有报价（建议必勾，XQ 尤其依赖）。每勾一项发一次请求（并发）、结果合并去重；默认组合 = 主站主渠道 + EnglishSite（2 个请求）'
+    help: '低价看板查询渠道。实测（RS/FA/XQ 三航司 + AYT-DUS 2026-12-11）：主渠道组（不传/FlightIntlOnline/Mobile）返回集一致，选一个即可；EnglishSite 是独立口径、与主渠道互有独有报价（建议必勾，XQ 尤其依赖）。推荐组合 = FlightIntlOnline + EnglishSite（2 个请求）；每勾一项发一次请求（并发）、结果合并去重'
   }
 }
 

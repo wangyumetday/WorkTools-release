@@ -70,6 +70,10 @@ export const TRIP_RESPONSE_FIELDS = {
   flightId: 'flightId',
   flightRefs: 'flightRefs',
   prices: 'prices',
+  // 航班引用字段（文档 2.9.10）：行程段序号（与入参对应）/ 段内航班序号
+  //   （引用自带的 flightNo/seatClass 复用上方同名字段，原始字段名一致）
+  segmentNo: 'segmentNo',
+  sequenceNo: 'sequenceNo',
   baggage: 'baggage',
   // 报价条目携带的成人品牌名数组：[{segmentNo, sequenceNo, brandName}]；chd/inf 品牌字段忽略（只考虑成人）
   adtBrandNames: 'adtBrandNames',

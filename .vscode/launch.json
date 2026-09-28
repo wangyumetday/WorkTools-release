@@ -2,6 +2,17 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Debug 携程低价看板请求脚本",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/_local/trip-request-debug.mjs",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    },
+    {
       "name": "Attach to Electron Main",
       "type": "node",
       "request": "attach",
@@ -9,7 +20,9 @@
       "address": "127.0.0.1",
       "localRoot": "${workspaceFolder}",
       "remoteRoot": "${workspaceFolder}",
-      "skipFiles": ["<node_internals>/**"]
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
     }
   ]
 }

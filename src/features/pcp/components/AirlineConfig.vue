@@ -77,7 +77,7 @@
                           class="ac-input"
                         />
                         <template v-else-if="f.type === 'multiselect'">
-                          <div v-for="(g, gi) in groupedOptions(f)" :key="gi" class="ac-checkgroup-row">
+                          <div v-for="(g, gi) in groupedOptions(f)" :key="gi" class="ac-checkgroup-row" :class="{ 'is-light': g.light }">
                             <span v-if="g.label" class="ac-checkgroup-label">{{ g.label }}</span>
                             <n-checkbox-group
                               v-model:value="form.platform[pk][f.key]"
@@ -242,16 +242,18 @@ function selectOptions(f) {
   return opts.map(o => (typeof o === 'object' && o !== null ? { ...o } : { label: String(o), value: o }))
 }
 
-// 多选项按 group 分组（保持声明顺序）：同 group 的选项归一组，组标题取首个选项的 group 文案
+// 多选项按 group 分组（保持声明顺序）：同 group 的选项归一组，
+// 组标题取首个选项的 group 文案；组内选项全带 light 标记 → 该组降视觉权重（第二行）
 function groupedOptions(f) {
   const groups = []
   let current = null
   for (const o of selectOptions(f)) {
     const g = o.group ?? null
     if (!current || current.label !== g) {
-      current = { label: g, items: [] }
+      current = { label: g, items: [], light: true }
       groups.push(current)
     }
+    if (!o.light) current.light = false
     current.items.push(o)
   }
   return groups
@@ -533,6 +535,15 @@ watch(() => store.routesInfo?.hangsi, (nv, ov) => {
   font-size: 12px;
   color: #888;
   margin-bottom: 4px;
+}
+/* 降权重行（其他渠道）：整行淡化 + 小字，仍可正常勾选 */
+.ac-checkgroup-row.is-light {
+  opacity: 0.62;
+  font-size: 12px;
+}
+.ac-checkgroup-row.is-light .ac-checkgroup-label {
+  font-size: 11px;
+  color: #999;
 }
 .ac-checkgroup {
   display: flex;

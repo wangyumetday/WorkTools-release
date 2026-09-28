@@ -6,7 +6,6 @@
        - 滚轮优先级（已拍板「滚动优先」）：节点内容区带 nowheel 类，
          滚轮命中内容 → 原样滚列表/表单；命中空白/标题 → vue-flow 缩放画布
        - 持久化：节点位置/尺寸 + 视口缩放平移 → userData/canvas-layouts.json（IPC）
-       - 视口静止后经 viewportBus 广播，供虚拟列表等重新测量
      Props：
        - featureKey: 持久化分区 key（pcp / erc / ass）
        - nodeDefs:   [{ id, title, x, y, w, h, minW, minH, component }]
@@ -96,7 +95,6 @@ import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/node-resizer/dist/style.css'
 import '@vue-flow/minimap/dist/style.css'
-import { notifyCanvasViewportChange } from './viewportBus.js'
 
 const props = defineProps({
   featureKey: { type: String, required: true },
@@ -229,17 +227,13 @@ function doSave() {
   }
 }
 
-// ===== 视口变化（缩放/平移静止后）：保存 + 广播供虚拟列表重新测量 =====
-let viewportTimer = null
+// ===== 视口变化（缩放/平移静止后）：保存布局 =====
 function onMoveEnd() {
   scheduleSave()
-  if (viewportTimer) clearTimeout(viewportTimer)
-  viewportTimer = setTimeout(() => notifyCanvasViewportChange(), 200)
 }
 
 onBeforeUnmount(() => {
   if (saveTimer) clearTimeout(saveTimer)
-  if (viewportTimer) clearTimeout(viewportTimer)
   doSave()
 })
 </script>
