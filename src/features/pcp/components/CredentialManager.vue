@@ -86,7 +86,7 @@
           <n-input v-model:value="formData.name" placeholder="请输入账号名称" :disabled="disabled" />
         </n-form-item>
         <n-form-item label="平  &nbsp;台" path="platform">
-          <n-select v-model:value="formData.platform" :options="platformOptions" :disabled="disabled" />
+          <n-select v-model:value="formData.platform" :options="platformOptions" :disabled="disabled" to="body" />
         </n-form-item>
         <n-form-item label="账  &nbsp;号" path="username">
           <n-input v-model:value="formData.username" placeholder="请输入账号" :disabled="disabled" />

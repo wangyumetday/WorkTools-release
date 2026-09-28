@@ -35,6 +35,8 @@ import { registerAssController } from './features/ass/controller.js'
 import { registerFloatingController } from './shared/floatingWindow.js'
 // Tray：系统托盘（后台挂起），主窗口 hide 后从托盘恢复 / 真正退出
 import { createAppTray, refreshAppTrayMenu } from './shared/appTray.js'
+// Canvas 布局持久化（ComfyUI 式画布：节点位置/尺寸/视口缩放）
+import { initCanvasLayouts, getCanvasLayouts, setCanvasLayout } from './shared/canvasLayout.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -321,6 +323,13 @@ function registerIpcHandlers() {
   startCountriesBackgroundScheduler()  // 国家列表后台静默刷新，每天 1 次（延迟 60 秒启动）
   registerFloatingController(mainWindow)
   registerAssController({ mainWindow, userDataPath: app.getPath('userData') })
+
+  // ============== Canvas 布局持久化（所有功能画布共用） ==============
+  initCanvasLayouts(app.getPath('userData'))
+  ipcMain.handle('canvas:layout:get', () => getCanvasLayouts())
+  ipcMain.handle('canvas:layout:set', (_event, payload) => {
+    setCanvasLayout(payload?.key, payload?.layout)
+  })
 
   // ============== 自动更新 IPC（渲染层扩展用，不写也能用原生对话框） ==============
   function sendUpdate(type, data) {

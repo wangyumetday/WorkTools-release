@@ -164,6 +164,14 @@ const api = {
     }
   },
 
+  // ---------- Canvas 布局持久化（ComfyUI 式画布，跨功能共用） ----------
+  canvas: {
+    // 读取全部功能画布布局（{ pcp: {...}, erc: {...}, ass: {...} }；无记录返回 {}）
+    layoutGet:          ()                  => ipcRenderer.invoke('canvas:layout:get'),
+    // 保存单个功能画布布局（payload: { key, layout }）
+    layoutSet:          (payload)           => ipcRenderer.invoke('canvas:layout:set', payload)
+  },
+
   // ---------- 自动更新（主进程原生对话框已处理；此处为后续做自定义「检查更新」UI 预留） ----------
   update: {
     // 触发检查更新（若有新版本，主进程会弹出原生确认对话框，无需渲染层再处理）

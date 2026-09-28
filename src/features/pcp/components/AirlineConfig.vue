@@ -73,21 +73,26 @@
                           v-model:value="form.platform[pk][f.key]"
                           :options="selectOptions(f)"
                           :disabled="disabled"
+                          to="body"
                           class="ac-input"
                         />
-                        <n-checkbox-group
-                          v-else-if="f.type === 'multiselect'"
-                          v-model:value="form.platform[pk][f.key]"
-                          :disabled="disabled"
-                          class="ac-checkgroup"
-                        >
-                          <n-checkbox
-                            v-for="o in selectOptions(f)"
-                            :key="String(o.value)"
-                            :value="o.value"
-                            :label="o.label"
-                          />
-                        </n-checkbox-group>
+                        <template v-else-if="f.type === 'multiselect'">
+                          <div v-for="(g, gi) in groupedOptions(f)" :key="gi" class="ac-checkgroup-row">
+                            <span v-if="g.label" class="ac-checkgroup-label">{{ g.label }}</span>
+                            <n-checkbox-group
+                              v-model:value="form.platform[pk][f.key]"
+                              :disabled="disabled"
+                              class="ac-checkgroup"
+                            >
+                              <n-checkbox
+                                v-for="o in g.items"
+                                :key="String(o.value)"
+                                :value="o.value"
+                                :label="o.label"
+                              />
+                            </n-checkbox-group>
+                          </div>
+                        </template>
                         <RangePricing
                           v-else-if="f.type === 'PriceRange'"
                           v-model="form.platform[pk][f.key]"
@@ -237,6 +242,21 @@ function selectOptions(f) {
   return opts.map(o => (typeof o === 'object' && o !== null ? { ...o } : { label: String(o), value: o }))
 }
 
+// 多选项按 group 分组（保持声明顺序）：同 group 的选项归一组，组标题取首个选项的 group 文案
+function groupedOptions(f) {
+  const groups = []
+  let current = null
+  for (const o of selectOptions(f)) {
+    const g = o.group ?? null
+    if (!current || current.label !== g) {
+      current = { label: g, items: [] }
+      groups.push(current)
+    }
+    current.items.push(o)
+  }
+  return groups
+}
+
 async function load() {
   const res = await api.pcp.configListAirlines()
   airlines.value = res?.airlines || []
@@ -261,8 +281,17 @@ async function load() {
 function select(code) {
   activeCode.value = code
   const a = airlines.value.find(x => x.code === code)
+  const platform = a ? deepClone(a.platform || {}) : {}
+  // 缺失的 schema 字段按默认值补齐（新增配置项时旧存储航司也能直接看到推荐值，如携程请求渠道勾选组合）
+  for (const pk of Object.keys(platformSchema.value)) {
+    const s = platformSchema.value[pk] || {}
+    const group = platform[pk] || (platform[pk] = {})
+    for (const key of Object.keys(s)) {
+      if (group[key] === undefined && s[key] && s[key].default !== undefined) group[key] = deepClone(s[key].default)
+    }
+  }
   form.value = {
-    platform: a ? deepClone(a.platform || {}) : {},
+    platform,
     policyFields: a ? deepClone(a.policyFields || {}) : {}
   }
 }
@@ -380,7 +409,7 @@ watch(() => store.routesInfo?.hangsi, (nv, ov) => {
 
 /* 左栏：航司列表 */
 .ac-side {
-  flex: 0 0 150px;
+  flex: 0 0 60px;
   display: flex;
   flex-direction: column;
   border: 1px solid #e5e5e5;
@@ -493,12 +522,24 @@ watch(() => store.routesInfo?.hangsi, (nv, ov) => {
 }
 .ac-input { flex: 1; min-width: 0; }
 .ac-switch { flex-shrink: 0; }
+/* 多选渠道分组：组标题小字置顶，组与组之间虚线分隔（终端风格弱化线） */
+.ac-checkgroup-row + .ac-checkgroup-row {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed #e5e5e5;
+}
+.ac-checkgroup-label {
+  display: block;
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 4px;
+}
 .ac-checkgroup {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 14px;
-  min-height: 32px;
+  gap: 4px 18px;
+  min-height: 22px;
 }
 .ac-help {
   font-size: 12px;
@@ -509,7 +550,7 @@ watch(() => store.routesInfo?.hangsi, (nv, ov) => {
 
 /* 右栏：变量参考（高度 = 父容器，内部列表滚动） */
 .ac-vars-col {
-  flex: 0 0 250px;
+  flex: 0 0 130px;
   min-width: 0;
   display: flex;
   flex-direction: column;

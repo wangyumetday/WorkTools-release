@@ -1,6 +1,6 @@
 {
   "name": "work-tools",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "releaseDate": "2026-09-20",
   "description": "Work Tools - 桌面工具集（PCP 比价工具 + ERC 汇率转换）",
   "main": "out/main/index.js",
@@ -20,6 +20,9 @@
   },
   "dependencies": {
     "@tanstack/vue-virtual": "^3.13.39",
+    "@vue-flow/core": "^1.48.2",
+    "@vue-flow/minimap": "^1.5.4",
+    "@vue-flow/node-resizer": "^1.5.1",
     "decimal.js": "^10.6.0",
     "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0",

@@ -59,6 +59,7 @@
         :actions="null"
         close-on-select
         :disabled="running"
+        to="body"
         style="width: 360px;"
         @update:value="$emit('update:dateRange', $event)"
       />

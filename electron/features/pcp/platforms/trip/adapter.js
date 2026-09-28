@@ -1279,13 +1279,13 @@ export async function request(prepared, ctx) {
   //   设为 0 / 负数 = 关闭限流（dev 调试可设 0 跳过限流）
   // ★ 渠道多选（2026-09-27 起，cfg.channels 数组）：页面（Parity Platform）与 OpenAPI 不同源，
   //   OpenAPI 各渠道返回互斥子集，单请求组合多渠道实测不被支持（逗号串返回空、数组报错）
-  //   → 勾选的每个渠道各发一次请求，多选时 mergeChannelResponses 合并去重为一份响应
+  //   → 勾选的每个渠道各发一次请求；各渠道间无依赖，Promise.all 并发发出（单任务时长 ≈ 最慢那一个
+  //     请求，而非各请求相加；限流额度仍每渠道计 1 次），多选时 mergeChannelResponses 合并去重
   //   → 空数组/未配置 = 只发主渠道（不传）
   const picked = Array.isArray(cfg.channels) ? cfg.channels : []
   const unique = [...new Set(picked.map(v => String(v)).filter(v => ALL_CHANNELS.includes(v)))]
   const channels = unique.length > 0 ? unique : ['']
-  const rawResponses = []
-  for (const ch of channels) {
+  const sendOne = async (ch) => {
     await _rateLimiter.acquire(cfg.rateLimitPerMin)
 
     const requestBody = buildRequestBody(loginName, password, segments, validatingCarrier, ch)
@@ -1301,8 +1301,10 @@ export async function request(prepared, ctx) {
       const cooldownDesc = Number(retryAfterSec) > 0 ? `${retryAfterSec}s` : '30s（默认）'
       throw new Error(`O1平台 429 限流：触发被动冷却 ${cooldownDesc}（Retry-After: ${retryAfterSec || '(无)'}）`)
     }
-    rawResponses.push(rawResponse)
+    return rawResponse
   }
+  // Promise.all 保持与 channels 同序的结果数组（合并去重的「首现保留」顺序稳定：主渠道在前）
+  const rawResponses = await Promise.all(channels.map(ch => sendOne(ch)))
 
   if (rawResponses.length === 1) return rawResponses[0]
   return mergeChannelResponses(rawResponses, channels)

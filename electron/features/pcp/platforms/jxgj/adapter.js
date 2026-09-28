@@ -266,6 +266,9 @@ function eligibleDate(item, minSeats = 3) {
  *   - 提交该日期覆盖的舱位，直到无舱位可覆盖
  *
  * 同一舱位在同一日期有多条合格航班时，取 GW_data 中最先出现的一条（稳定、与原 find() 首条语义一致）
+ *   —— 用户确认（2026-09-28）：每舱位只需一个航班即可比价，同日同舱位其余航班丢弃是正确的；
+ *      被丢航班的携程报价落 quoteRows 附加行（kind='other'「无对应」），
+ *      展示层（RequestItem / runLogExporter）统一收进列表末尾的「无对应报价」折叠块。
  * 无任何合格航班的舱位自然缺席结果（与原逻辑 find 返回 undefined 跳过一致）
  *
  * @param {Object[]} GW_data  锦绣返回的 Content.List 原始航班数组
@@ -273,7 +276,7 @@ function eligibleDate(item, minSeats = 3) {
  * @param {number} minSeats   座位数下限
  * @returns {Object[]} 每舱位至多一条的原始航班项数组，顺序与 cwstr 对齐
  */
-function selectFlightsByGreedyCover(GW_data, cwstr, minSeats = 3) {
+export function selectFlightsByGreedyCover(GW_data, cwstr, minSeats = 3) {
   // 1. 建立每舱位候选：Map<date, rawItem>（同日期取列表首条）
   //    用 Map 索引舱位，后续贪心轮次 O(1) 取用，避免每轮 find
   const candidatesByCw = new Map()

@@ -23,14 +23,14 @@ export const configSchema = {
       '默认 1（比携程价低 1 元）。填 2 即比携程价低 2 元'
   },
   channels: {
-    type: 'multiselect', label: '携程请求渠道', default: [''],
+    type: 'multiselect', label: '携程请求渠道', default: ['FlightIntlOnline', 'EnglishSite'],
     options: [
-      { label: '不传（主渠道默认）', value: '' },
-      { label: 'FlightIntlOnline（主站）', value: 'FlightIntlOnline' },
-      { label: 'EnglishSite', value: 'EnglishSite' },
-      { label: 'Mobile', value: 'Mobile' }
+      { label: '不传（默认主渠道）', value: '', group: '主渠道（选一个即可，可多选）' },
+      { label: 'FlightIntlOnline（主站）', value: 'FlightIntlOnline', group: '主渠道（选一个即可，可多选）' },
+      { label: 'Mobile', value: 'Mobile', group: '主渠道（选一个即可，可多选）' },
+      { label: 'EnglishSite', value: 'EnglishSite', group: 'EnglishSite（独立口径·建议必勾）' }
     ],
-    help: '低价看板查询渠道（API 文档 2.9.3）。实测各渠道返回互斥报价子集（如 1638 仅在 EnglishSite、1646/1657 仅在其余渠道）。勾选多个=每勾一项发一次请求、结果合并去重（我方报价只计一次、各渠道互斥对手报价取并集）。一项都不勾=只发主渠道（不传）'
+    help: '低价看板查询渠道。实测（RS/FA/XQ 三航司，2026-09-27）：主渠道组内各值返回集完全一致（选一个即可；主渠道组全不选=请求体不携带 channel 字段）；EnglishSite 是独立口径、与主渠道互有独有报价（建议必勾，XQ 尤其依赖）。每勾一项发一次请求（并发）、结果合并去重；默认组合 = 主站主渠道 + EnglishSite（2 个请求）'
   }
 }
 
@@ -38,7 +38,7 @@ export const defaults = {
   enabled: true,
   rateLimitPerMin: 200,
   cutOffset: 1,
-  channels: ['']
+  channels: ['FlightIntlOnline', 'EnglishSite']
 }
 
 export default { configSchema, defaults }

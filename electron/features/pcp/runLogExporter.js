@@ -160,9 +160,12 @@ function renderQuoteBlock(task) {
   const rows = result && Array.isArray(result.quoteRows) ? result.quoteRows : []
   if (rows.length === 0) return ''
 
-  // 按 unitKey 分块（每套餐一块=官网行+其携程行；附加行各自成块，仅影响展示顺序）
+  // 按 unitKey 分块（每套餐一块=官网行+其携程行，与任务列表同口径）；
+  // ★ kind='other'（无对应）行不扩散成小块（2026-09-28）：收进表格末尾的「无对应报价」折叠组
   const map = new Map()
+  const otherRows = []
   for (const q of rows) {
+    if (q.kind === 'other') { otherRows.push(q); continue }
     const key = q.unitKey || `other|${q.flightNo ?? '—'}|${q.date ?? '—'}|${q.depAirport ?? '—'}|${q.arrAirport ?? '—'}`
     if (!map.has(key)) map.set(key, [])
     map.get(key).push(q)
@@ -254,6 +257,25 @@ function renderQuoteBlock(task) {
     return `<tbody>${group.map(q => renderRow(q, route)).join('')}</tbody>`
   }).join('')
 
+  // 无对应报价折叠组（默认收起，放在对比表格之后同级别块）
+  const otherHtml = otherRows.length === 0 ? '' : `
+      <details class="group rb-other-group">
+        <summary>无对应报价【${otherRows.length}】（未参与对比，点开查看）</summary>
+        <table class="rb-table rb-table--quotes">
+          <thead>
+            <tr>
+              <th>匹配结果</th>
+              <th>来源/状态</th>
+              <th>航线</th>
+              <th>舱位</th>
+              <th>官网/OTA</th>
+              <th>行李信息</th>
+            </tr>
+          </thead>
+          <tbody>${otherRows.map(q => renderRow(q, (q.depAirport && q.arrAirport) ? `${q.depAirport}→${q.arrAirport}` : '')).join('')}</tbody>
+        </table>
+      </details>`
+
   return `
     <div class="block">
       <div class="block-title">▶ 对比过程与结果 (quoteRows)</div>
@@ -285,6 +307,7 @@ function renderQuoteBlock(task) {
           </thead>
           ${groupsHtml}
         </table>
+        ${otherHtml}
       </div>
     </div>`
 }
@@ -489,6 +512,7 @@ const STYLE_BLOCK = `<style>
     .rb-owner--official { color: #4fc3f7; background: #12293a; border-color: #4fc3f7; }
     .rb-owner--ctrip { color: #ffb74d; background: #3a2c10; border-color: #ffb74d; }
     /* 对比块分隔（暗色，与任务列表同款式）：块四周 2px 深描边 #6e6e6e + 块间距 16px（白槽宽于块内线，双层分隔） */
+    .rb-other-group { margin-top: 12px; }
     .rb-table--quotes tbody td:first-child { border-left: 2px solid #6e6e6e; }
     .rb-table--quotes tbody td:last-child { border-right: 2px solid #6e6e6e; }
     .rb-table--quotes tbody tr:first-child > td { border-top: 2px solid #6e6e6e; }

@@ -187,6 +187,50 @@
               </tr>
             </tbody>
           </table>
+          <!-- 无对应报价折叠块（2026-09-28）：被比价排除的携程报价（无此航班/无对应套餐）统一收进一格，默认折叠 -->
+          <div v-if="tripOtherRows.length > 0" class="rb-other-block">
+            <div class="rb-other-head" @click="otherExpanded = !otherExpanded">
+              <span class="rb-other-arrow">{{ otherExpanded ? '▼' : '▶' }}</span>
+              无对应报价 · {{ tripOtherRows.length }} 条（未参与对比，点开查看）
+            </div>
+            <table v-if="otherExpanded" class="rb-table rb-table--quotes rb-table--others">
+              <thead>
+                <tr>
+                  <th>匹配结果</th>
+                  <th>来源/状态</th>
+                  <th>航线</th>
+                  <th>舱位</th>
+                  <th>官网/OTA</th>
+                  <th>行李信息</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(f, i) in tripOtherRows"
+                  :key="`other-row-${i}`"
+                  :class="['qrow', `qrow--${f.status}`, `qrow--${f.role}`, `qrow--region-${otherRegion(f)}`]"
+                >
+                  <td>
+                    <span
+                      class="rb-outcome"
+                      :class="[`rb-outcome--${f.status}`, `rb-outcome--dim`]"
+                      :title="f.unmatchedReason?.detail || ''"
+                    >{{ f.statusText }}</span>
+                  </td>
+                  <td>
+                    <span class="rb-owner" :class="`rb-owner--${f.role === 'official' ? 'official' : 'ctrip'}`">{{ f.ownerLabel }}<i v-if="f.role !== 'official'" class="rb-light" :class="f.shown ? 'rb-light--on' : 'rb-light--off'" :title="f.shown ? '已外显（showState=1）' : '未外显（showState≠1）'"></i></span>
+                  </td>
+                  <td class="qm-route-cell">
+                    <div class="qm-flight">{{ f.flightNo }}</div>
+                    <div class="qm-route">{{ f.dep !== '—' && f.arr !== '—' ? `${f.dep}→${f.arr}` : '' }}</div>
+                  </td>
+                  <td>{{ f.cabinLabel }}</td>
+                  <td class="rb-price">{{ f.xcPrice == null || f.xcPrice === '—' ? '—' : `¥${f.xcPrice}` }}</td>
+                  <td class="rb-baggage" :title="f.xcBaggage">{{ f.baggageLabel }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
           <div v-else class="req-empty">无报价数据</div>
         </template>
 
@@ -488,11 +532,13 @@ const tripRows = computed(() => {
   })
 })
 
-// ===== trip 分块归组：按 unitKey（每套餐一块=官网行+其携程行；附加行各自成块）=====
+// ===== trip 分块归组：按 unitKey（每套餐一块=官网行+其携程行）=====
 //   块内三区排序（2026-09-24）：我方投放携程 → 官网 → 外部投放携程；区首行带 regionStart 标记
+//   ★ kind='other'（无对应）行不进入常规块（2026-09-28）：统一收进表格末尾的「无对应报价」折叠块
 const tripGroups = computed(() => {
   const map = new Map()
   for (const row of tripRows.value) {
+    if (row.kind === 'other') continue
     const key = row.unitKey || `other|${row.flightNo}|${row.date}|${row.dep}|${row.arr}`
     if (!map.has(key)) {
       map.set(key, {
@@ -519,6 +565,15 @@ const tripGroups = computed(() => {
   }
   return [...map.values()]
 })
+
+// 无对应报价（kind='other'）：收进一个折叠块，排在对比块之后
+const tripOtherRows = computed(() => tripRows.value.filter(q => q.kind === 'other'))
+const otherExpanded = ref(false)
+
+// 附加行区域（无官网行）：own 绿 / 外部橙（与块内三区同口径）；行状态样式复用 qrow--*
+function otherRegion(f) {
+  return f.isOwn ? 'own' : 'external'
+}
 
 // trip 返回统计：summary 双口径（携程全部报价平铺 + 对比单元/附加行）
 const tripStats = computed(() => {
@@ -936,6 +991,30 @@ const tripStats = computed(() => {
 .rb-nodrop {
   color: #bbb;
   font-size: 11px;
+}
+
+/* 无对应报价折叠块（2026-09-28）：对比块末尾、默认折叠，虚线弱化 */
+.rb-other-block {
+  margin-top: 12px;
+}
+.rb-other-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  padding: 6px 8px;
+  border: 1px dashed var(--border-soft);
+  color: #888;
+  font-size: 12px;
+}
+.rb-other-head:hover {
+  color: #555;
+}
+.rb-other-arrow {
+  display: inline-block;
+  width: 12px;
+  text-align: center;
 }
 
 /* ===== 航班块（tbody）层级分隔 =====

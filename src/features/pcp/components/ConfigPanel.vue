@@ -50,7 +50,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { NTabs, NTabPane } from 'naive-ui'
+import { NTabs, NTabPane, NAlert, NButton } from 'naive-ui'
 import CredentialManager from './CredentialManager.vue'
 import AirlineConfig from './AirlineConfig.vue'
 import { useTaskStore } from '../stores/task.js'

@@ -19,7 +19,7 @@
               <n-tag type="error" round size="medium" :bordered="false">未登录</n-tag>
             </template>
             <template v-else>
-              <n-tooltip trigger="hover" placement="bottom-end">
+              <n-tooltip trigger="hover" placement="bottom-end" to="body">
                 <template #trigger>
                   <n-tag type="success" round size="large" :bordered="false">
                     <n-icon style="vertical-align:-2px;margin-right:4px;">
@@ -437,7 +437,7 @@ onBeforeUnmount(() => {
 .ass-home {
   display: flex;
   flex-flow: row nowrap;
-  height: 100vh;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
   box-sizing: border-box;

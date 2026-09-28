@@ -78,9 +78,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { useTaskStore } from '../stores/task.js'
+import { onCanvasViewportChange } from '@/shared/canvas/viewportBus.js'
 import RequestItem from './RequestItem.vue'
 
 const store = useTaskStore()
@@ -133,6 +134,19 @@ const tripVirt = useVirtualizer(computed(() => ({
   overscan: 6,
   getItemKey: (i) => store.tripTasks[i]?.id ?? i
 })))
+
+// ★ 画布缩放/平移静止后：虚拟列表 item 高度缓存按视觉像素（getBoundingClientRect）记录，
+//   CSS transform 缩放不会触发 ResizeObserver，缓存会失真 → 强制两个面板重新测量
+let offViewportChange = null
+onMounted(() => {
+  offViewportChange = onCanvasViewportChange(() => {
+    if (jxgjScrollEl.value) jxgjVirt.value?.measure()
+    if (tripScrollEl.value) tripVirt.value?.measure()
+  })
+})
+onBeforeUnmount(() => {
+  if (offViewportChange) offViewportChange()
+})
 
 // ★ 本次任务全部携程请求的汇总胜出率
 //   分母 = 所有携程报价（价格）总数，含我方自己的投放（isOwn 也计入）
