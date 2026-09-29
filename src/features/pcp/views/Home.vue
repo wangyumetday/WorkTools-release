@@ -9,6 +9,15 @@
   <n-config-provider>
     <n-message-provider>
       <FeatureCanvas feature-key="pcp" :node-defs="nodeDefs" />
+      <!-- ★ 全局 busy mask：主进程长操作（生成运行日志/下载 Excel 等）期间屏蔽用户操作 -->
+      <!--   避免 Windows 检测主线程不响应弹"无响应是否关闭"，让用户知道程序在干什么 -->
+      <div v-if="store.busy.active" class="busy-mask" role="alertdialog" aria-busy="true">
+        <div class="busy-card">
+          <div class="busy-spinner" aria-hidden="true"></div>
+          <div class="busy-label">{{ store.busy.label || '处理中...' }}</div>
+          <div v-if="store.busy.detail" class="busy-detail">{{ store.busy.detail }}</div>
+        </div>
+      </div>
     </n-message-provider>
   </n-config-provider>
 </template>
@@ -49,3 +58,56 @@ onMounted(() => {
   if (typeof store.init === 'function') store.init()
 })
 </script>
+
+<style scoped>
+/* 全局 busy mask：覆盖整个画布，屏蔽鼠标点击 + 滚动 + 选择 */
+.busy-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 20, 20, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: wait;
+  user-select: none;
+}
+
+.busy-card {
+  min-width: 260px;
+  padding: 24px 36px;
+  background: var(--bg-color, #fff);
+  color: var(--text-color, #333);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  text-align: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+}
+
+.busy-spinner {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 14px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #4a90e2;
+  border-radius: 50%;
+  animation: busy-spin 0.8s linear infinite;
+}
+
+@keyframes busy-spin {
+  to { transform: rotate(360deg); }
+}
+
+.busy-label {
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.busy-detail {
+  font-size: 12px;
+  color: #888;
+  line-height: 1.5;
+}
+</style>

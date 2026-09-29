@@ -1114,7 +1114,9 @@ function buildQuoteRows(resData, _matchSink, originalData, mainRowEnabled = fals
       flightNo: String(item[A3_FIELDS.H航班号] ?? ''),
       date: itemDate != null ? String(itemDate) : '—',
       depAirport: String(item[A3_FIELDS.C出发机场] ?? '—'),
-      arrAirport: String(item[A3_FIELDS.D到达机场] ?? '—')
+      arrAirport: String(item[A3_FIELDS.D到达机场] ?? '—'),
+      airline: String(item[A3_FIELDS.H航司名] ?? ''),
+      journeyType: String(item['航程类型'] ?? '')
     }
 
     // 主行对比单元（仅开启时）
@@ -1405,8 +1407,9 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
 
   // ===== 无投放对比块（异常航线检测用，2026-09-29）=====
   //   官方对比块（role=official，主行/套餐）内没有任何携程子行（role=ctrip）
-  //   = 携程对该航线（套餐）没有任何投放；记录航线/套餐信息，
-  //   供导出阶段与用户政策文件 Name 比对后生成「异常航线（无投放）」文件
+  //   = 携程对该航线（套餐）没有任何投放；记录航线/套餐/航司/航程信息，
+  //   供导出阶段与用户政策文件五列（航司名/机场航线匹配/舱位/去程套餐索引v2/航程类型）
+  //   比对后生成「异常航线（无投放）」统计
   const ctripUnitKeys = new Set(quoteRows.filter(r => r.role === 'ctrip').map(r => r.unitKey))
   const noBidBlocks = quoteRows
     .filter(r => r.role === 'official' && !ctripUnitKeys.has(r.unitKey))
@@ -1418,7 +1421,9 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
       arrAirport: r.arrAirport,
       seatClass: r.seatClass ?? null,
       cabinClass: r.cabinClass ?? null,
-      pkgIndex: r.pkgIndex ?? null
+      pkgIndex: r.pkgIndex ?? null,
+      airline: r.airline ?? r.airlineName ?? '',
+      journeyType: r.journeyType ?? ''
     }))
 
   // ===== 取值时机（2026-09-24）：比对后的统计 =====

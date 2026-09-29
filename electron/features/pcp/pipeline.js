@@ -627,6 +627,15 @@ export class Pipeline {
     this.getMainWindow()?.webContents.send(channel, payload)
   }
 
+  /**
+   * 全局 busy 状态推送（长操作期间屏蔽用户操作，避免 Windows 弹"无响应"）
+   *   active=true 时前端立即显示全屏 loading mask
+   *   active=false 时关闭
+   */
+  emitBusy(active, label = '', detail = '') {
+    this.emit('pcp:busy', { active: !!active, label, detail })
+  }
+
   emitState() {
     this.emit('pcp:pipeline:state', this.getState())
   }
@@ -729,13 +738,20 @@ export class Pipeline {
    *   触发点：handleStageComplete(jxgj dev / o_combo) / abort / runStage 早期失败
    *   任务列表为空时跳过（避免空日志）
    *   导出失败不阻塞主流程，仅 console.warn
+   *   ★ 异步化（2026-09-29）：exportRunLog 内部 fs 写盘改 fs.promises，每个分组之间让出事件循环；
+   *     前后推送 pcp:busy，前端显示 loading mask 屏蔽用户操作，避免 Windows 弹"无响应"
    * @param {string} trigger 结束原因标识（见 runLogExporter.triggerLabel）
    */
-  _exportRunLog(trigger) {
+  async _exportRunLog(trigger) {
+    const tasks = this.taskManager?.getState?.()?.tasks || []
+    if (tasks.length === 0) return
+    // ★ 推送 busy：前端立即显示 loading mask，避免主线程同步 IO 期间用户点不动
+    const taskCount = tasks.length
+    this.emitBusy(true, '正在生成运行日志...', `${taskCount} 个任务`)
+    // 让出一拍事件循环，确保前端 mask 先渲染
+    await new Promise(r => setImmediate(r))
     try {
-      const tasks = this.taskManager?.getState?.()?.tasks || []
-      if (tasks.length === 0) return
-      const r = exportRunLog({
+      const r = await exportRunLog({
         tasks,
         fileManager: this.fileManager,
         pipeline: this,
@@ -745,7 +761,7 @@ export class Pipeline {
         console.log(`[Pipeline] 运行日志已导出: ${r.file}`)
         // ★ 政策复盘文件：与运行日志写到同一子目录（单独文件，纯展示层，不改变任何业务结果）
         try {
-          const pr = exportPolicyReview({ tasks, fileManager: this.fileManager, dir: r.dir })
+          const pr = await exportPolicyReview({ tasks, fileManager: this.fileManager, dir: r.dir })
           if (pr.success) console.log(`[Pipeline] 政策复盘已导出: ${pr.file}（${pr.count} 条政策）`)
           else console.warn(`[Pipeline] 政策复盘导出跳过: ${pr.error}`)
         } catch (e) {
@@ -756,6 +772,8 @@ export class Pipeline {
       }
     } catch (e) {
       console.warn('[Pipeline] _exportRunLog 异常:', e)
+    } finally {
+      this.emitBusy(false)
     }
   }
 }

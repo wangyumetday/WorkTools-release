@@ -143,18 +143,32 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
     if (!dir) {
       return { success: false, error: '未设置下载目录，请先点击「选择下载目录」' }
     }
-    // onProgress 回调：把 0/30/60/100 推送给渲染层，渲染层据此填充按钮颜色
-    // platformsToInclude：0 条数据时也为每个 completed 的 O 平台生成表头文件
-    // skipPolicyWriteback：用户在「政策文件读取失败」选项框里选了「直接输出」→ 跳过回写走旧模式
-    const res = await fileManager.exportResult(dir, 'result.xlsx', (progress) => {
-      mainWindow?.webContents.send('pcp:file:downloadProgress', { progress })
-    }, {
-      platformsToInclude: gate.platformsToExport || [],
-      skipPolicyWriteback: !!opts.skipPolicyWriteback
+    // ★ 推送 busy：前端立即显示全屏 loading mask，避免 XLSX.writeFile 同步写盘期间用户点不动
+    //   XLSX.writeFile 内部是同步 V8 调用，无法拆分，但前端 mask 至少能让用户知道在干什么
+    mainWindow?.webContents.send('pcp:busy', {
+      active: true,
+      label: '正在导出 Excel...',
+      detail: `${gate.platformsToExport?.length || 0} 个平台 · ${fileManager?.getA1?.()?.count || 0} 条航线`
     })
-    // 下载成功 = 本轮流程结束：清掉已记录的政策文件路径（失败保留，用户可重选后重试）
-    if (res && res.success) fileManager.clearPolicyFilePath()
-    return res
+    // 让出一拍事件循环，确保前端 mask 先渲染再开始长 IO
+    await new Promise(r => setImmediate(r))
+    try {
+      // onProgress 回调：把 0/30/60/100 推送给渲染层，渲染层据此填充按钮颜色
+      // platformsToInclude：0 条数据时也为每个 completed 的 O 平台生成表头文件
+      // skipPolicyWriteback：用户在「政策文件读取失败」选项框里选了「直接输出」→ 跳过回写走旧模式
+      const res = await fileManager.exportResult(dir, 'result.xlsx', (progress) => {
+        mainWindow?.webContents.send('pcp:file:downloadProgress', { progress })
+      }, {
+        platformsToInclude: gate.platformsToExport || [],
+        skipPolicyWriteback: !!opts.skipPolicyWriteback
+      })
+      // 下载成功 = 本轮流程结束：清掉已记录的政策文件路径（失败保留，用户可重选后重试）
+      if (res && res.success) fileManager.clearPolicyFilePath()
+      return res
+    } finally {
+      // ★ 关闭 busy mask（无论成功失败）
+      mainWindow?.webContents.send('pcp:busy', { active: false })
+    }
   })
 
   // ========== Credential IPC ==========

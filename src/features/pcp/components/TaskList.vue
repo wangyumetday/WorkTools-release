@@ -49,7 +49,7 @@
         <span class="vis-h-caret" :class="{ open: openIdx === 1 }">▶</span>
         <span class="vis-h-title">携程请求</span>
         <span class="vis-h-summary">
-          {{ store.tripTasks.length > 0 ? `${store.tripTasks.length} 个请求项 · 胜出率 ${tripWinRateText}` : '待锦绣阶段产出日期组' }}
+          {{ store.tripTasks.length > 0 ? `${store.tripTasks.length} 个请求项` : '待锦绣阶段产出日期组' }}
         </span>
       </header>
       <div v-show="openIdx === 1" ref="tripScrollEl" class="vis-body">
@@ -133,24 +133,6 @@ const tripVirt = useVirtualizer(computed(() => ({
   overscan: 6,
   getItemKey: (i) => store.tripTasks[i]?.id ?? i
 })))
-
-// ★ 本次任务全部携程请求的汇总胜出率
-//   分母 = 所有携程报价（价格）总数，含我方自己的投放（isOwn 也计入）
-//   分子 = 我方投放且外显（isOwn && shown）的报价条数（仅投放未外显不算胜出）
-//   口径来自各任务 result.summary（携程全部报价平铺计数，与展示行结构无关）
-//   0 报价时显示 '—' 避免除零
-const tripWinRateText = computed(() => {
-  let totalPrices = 0
-  let wonShownPrices = 0
-  for (const t of store.tripTasks) {
-    const s = t.result?.summary
-    if (!s) continue
-    totalPrices += Number(s.quoteTotal ?? 0)
-    wonShownPrices += Number(s.quoteOwnShown ?? 0)
-  }
-  if (totalPrices === 0) return '—'
-  return `${Math.round((wonShownPrices / totalPrices) * 100)}%`
-})
 </script>
 
 <style scoped>

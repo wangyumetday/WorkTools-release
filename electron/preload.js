@@ -85,7 +85,12 @@ const api = {
 
     // 限流额度监控：按需拉取初值 + 订阅运行期推送（payload: { limit, used, remaining, cooldownRemainingMs, active }）
     ratelimitGetState:    ()                 => ipcRenderer.invoke('pcp:ratelimit:getState'),
-    onRateLimitState:     (callback)         => ipcRenderer.on('pcp:ratelimit:state',  (_event, data) => callback(data))
+    onRateLimitState:     (callback)         => ipcRenderer.on('pcp:ratelimit:state',  (_event, data) => callback(data)),
+
+    // 订阅型：主进程长操作（生成运行日志/下载 Excel 等）前后的 busy 状态推送
+    //   payload: { active: boolean, label?: string, detail?: string }
+    //   active=true 时前端显示全屏 loading mask（屏蔽用户操作，避免 Windows 弹"无响应"）
+    onBusy:               (callback)         => ipcRenderer.on('pcp:busy', (_event, data) => callback(data))
   },
 
   // ---------- ERC feature：汇率转换 ----------

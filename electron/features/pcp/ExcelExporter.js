@@ -19,7 +19,7 @@ import * as registry from './platforms/registry.js'
 import { O_PLATFORM_KEYS as O_PLATFORMS } from './platforms/registry.js'
 import { A3_FIELDS } from './fieldNames.js'
 import { formatPolicyAdjust } from './policyAdjust.js'
-import { keepPolicyRow, applyPolicyWriteback, parsePolicyName, isAbnormalPackageBlock } from './policyWriteback.js'
+import { keepPolicyRow, applyPolicyWriteback, findAbnormalPolicyColIndices, extractAbnormalPolicyEntry, isAbnormalBlock } from './policyWriteback.js'
 
 // 「底价检查」人看文件需要保留的原始字段（附加在 a3 每行上）
 //   exportResult 只按 template.columns 的 key 导列，这些附加字段不会被写进系统导入文件
@@ -55,14 +55,14 @@ function dateTimeStamp() {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
 }
 
-/** tripPolicy（readPolicyFile 结果）Name 列 → 异常航线判定名单 [{route, cabin, pkgToken}] */
-function collectAbnormalPolicyNames(tripPolicy) {
-  const nameIdx = (tripPolicy?.headers || []).indexOf('Name')
-  if (nameIdx < 0) return []
+/** tripPolicy → 异常航线判定条目（五列：航司名/机场航线匹配/舱位/去程套餐索引v2/航程类型） */
+function collectAbnormalPolicyEntries(tripPolicy) {
+  const colIdx = findAbnormalPolicyColIndices(tripPolicy?.headers)
+  if (!colIdx) return []
   const out = []
   for (const row of (Array.isArray(tripPolicy?.rows) ? tripPolicy.rows : [])) {
-    const pn = parsePolicyName(String(row?.[nameIdx] ?? '').trim())
-    if (pn) out.push(pn)
+    const entry = extractAbnormalPolicyEntry(row, colIdx)
+    if (entry) out.push(entry)
   }
   return out
 }
@@ -326,8 +326,8 @@ export class ExcelExporter {
         }
         tripPolicy = readResult
       }
-      // ★ 异常航线（套餐级）判定名单（2026-09-29）：从政策文件 Name 列提取，供原价行过滤 + 异常文件生成
-      const abnormalPolicyNames = tripPolicy ? collectAbnormalPolicyNames(tripPolicy) : []
+      // ★ 异常航线（套餐级）判定条目（2026-09-29 改：从政策文件五列提取，供原价行过滤 + 异常文件生成）
+      const abnormalPolicyEntries = tripPolicy ? collectAbnormalPolicyEntries(tripPolicy) : []
 
       // ★ 统一序号：政策导入文件 + 每个有数据平台的底价检查文件用相同序号（取使所有文件都不冲突的最小序号）
       const bases = platformKeys.map(p => `${airlinePrefix}${platformDisplayName(p)}导入政策${dateStr}`)
@@ -347,12 +347,15 @@ export class ExcelExporter {
         // ★ 2026-09-24 起：政策导入文件只输出「航程类型=单程」的政策行（多程不写；底价检查文件保留多程）
         // ★ 2026-09-29 起：异常航线（套餐级）原价政策行不再写入政策导入文件
         const rows = groups[p].filter(r => keepPolicyRow(r, A3_FIELDS._outcome)).filter(r => !(
-          r?.['_原价政策'] === true && isAbnormalPackageBlock({
+          r?.['_原价政策'] === true && isAbnormalBlock({
+            kind: 'package',
             depAirport: r[A3_FIELDS.C出发机场],
             arrAirport: r[A3_FIELDS.D到达机场],
             seatClass: r[A3_FIELDS.C舱位],
-            pkgIndex: r[A3_FIELDS.套餐索引] != null ? r[A3_FIELDS.套餐索引] : r['去程套餐索引v2']
-          }, abnormalPolicyNames)
+            pkgIndex: r['去程套餐索引v2'],
+            airline: r[A3_FIELDS.H航司名],
+            journeyType: r['航程类型']
+          }, abnormalPolicyEntries)
         ))
 
         // 取该平台 exportTemplate.columns 决定列顺序；无模板则用行自身键序
@@ -402,7 +405,11 @@ export class ExcelExporter {
 
         // 系统导入文件名：{航司-}{平台中文名}导入政策{日期}.xlsx（如 XQ-携程导入政策2026-08-21.xlsx）
         const finalPath = this._pathWithSeq(dir, `${airlinePrefix}${platformDisplayName(p)}导入政策${dateStr}`, '.xlsx', unifiedSeq)
+        // ★ 让出事件循环：XLSX.writeFile 是同步 V8 调用，数据量大时会卡几百毫秒；
+        //   前后让一拍可让 Windows GUI 心跳通过，避免弹"无响应"
+        await new Promise(r => setImmediate(r))
         XLSX.writeFile(workbook, finalPath)
+        await new Promise(r => setImmediate(r))
         files.push({ path: finalPath, filename: path.basename(finalPath), platform: p, count: outCount })
 
         // 每平台完成后按比例推进进度（留 10% 给最终 100）
@@ -413,10 +420,10 @@ export class ExcelExporter {
       const humanFiles = await this.buildHumanReadableFiles(dir, dateStr, unifiedSeq)
       for (const hf of humanFiles) files.push(hf)
 
-      // ★ 2026-09-29 异常航线（无投放）：无投放对比块 × 用户政策文件 Name 比对，
+      // ★ 2026-09-29 异常航线（无投放）：无投放对比块 × 用户政策文件五列比对，
       //   命中 → 生成 {航司}异常航线（无投放）-{日期时间}.xlsx（记录出发/到达机场）
       if (tripPolicy) {
-        const abnormalFile = this._buildAbnormalRouteFile(dir, abnormalPolicyNames)
+        const abnormalFile = this._buildAbnormalRouteFile(dir, abnormalPolicyEntries)
         if (abnormalFile) files.push(abnormalFile)
       }
 
@@ -429,32 +436,23 @@ export class ExcelExporter {
   }
 
   /**
-   * 生成「异常航线（无投放）」文件（2026-09-29）：
-   *   无投放对比块（携程无任何报价的官网块）与用户上传政策文件的 Name 列比对。
-   *   Name 格式（用户确认）：航司二字码/出发机场-到达机场/舱位/套餐索引/航程类型/政策创建人
-   *   （样例：XQ/SZF-DUS/O/套餐3/直飞/王宇；主行级无套餐索引段）
-   *   比对口径：航线（段1）+ 舱位（段2）+ 套餐索引（段中「套餐N」，仅套餐级）。
+   * 生成「异常航线（无投放）」文件（2026-09-29 改）：
+   *   无投放对比块（携程无任何报价的官网块）与用户上传政策文件的五列
+   *   （航司名/机场航线匹配/舱位/去程套餐索引v2/航程类型）比对。
+   *   比对口径：套餐级块五条件全等；主行级块四条件（无套餐索引）。
    *   命中 → xlsx 记录出发/到达机场（航线级去重）；无命中/无政策文件 → 返回 null 不生成。
    * @param {string} dir 下载目录
-   * @param {Array<{route:string, cabin:string, pkgToken:string|null}>} abnormalPolicyNames 政策文件 Name 解析名单
+   * @param {Array<{airline:string, route:string, cabin:string, pkgIndex:string, journeyType:string}>} abnormalPolicyEntries 政策文件五列提取条目
    */
-  _buildAbnormalRouteFile(dir, abnormalPolicyNames) {
+  _buildAbnormalRouteFile(dir, abnormalPolicyEntries) {
     const blocks = Array.isArray(this.fileManager?.tripNoBidBlocks) ? this.fileManager.tripNoBidBlocks : []
-    if (blocks.length === 0 || !Array.isArray(abnormalPolicyNames) || abnormalPolicyNames.length === 0) return null
+    if (blocks.length === 0 || !Array.isArray(abnormalPolicyEntries) || abnormalPolicyEntries.length === 0) return null
 
     const hitRoutes = new Set()
     for (const b of blocks) {
-      const route = `${b.depAirport}-${b.arrAirport}`
-      const cabin = String(b.seatClass ?? '').toUpperCase()
-      if (!cabin) continue // 缺舱位 → 无法满足「航线+舱位」比对，跳过
-      let hit = false
-      if (b.kind === 'package') {
-        hit = isAbnormalPackageBlock(b, abnormalPolicyNames)
-      } else {
-        // 主行级：只比对航线 + 舱位（Name 无套餐索引段）
-        hit = abnormalPolicyNames.some(pn => pn && pn.route === route && pn.cabin === cabin)
+      if (isAbnormalBlock(b, abnormalPolicyEntries)) {
+        hitRoutes.add(`${b.depAirport}-${b.arrAirport}`)
       }
-      if (hit) hitRoutes.add(route)
     }
     if (hitRoutes.size === 0) return null
 

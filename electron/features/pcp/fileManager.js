@@ -17,7 +17,7 @@ import { O_PLATFORM_KEYS as O_PLATFORMS } from './platforms/registry.js'
 import { A2_FIELDS, A3_FIELDS } from './fieldNames.js'
 // ARCH-1：导出逻辑已抽离到 ExcelExporter，HR_FIELDS 由其统一导出（saveA3FromOTasks 仍要用）
 import { ExcelExporter, HR_FIELDS } from './ExcelExporter.js'
-import { buildHeaderKeyMap, POLICY_REQUIRED_HEADERS, parsePolicyName, adjustAbnormalPackageSummary } from './policyWriteback.js'
+import { buildHeaderKeyMap, POLICY_REQUIRED_HEADERS, findAbnormalPolicyColIndices, extractAbnormalPolicyEntry, adjustAbnormalPackageSummary } from './policyWriteback.js'
 
 // ===== JSDoc 类型定义：a1 / a2 / a3 数据 shape（文档 / IDE 提示用）=====
 
@@ -434,14 +434,15 @@ export class FileManager {
     const tripNoBidBlocks = []
 
     // ★ 异常航线（套餐级）判定名单（2026-09-29）：政策文件上传时已解析驻留（policyFileData），
-    //   此处只提取 Name 列 → 航线/舱位/套餐索引，供任务 summary 修正（独占数/政策行数/异常计数）
-    const abnormalPolicyNames = []
+    //   此处从五列（航司名/机场航线匹配/舱位/去程套餐索引v2/航程类型）提取归一化匹配条目，
+    //   供任务 summary 修正（独占数/政策行数/异常计数）
+    const abnormalPolicyEntries = []
     {
-      const names = (this.policyFileData?.headers || []).indexOf('Name')
-      if (names >= 0) {
+      const colIdx = findAbnormalPolicyColIndices(this.policyFileData?.headers)
+      if (colIdx) {
         for (const row of (Array.isArray(this.policyFileData?.rows) ? this.policyFileData.rows : [])) {
-          const pn = parsePolicyName(String(row?.[names] ?? '').trim())
-          if (pn) abnormalPolicyNames.push(pn)
+          const entry = extractAbnormalPolicyEntry(row, colIdx)
+          if (entry) abnormalPolicyEntries.push(entry)
         }
       }
     }
@@ -486,8 +487,8 @@ export class FileManager {
         for (const b of result.summary.noBidBlocks) tripNoBidBlocks.push(b)
       }
       // ★ 修正常态统计（2026-09-29）：命中政策文件的无投放套餐块不计独占数、不占政策行数，计入异常航线
-      if (p === 'trip' && abnormalPolicyNames.length > 0 && result?.summary) {
-        adjustAbnormalPackageSummary(result.summary, abnormalPolicyNames)
+      if (p === 'trip' && abnormalPolicyEntries.length > 0 && result?.summary) {
+        adjustAbnormalPackageSummary(result.summary, abnormalPolicyEntries)
       }
       const processedData = result.processedData
       if (!Array.isArray(processedData)) return

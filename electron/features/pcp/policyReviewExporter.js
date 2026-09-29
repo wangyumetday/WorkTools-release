@@ -13,6 +13,7 @@
 //   - 政策复盘 policy-review.html → 逐条看「这条政策的值来自哪条锦绣、哪条套餐、哪条携程、哪个公式」
 
 import fs from 'node:fs'
+import fsp from 'node:fs/promises'
 import path from 'node:path'
 import { A2_FIELDS, A3_FIELDS, TRIP_RESPONSE_FIELDS } from './fieldNames.js'
 import { exportTemplate } from './platforms/trip/adapter.js'
@@ -325,7 +326,7 @@ function renderTaskOpen(task) {
  *   - dir:          string 输出目录（与运行日志同子目录）
  * @returns {{ success: boolean, file?: string, count?: number, error?: string }}
  */
-export function exportPolicyReview({ tasks, fileManager, dir }) {
+export async function exportPolicyReview({ tasks, fileManager, dir }) {
   const tripTasks = (tasks || []).filter(t => t.type === 'trip' && t?.result && Array.isArray(t.result.processedData))
   if (tripTasks.length === 0) {
     return { success: false, error: '没有携程比价结果（无 trip 任务或 processedData 为空）' }
@@ -360,27 +361,29 @@ export function exportPolicyReview({ tasks, fileManager, dir }) {
   <div><span class="k">政策字段配置数</span><span class="v">${Object.keys(ctx.policyFields || {}).length}</span></div>
 </div>
 `
-    fs.writeFileSync(filePath, head, 'utf-8')
+    await fsp.writeFile(filePath, head, 'utf-8')
 
     // 2. 逐任务逐政策行 append
     let seq = 0
     for (const task of tripTasks) {
-      fs.appendFileSync(filePath, renderTaskOpen(task), 'utf-8')
+      await fsp.appendFile(filePath, renderTaskOpen(task), 'utf-8')
       for (const entry of task.result.processedData) {
         if (!entry || typeof entry !== 'object') continue
         try {
-          fs.appendFileSync(filePath, renderEntryCard(entry, task, ctx, ++seq), 'utf-8')
+          await fsp.appendFile(filePath, renderEntryCard(entry, task, ctx, ++seq), 'utf-8')
           count++
         } catch (e) {
           try {
-            fs.appendFileSync(errorPath, `[${new Date().toISOString()}] 政策行渲染失败: ${e?.stack || e?.message}\n`, 'utf-8')
+            await fsp.appendFile(errorPath, `[${new Date().toISOString()}] 政策行渲染失败: ${e?.stack || e?.message}\n`, 'utf-8')
           } catch { /* ignore */ }
         }
       }
+      // ★ 每个任务让出一拍事件循环，避免大批量任务时长时间占用主线程
+      if (seq % 10 === 0) await new Promise(r => setImmediate(r))
     }
 
     // 3. 写尾
-    fs.appendFileSync(filePath, `<div class="foot">由 PCP Pipeline 自动生成 · 共 ${count} 条政策 · 逐条溯源「锦绣主行 / 拆出套餐 / 携程查询参数与匹配报价 / 逐列取值来源」</div>
+    await fsp.appendFile(filePath, `<div class="foot">由 PCP Pipeline 自动生成 · 共 ${count} 条政策 · 逐条溯源「锦绣主行 / 拆出套餐 / 携程查询参数与匹配报价 / 逐列取值来源」</div>
 </body></html>`, 'utf-8')
 
     return { success: true, file: filePath, count }

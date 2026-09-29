@@ -28,6 +28,20 @@ export const useTaskStore = defineStore('pcp-task', () => {
   const a2Count = ref(0)
   const a3Count = ref(0)
 
+  // ==================== 全局 busy 状态（长操作期间屏蔽用户操作）====================
+  //   主进程长操作（生成运行日志/下载 Excel 等）开始前推 pcp:busy {active:true,label,detail}
+  //   前端立即显示全屏 loading mask 屏蔽交互，避免主线程被同步 IO 占着时用户点不动 → Windows 弹"无响应"
+  const busy = ref({ active: false, label: '', detail: '' })
+
+  function handleBusy(payload) {
+    if (!payload) return
+    busy.value = {
+      active: !!payload.active,
+      label: payload.label || '',
+      detail: payload.detail || ''
+    }
+  }
+
   // ==================== 舱位航线组配（手风琴面板1 数据源）====================
   //   parseXlsx 返回的航司/舱位/航线三项，handleUploadXlsx 成功后填充
   //   TaskList.vue「舱位航线组配」面板直接读 store.routesInfo 渲染
@@ -632,6 +646,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
       api.pcp.onFileDownloadProgress(handleFileDownloadProgress)
       api.pcp.onPipelineState(handlePipelineState)
       api.pcp.onPipelineGateFail(handlePipelineGateFail)
+      api.pcp.onBusy(handleBusy)
       // ★ 锦绣请求/携程请求 可视化：直接复用 pcp:task:state 推送
       //   task 自带 stage/preRequest/result/error，前端按 type 过滤分化
       //   不再需要单独的 pcp:vis:jxgj-prepared 事件
@@ -658,6 +673,7 @@ export const useTaskStore = defineStore('pcp-task', () => {
     pipelineState, blinkTarget,
     downloadDir, downloadProgress, lastDownloadFilename, lastDownloadPath,
     policyWritebackIssue,
+    busy,
     // getters
     completedCount, failedCount, pendingCount, a1Columns, pipelineInProgress,
     // actions

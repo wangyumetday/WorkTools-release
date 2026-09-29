@@ -73,51 +73,69 @@ export function keepPolicyRow(row, outcomeField) {
 }
 
 // ===== 异常航线（无投放）判定（2026-09-29 起，纯函数供 fileManager/ExcelExporter 共用） =====
-// 政策文件 Name 格式（用户确认）：航司二字码/出发机场-到达机场/舱位/套餐索引/航程类型/政策创建人
-//   样例：XQ/SZF-DUS/O/套餐3/直飞/王宇（主行级无套餐索引段）
-// 比对口径：航线（段1）+ 舱位（段2）+ 套餐索引（段中「套餐N」，仅套餐级）
+// 政策文件匹配字段（5 列，2026-09-29 改：从 Name 解析 → 直接按列取值）：
+//   航司名 / 机场航线匹配（出发-到达 3 字码） / 舱位 / 去程套餐索引v2（纯数字） / 航程类型（单程/多程）
+// 比对口径：
+//   套餐级块：航司名 + 机场航线匹配 + 舱位 + 去程套餐索引v2 + 航程类型（五条件）
+//   主行级块：航司名 + 机场航线匹配 + 舱位 + 航程类型（四条件，无套餐索引）
 
 /**
- * 政策行 Name → { route:'SZF-DUS', cabin:'O', pkgToken:'套餐3'|null }；格式不满足 → null
+ * 从政策文件表头定位五列索引；缺失列名返回 null
+ * @returns {{airlineIdx:number, routeIdx:number, cabinIdx:number, pkgIdx:number, journeyIdx:number}|null}
  */
-export function parsePolicyName(name) {
-  const segs = String(name ?? '').split('/').map(s => s.trim()).filter(Boolean)
-  if (segs.length < 3) return null
-  return {
-    route: segs[1],
-    cabin: (segs[2] ?? '').toUpperCase(),
-    pkgToken: segs.find(s => /^套餐/.test(s)) ?? null
+export function findAbnormalPolicyColIndices(headers) {
+  if (!Array.isArray(headers)) return null
+  const idx = (name) => headers.findIndex(h => String(h ?? '').trim() === name)
+  const airlineIdx = idx('航司名')
+  const routeIdx = idx('机场航线匹配')
+  const cabinIdx = idx('舱位')
+  const pkgIdx = idx('去程套餐索引v2')
+  const journeyIdx = idx('航程类型')
+  if (airlineIdx < 0 || routeIdx < 0 || cabinIdx < 0) return null
+  return { airlineIdx, routeIdx, cabinIdx, pkgIdx, journeyIdx }
+}
+
+/**
+ * 政策文件行 → 归一化的异常航线匹配条目
+ * @returns {{airline, route, cabin, pkgIndex, journeyType}|null}  某关键字段缺失 → null（不误判）
+ */
+export function extractAbnormalPolicyEntry(row, colIdx) {
+  if (!row || !colIdx) return null
+  const airline = normalizePolicyKey(row[colIdx.airlineIdx])
+  const route = normalizePolicyKey(row[colIdx.routeIdx])
+  const cabin = normalizePolicyKey(row[colIdx.cabinIdx])
+  const pkgIndex = colIdx.pkgIdx >= 0 ? normalizePolicyKey(row[colIdx.pkgIdx]) : ''
+  const journeyType = colIdx.journeyIdx >= 0 ? normalizePolicyKey(row[colIdx.journeyIdx]) : ''
+  if (!airline || !route || !cabin) return null
+  return { airline, route, cabin, pkgIndex, journeyType }
+}
+
+/**
+ * 无投放块是否命中政策文件（异常航线，五维度比对）
+ *   套餐级块：航司名 + 航线 + 舱位 + 套餐索引 + 航程类型（五条件全等）
+ *   主行级块：航司名 + 航线 + 舱位 + 航程类型（四条件，无套餐索引）
+ *   缺航司/缺航线/缺舱位 → false（不误判）
+ */
+export function isAbnormalBlock(block, policyEntries) {
+  if (!block) return false
+  const airline = normalizePolicyKey(block.airline)
+  const route = normalizePolicyKey(`${block.depAirport}-${block.arrAirport}`)
+  const cabin = normalizePolicyKey(block.seatClass)
+  const journeyType = normalizePolicyKey(block.journeyType)
+  if (!airline || !route || !cabin) return false
+  const entries = Array.isArray(policyEntries) ? policyEntries : []
+  if (block.kind === 'package') {
+    if (block.pkgIndex == null) return false
+    const pkgIdx = normalizePolicyKey(block.pkgIndex)
+    return entries.some(p =>
+      p && p.airline === airline && p.route === route && p.cabin === cabin
+      && p.pkgIndex === pkgIdx && p.journeyType === journeyType
+    )
   }
-}
-
-/**
- * 套餐级无投放块是否命中政策文件（异常航线）：航线 + 舱位 + 套餐索引 三条件
- *   套餐索引兼容「套餐3」与「3」两种写法；缺舱位/缺套餐索引 → false（不误判）
- */
-export function isAbnormalPackageBlock(block, policyNames) {
-  if (!block) return false
-  const route = `${block.depAirport}-${block.arrAirport}`
-  const cabin = String(block.seatClass ?? '').toUpperCase()
-  if (!cabin || block.pkgIndex == null) return false
-  const idx = String(block.pkgIndex)
-  return (Array.isArray(policyNames) ? policyNames : []).some(pn =>
-    pn && pn.route === route && pn.cabin === cabin && (pn.pkgToken === `套餐${idx}` || pn.pkgToken === idx)
+  return entries.some(p =>
+    p && p.airline === airline && p.route === route && p.cabin === cabin
+    && p.journeyType === journeyType
   )
-}
-
-/**
- * 无投放块是否命中政策文件（异常航线，2026-09-29 与胜出率同口径）：
- *   套餐级块：航线 + 舱位 + 套餐索引 三条件；
- *   主行级块：航线 + 舱位（Name 无套餐索引段）；
- *   缺舱位 → false（不误判）
- */
-export function isAbnormalBlock(block, policyNames) {
-  if (!block) return false
-  const route = `${block.depAirport}-${block.arrAirport}`
-  const cabin = String(block.seatClass ?? '').toUpperCase()
-  if (!cabin) return false
-  if (block.kind === 'package') return isAbnormalPackageBlock(block, policyNames)
-  return (Array.isArray(policyNames) ? policyNames : []).some(pn => pn && pn.route === route && pn.cabin === cabin)
 }
 
 /**
@@ -127,10 +145,10 @@ export function isAbnormalBlock(block, policyNames) {
  *   - 不再产原价政策行：仅套餐级异常块扣除政策行数（主行块本就不产政策行）
  * @returns {number} 本次计入的异常块数
  */
-export function adjustAbnormalPackageSummary(summary, policyNames) {
+export function adjustAbnormalPackageSummary(summary, policyEntries) {
   if (!summary) return 0
   const blocks = Array.isArray(summary.noBidBlocks) ? summary.noBidBlocks : []
-  const abnormal = blocks.filter(b => isAbnormalBlock(b, policyNames))
+  const abnormal = blocks.filter(b => isAbnormalBlock(b, policyEntries))
   const abnormalPkg = abnormal.filter(b => b?.kind === 'package').length
   if (abnormal.length === 0) return 0
   summary.abnormalPackageCount = (Number(summary.abnormalPackageCount) || 0) + abnormal.length

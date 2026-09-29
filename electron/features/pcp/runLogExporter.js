@@ -20,6 +20,7 @@
 //   - 单一文件，零运行时依赖（除 node:fs / node:path / electron.app）
 
 import fs from 'node:fs'
+import fsp from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
 import { app } from 'electron'
@@ -709,7 +710,7 @@ function resolveDesktopPath() {
  *   - trigger:      string  结束原因（auto-complete/aborted/stage-failed-* 等）
  * @returns {{ success: boolean, dir?: string, file?: string, error?: string }}
  */
-export function exportRunLog({ tasks, fileManager, pipeline, trigger }) {
+export async function exportRunLog({ tasks, fileManager, pipeline, trigger }) {
   const taskList = tasks || []
   let subDir = null
   try {
@@ -732,7 +733,8 @@ export function exportRunLog({ tasks, fileManager, pipeline, trigger }) {
     // 创建日志根目录 + 子目录
     const desktopPath = resolveDesktopPath()
     const rootDir = path.join(desktopPath, LOG_ROOT_DIR)
-    if (!fs.existsSync(rootDir)) fs.mkdirSync(rootDir, { recursive: true })
+    // ★ fs.existsSync 是同步快调用（无 IO），保留以简化代码；真正写盘走 fsp 异步
+    if (!fs.existsSync(rootDir)) await fsp.mkdir(rootDir, { recursive: true })
 
     // 子目录名：YYYYMMDD_HHMM_<airline>_<routeCount>，重名追加 _1/_2
     let subDirName = `${datePart}_${timePart}_${airline}_${routeCount}`
@@ -744,7 +746,7 @@ export function exportRunLog({ tasks, fileManager, pipeline, trigger }) {
       suffix++
       if (suffix > 999) break // 安全上限
     }
-    fs.mkdirSync(subDir, { recursive: true })
+    await fsp.mkdir(subDir, { recursive: true })
     const errorPath = path.join(subDir, ERROR_FILENAME)
 
     // 分组
@@ -769,43 +771,46 @@ export function exportRunLog({ tasks, fileManager, pipeline, trigger }) {
 
     const indexPath = path.join(subDir, INDEX_FILENAME)
     // 1. 写头部（meta + 统计）
-    fs.writeFileSync(indexPath, renderIndexHead(
+    await fsp.writeFile(indexPath, renderIndexHead(
       { datetimeStr, airline, routeCount, trigger, mode, businessMode },
       stats
     ), 'utf-8')
 
     // 2. 逐任务 as 行 + 内联详情 dialog，按分组流式 append
     let dlgSeq = 0
-    const writeGroup = (label, list) => {
+    const writeGroup = async (label, list) => {
       if (list.length === 0) return
-      fs.appendFileSync(indexPath, renderGroupOpen(label, list.length), 'utf-8')
+      await fsp.appendFile(indexPath, renderGroupOpen(label, list.length), 'utf-8')
       for (const t of list) {
         const dlgId = `dlg-${dlgSeq}`
         try {
-          fs.appendFileSync(indexPath, renderIndexRow(t, dlgId), 'utf-8')
+          await fsp.appendFile(indexPath, renderIndexRow(t, dlgId), 'utf-8')
         } catch (e) {
           try {
-            fs.appendFileSync(errorPath, `[${new Date().toISOString()}] 任务行 ${t?.id ?? ''} 渲染失败: ${e?.stack || e?.message}\n`, 'utf-8')
+            await fsp.appendFile(errorPath, `[${new Date().toISOString()}] 任务行 ${t?.id ?? ''} 渲染失败: ${e?.stack || e?.message}\n`, 'utf-8')
           } catch { /* ignore */ }
         }
         // 详情 dialog 逐个 append：紧随其行，点击即时展示
         try {
-          fs.appendFileSync(indexPath, renderTaskDialog(t, dlgId), 'utf-8')
+          await fsp.appendFile(indexPath, renderTaskDialog(t, dlgId), 'utf-8')
         } catch (e) {
           try {
-            fs.appendFileSync(errorPath, `[${new Date().toISOString()}] 任务详情 ${t?.id ?? ''} 渲染失败: ${e?.stack || e?.message}\n`, 'utf-8')
+            await fsp.appendFile(errorPath, `[${new Date().toISOString()}] 任务详情 ${t?.id ?? ''} 渲染失败: ${e?.stack || e?.message}\n`, 'utf-8')
           } catch { /* ignore */ }
         }
         dlgSeq++
+        // ★ 每个任务让出一拍事件循环（兜底，避免 110 航线大跑时 fsp 内部回调链占用过久）
+        //   setImmediate 比 setTimeout(0) 优先级更准（Node 微任务队列）
+        if (dlgSeq % 10 === 0) await new Promise(r => setImmediate(r))
       }
-      fs.appendFileSync(indexPath, renderGroupClose(), 'utf-8')
+      await fsp.appendFile(indexPath, renderGroupClose(), 'utf-8')
     }
-    writeGroup('锦绣请求', jxgjTasks)
-    writeGroup('携程请求', tripTasks)
-    writeGroup('其它任务', otherTasks)
+    await writeGroup('锦绣请求', jxgjTasks)
+    await writeGroup('携程请求', tripTasks)
+    await writeGroup('其它任务', otherTasks)
 
     // 3. 写尾部
-    fs.appendFileSync(indexPath, renderIndexFoot(), 'utf-8')
+    await fsp.appendFile(indexPath, renderIndexFoot(), 'utf-8')
 
     return { success: true, dir: subDir, file: indexPath }
   } catch (e) {
@@ -813,7 +818,7 @@ export function exportRunLog({ tasks, fileManager, pipeline, trigger }) {
     // 兜底：把失败原因落进目录，避免再次出现"沉默的空文件夹"
     if (subDir) {
       try {
-        fs.appendFileSync(path.join(subDir, ERROR_FILENAME), `[${new Date().toISOString()}] 导出失败: ${e?.stack || e?.message}\n`, 'utf-8')
+        await fsp.appendFile(path.join(subDir, ERROR_FILENAME), `[${new Date().toISOString()}] 导出失败: ${e?.stack || e?.message}\n`, 'utf-8')
       } catch { /* ignore */ }
     }
     return { success: false, dir: subDir || undefined, error: e?.message }
