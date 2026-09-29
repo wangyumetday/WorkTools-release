@@ -111,31 +111,34 @@ export function extractAbnormalPolicyEntry(row, colIdx) {
 }
 
 /**
- * 无投放块是否命中政策文件（异常航线，五维度比对）
- *   套餐级块：航司名 + 航线 + 舱位 + 套餐索引 + 航程类型（五条件全等）
- *   主行级块：航司名 + 航线 + 舱位 + 航程类型（四条件，无套餐索引）
- *   缺航司/缺航线/缺舱位 → false（不误判）
+ * 无投放块是否命中政策文件（异常航线，四维度比对）
+ *   套餐级块：航司名 + 航线 + 舱位 + 套餐索引
+ *   主行级块：航司名 + 航线 + 舱位（无套餐索引）
+ *   ★ 可选条件：航司 两边都有才比，任何一边空就跳过
+ *   必备条件：航线 + 舱位（缺航线/缺舱位 → false）
  */
 export function isAbnormalBlock(block, policyEntries) {
   if (!block) return false
   const airline = normalizePolicyKey(block.airline)
   const route = normalizePolicyKey(`${block.depAirport}-${block.arrAirport}`)
   const cabin = normalizePolicyKey(block.seatClass)
-  const journeyType = normalizePolicyKey(block.journeyType)
-  if (!airline || !route || !cabin) return false
+  if (!route || !cabin) return false
   const entries = Array.isArray(policyEntries) ? policyEntries : []
+
+  const condsMatch = (p) => {
+    if (!p) return false
+    if (p.route !== route || p.cabin !== cabin) return false
+    // 航司两边都有才比，空值跳过
+    if (airline && p.airline && p.airline !== airline) return false
+    return true
+  }
+
   if (block.kind === 'package') {
     if (block.pkgIndex == null) return false
     const pkgIdx = normalizePolicyKey(block.pkgIndex)
-    return entries.some(p =>
-      p && p.airline === airline && p.route === route && p.cabin === cabin
-      && p.pkgIndex === pkgIdx && p.journeyType === journeyType
-    )
+    return entries.some(p => condsMatch(p) && p.pkgIndex === pkgIdx)
   }
-  return entries.some(p =>
-    p && p.airline === airline && p.route === route && p.cabin === cabin
-    && p.journeyType === journeyType
-  )
+  return entries.some(p => condsMatch(p))
 }
 
 /**
