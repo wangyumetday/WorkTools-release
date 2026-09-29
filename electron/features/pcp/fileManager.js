@@ -17,7 +17,7 @@ import { O_PLATFORM_KEYS as O_PLATFORMS } from './platforms/registry.js'
 import { A2_FIELDS, A3_FIELDS } from './fieldNames.js'
 // ARCH-1：导出逻辑已抽离到 ExcelExporter，HR_FIELDS 由其统一导出（saveA3FromOTasks 仍要用）
 import { ExcelExporter, HR_FIELDS } from './ExcelExporter.js'
-import { buildHeaderKeyMap, POLICY_REQUIRED_HEADERS } from './policyWriteback.js'
+import { buildHeaderKeyMap, POLICY_REQUIRED_HEADERS, parsePolicyName, adjustAbnormalPackageSummary } from './policyWriteback.js'
 
 // ===== JSDoc 类型定义：a1 / a2 / a3 数据 shape（文档 / IDE 提示用）=====
 
@@ -90,6 +90,8 @@ export class FileManager {
     //   注意：不随 clearAll 清空（换航线文件会触发 clearAll，若在此清掉会导致回写被静默跳过）；
     //         仅在上传新政策文件时覆盖、下载成功后由 controller 显式清空
     this.policyFilePath = ''
+    // ★ 2026-09-29 起：上传时即解析驻留的 { headers, keyColMap, rows }（异常航线判定任务期用）
+    this.policyFileData = null
 
     // 上次选择文件的文件夹（首次为空字符串，dialog 不传 defaultPath 时 Electron 用 OS 默认）
     //   用途：步骤1选 xlsx 时，defaultPath = lastDirectory，下次直接打开同一文件夹
@@ -239,6 +241,13 @@ export class FileManager {
    */
   setPolicyFilePath(filePath) {
     this.policyFilePath = filePath || ''
+    // ★ 2026-09-29 起：上传即解析驻留（异常航线判定在任务期就要用；下载回写仍可复用本数据）
+    if (this.policyFilePath) {
+      const parsed = this.readPolicyFile(this.policyFilePath)
+      this.policyFileData = parsed.success ? parsed : null
+    } else {
+      this.policyFileData = null
+    }
   }
 
   /** 是否已记录政策文件路径（下载回写模式的开关） */
@@ -254,6 +263,7 @@ export class FileManager {
   /** 清空已记录的政策文件路径（下载成功后调用） */
   clearPolicyFilePath() {
     this.policyFilePath = ''
+    this.policyFileData = null
   }
 
   /**
@@ -419,6 +429,22 @@ export class FileManager {
     // ★ 完整对比行（2026-09-26 起）：saveA3FromOTasks 把 trip 任务的全部 quoteRows
     //   （官网行 + 携程行 + 附加行）收集起来，供底价检查文件按「官网行 + 匹配携程行」展开
     const tripQuoteRows = []
+    // ★ 无投放对比块（2026-09-29 起）：trip 任务 summary.noBidBlocks（携程无任何投放的
+    //   官网对比块），供导出阶段与用户政策文件 Name 比对后生成「异常航线（无投放）」文件
+    const tripNoBidBlocks = []
+
+    // ★ 异常航线（套餐级）判定名单（2026-09-29）：政策文件上传时已解析驻留（policyFileData），
+    //   此处只提取 Name 列 → 航线/舱位/套餐索引，供任务 summary 修正（独占数/政策行数/异常计数）
+    const abnormalPolicyNames = []
+    {
+      const names = (this.policyFileData?.headers || []).indexOf('Name')
+      if (names >= 0) {
+        for (const row of (Array.isArray(this.policyFileData?.rows) ? this.policyFileData.rows : [])) {
+          const pn = parsePolicyName(String(row?.[names] ?? '').trim())
+          if (pn) abnormalPolicyNames.push(pn)
+        }
+      }
+    }
 
     // 预取各平台配置 + exportTemplate + 锦绣政策字段配置（航司私有化：按当前文件航司取）
     //   from(item, ctx) 的 ctx = { ...平台配置, policyFields }：
@@ -455,6 +481,13 @@ export class FileManager {
           if (q && q.kind === 'other') tripOtherQuotes.push(q)
           if (q) tripQuoteRows.push(q)
         }
+      }
+      if (p === 'trip' && Array.isArray(result?.summary?.noBidBlocks)) {
+        for (const b of result.summary.noBidBlocks) tripNoBidBlocks.push(b)
+      }
+      // ★ 修正常态统计（2026-09-29）：命中政策文件的无投放套餐块不计独占数、不占政策行数，计入异常航线
+      if (p === 'trip' && abnormalPolicyNames.length > 0 && result?.summary) {
+        adjustAbnormalPackageSummary(result.summary, abnormalPolicyNames)
       }
       const processedData = result.processedData
       if (!Array.isArray(processedData)) return
@@ -505,6 +538,7 @@ export class FileManager {
     this.a3 = a3arr
     this.tripOtherQuotes = tripOtherQuotes
     this.tripQuoteRows = tripQuoteRows
+    this.tripNoBidBlocks = tripNoBidBlocks
     this.saveData('a3.json', a3arr)
     return a3arr
   }

@@ -782,10 +782,11 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
       ? (rowMatched.find(p => p && p[TRIP_RESPONSE_FIELDS.isOwn])?.[TRIP_RESPONSE_FIELDS.showState] ?? null)
       : null
     const rowCands = rowMatched.filter(p => !p[TRIP_RESPONSE_FIELDS.isOwn])
-    // ★ 展示消耗登记：主行行李匹配上的报价（含比不过的）都被本单元「消费」，不再落附加行
-    if (consumedQuotes) for (const c of rowCands) consumedQuotes.add(c)
-    // ★ 展示用候选：分块展示的主行单元携程行来源（全量，含未展示隐藏价）
-    item._matchedQuotes = rowCands
+    // ★ 展示消耗登记 + 展示用候选（2026-09-29 起含我方投放）：主行块与套餐块同口径——
+    //   我方报价行同样进入主行对比块展示（胜出率/覆盖率等对比块统计依赖），
+    //   仅「比价候选」剔除 isOwn（rowCompareCands 单独过滤，口径不变）
+    if (consumedQuotes) for (const c of rowMatched) consumedQuotes.add(c)
+    item._matchedQuotes = rowMatched
     // ★ 比价候选：仅用「已展示（showState=1）」的外部报价；隐藏价(showState≠1)不作竞对（2026-09-26 用户确认）
     const rowCompareCands = rowCands.filter(p => Number(p[TRIP_RESPONSE_FIELDS.showState]) === 1)
     const sortedRow = sortedValidPrices(rowCompareCands)
@@ -1387,6 +1388,39 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
   // 套餐对套餐对比行（只用于 UI 展示，不参与比价/导出）
   const quoteRows = buildQuoteRows(resData, matchSink, a2Item, mainRowEnabled, consumedQuotes)
 
+  // ===== 对比块口径统计（2026-09-29）：胜出率 / 覆盖率 =====
+  //   对比块 = quoteRows 官方行（含主行块与套餐块；主行参与开启、无套餐时即主行块）；
+  //   胜出率分子 = 各块内「我方投放且已展示」的携程报价子行条数；
+  //   覆盖率分子 = 存在我方投放（isOwn）携程报价子行的块数（不论是否展示）
+  const blockKeys = new Set(
+    quoteRows.filter(r => r.role === 'official').map(r => r.unitKey)
+  )
+  let ownShownInBlocks = 0
+  const blocksWithOwn = new Set()
+  for (const r of quoteRows) {
+    if (r.role !== 'ctrip' || !blockKeys.has(r.unitKey) || !r.isOwn) continue
+    blocksWithOwn.add(r.unitKey)
+    if (r.shown) ownShownInBlocks++
+  }
+
+  // ===== 无投放对比块（异常航线检测用，2026-09-29）=====
+  //   官方对比块（role=official，主行/套餐）内没有任何携程子行（role=ctrip）
+  //   = 携程对该航线（套餐）没有任何投放；记录航线/套餐信息，
+  //   供导出阶段与用户政策文件 Name 比对后生成「异常航线（无投放）」文件
+  const ctripUnitKeys = new Set(quoteRows.filter(r => r.role === 'ctrip').map(r => r.unitKey))
+  const noBidBlocks = quoteRows
+    .filter(r => r.role === 'official' && !ctripUnitKeys.has(r.unitKey))
+    .map(r => ({
+      kind: r.kind,
+      flightNo: r.flightNo,
+      date: r.date,
+      depAirport: r.depAirport,
+      arrAirport: r.arrAirport,
+      seatClass: r.seatClass ?? null,
+      cabinClass: r.cabinClass ?? null,
+      pkgIndex: r.pkgIndex ?? null
+    }))
+
   // ===== 取值时机（2026-09-24）：比对后的统计 =====
   //   以下量必须先完成行李匹配/比价并建好对比单元行（quoteRows）才统计得到 → 只在此处统计
   // ★ 我方胜出却未显示（2026-09-24 口径修正，逐条我方报价计）：
@@ -1440,6 +1474,10 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
       compareTotal: quoteRows.filter(r => r.role === 'official').length,
       compareMain: quoteRows.filter(r => r.role === 'official' && r.kind === 'main').length,
       comparePackage: quoteRows.filter(r => r.role === 'official' && r.kind === 'package').length,
+      // 胜出率/覆盖率（对比块口径，2026-09-29）：分母=套餐对比块数（comparePackage）
+      winRateNum: ownShownInBlocks,
+      coverageNum: blocksWithOwn.size,
+      noBidBlocks,
       quoteWon: quoteRows.filter(r => r.role === 'official' && r.status === 'won').length,
       quoteWonHidden,
       quoteLost: quoteRows.filter(r => r.role === 'official' && r.status === 'lost').length,

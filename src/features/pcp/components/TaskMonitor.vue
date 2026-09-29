@@ -427,8 +427,15 @@ const overallStatus = computed(() => {
 //   统计口径：跨任务聚合各 task.result.summary（summary 只在任务 merge 完成时变化，天然低频刷新；
 //   不做轮询/定时器，不拖累任务执行效率）；每项 hover 提示含义
 const statsCollapsed = ref(false)
+
+// 分数+百分比展示（2026-09-29 起，胜出率/覆盖率）：`num/total || pp.pp%`；无块时显示 0
+function fmtFrac(num, total) {
+  if (!Number.isFinite(total) || total <= 0) return '0'
+  return `${num}/${total} || ${((num / total) * 100).toFixed(2)}%`
+}
+
 const statsItems = computed(() => {
-  const agg = { total: 0, own: 0, ownShown: 0, wonHidden: 0, unmatched: 0, policyRows: 0 }
+  const agg = { total: 0, own: 0, ownShown: 0, wonHidden: 0, unmatched: 0, policyRows: 0, winRateNum: 0, coverageNum: 0, pkgBlocks: 0, abnormalPackage: 0 }
   for (const t of store.tasks) {
     const s = t?.result?.summary
     if (!s) continue
@@ -438,11 +445,19 @@ const statsItems = computed(() => {
     agg.wonHidden += Number(s.quoteWonHidden) || 0
     agg.unmatched += Number(s.quoteUnmatched) || 0
     agg.policyRows += Number(s.policyRowCount) || 0
+    agg.winRateNum += Number(s.winRateNum) || 0
+    agg.coverageNum += Number(s.coverageNum) || 0
+    // 分母 = 对比块总数（主行参与关闭=套餐块；开启=主行块，无套餐数据时经此口径仍可计数）
+    agg.pkgBlocks += Number(s.compareTotal) || 0
+    agg.abnormalPackage += Number(s.abnormalPackageCount) || 0
   }
   return [
-    { key: 'total', label: '投放总数', value: agg.total, tip: '携程返回的全部报价条目数（含我方与其它投放）' },
+    { key: 'total', label: '携程报价总数', value: agg.total, tip: '携程返回的全部报价条目数（含我方与其它投放）' },
     { key: 'own', label: '我方投放数', value: agg.own, tip: '携程查到的属于我方投放的报价条目数' },
     { key: 'ownShown', label: '展示的报价数', value: agg.ownShown, tip: '我方投放且已在携程外显（isOwn=true && showState=1）的报价条目数' },
+    { key: 'winRate', label: '胜出率', value: fmtFrac(agg.winRateNum, agg.pkgBlocks), tip: '每个对比块（主行参与开启为主行块、关闭为套餐块）内「我方投放且已展示」的携程报价条数 / 对比块总数（百分比精确到小数点后两位）' },
+    { key: 'coverage', label: '覆盖率', value: fmtFrac(agg.coverageNum, agg.pkgBlocks), tip: '存在我方投放携程报价（不论是否展示）的对比块数 / 对比块总数（百分比精确到小数点后两位）' },
+    { key: 'abnormalPkg', label: '异常航线', value: agg.abnormalPackage, tip: '携程无任何投放、且命中用户上传政策文件的对比块数（套餐块比对航线+舱位+套餐索引；开启主行参与时主行块比对航线+舱位）；不计入「独占数量」、套餐级不再写入政策导入文件' },
     { key: 'wonHidden', label: '我方胜出却未显示数', value: agg.wonHidden, tip: '我方投放却未外显（isOwn=true && showState≠1）的报价中「理应外显却未外显」的条数：①所在对比组内无任何他人报价（无人竞价）；②所在对比组内有他人报价价格更高却已外显' },
     { key: 'unmatched', label: '独占数量', value: agg.unmatched, tip: '官网数据存在、但携程无人投放（未匹配）的官网数据单元数' },
     { key: 'policyRows', label: '写入政策条数', value: agg.policyRows, tip: '我方比赢（含未匹配出政策的原价政策）且航程类型=单程、本次将写入政策导入文件的数据条数' }

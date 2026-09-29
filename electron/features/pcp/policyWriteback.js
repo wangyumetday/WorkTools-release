@@ -72,6 +72,75 @@ export function keepPolicyRow(row, outcomeField) {
   return normalizePolicyKey(row?.['航程类型']) === normalizePolicyKey('单程')
 }
 
+// ===== 异常航线（无投放）判定（2026-09-29 起，纯函数供 fileManager/ExcelExporter 共用） =====
+// 政策文件 Name 格式（用户确认）：航司二字码/出发机场-到达机场/舱位/套餐索引/航程类型/政策创建人
+//   样例：XQ/SZF-DUS/O/套餐3/直飞/王宇（主行级无套餐索引段）
+// 比对口径：航线（段1）+ 舱位（段2）+ 套餐索引（段中「套餐N」，仅套餐级）
+
+/**
+ * 政策行 Name → { route:'SZF-DUS', cabin:'O', pkgToken:'套餐3'|null }；格式不满足 → null
+ */
+export function parsePolicyName(name) {
+  const segs = String(name ?? '').split('/').map(s => s.trim()).filter(Boolean)
+  if (segs.length < 3) return null
+  return {
+    route: segs[1],
+    cabin: (segs[2] ?? '').toUpperCase(),
+    pkgToken: segs.find(s => /^套餐/.test(s)) ?? null
+  }
+}
+
+/**
+ * 套餐级无投放块是否命中政策文件（异常航线）：航线 + 舱位 + 套餐索引 三条件
+ *   套餐索引兼容「套餐3」与「3」两种写法；缺舱位/缺套餐索引 → false（不误判）
+ */
+export function isAbnormalPackageBlock(block, policyNames) {
+  if (!block) return false
+  const route = `${block.depAirport}-${block.arrAirport}`
+  const cabin = String(block.seatClass ?? '').toUpperCase()
+  if (!cabin || block.pkgIndex == null) return false
+  const idx = String(block.pkgIndex)
+  return (Array.isArray(policyNames) ? policyNames : []).some(pn =>
+    pn && pn.route === route && pn.cabin === cabin && (pn.pkgToken === `套餐${idx}` || pn.pkgToken === idx)
+  )
+}
+
+/**
+ * 无投放块是否命中政策文件（异常航线，2026-09-29 与胜出率同口径）：
+ *   套餐级块：航线 + 舱位 + 套餐索引 三条件；
+ *   主行级块：航线 + 舱位（Name 无套餐索引段）；
+ *   缺舱位 → false（不误判）
+ */
+export function isAbnormalBlock(block, policyNames) {
+  if (!block) return false
+  const route = `${block.depAirport}-${block.arrAirport}`
+  const cabin = String(block.seatClass ?? '').toUpperCase()
+  if (!cabin) return false
+  if (block.kind === 'package') return isAbnormalPackageBlock(block, policyNames)
+  return (Array.isArray(policyNames) ? policyNames : []).some(pn => pn && pn.route === route && pn.cabin === cabin)
+}
+
+/**
+ * 修正 trip 任务 summary（异常航线，2026-09-29）：
+ *   - 无投放对比块（套餐块 + 开启主行参与时的主行块）命中政策文件 → 计「异常航线」abnormalPackageCount
+ *   - 此类不计入「独占数量」（quoteUnmatched 按块数扣除；1 块 = 1 单元）
+ *   - 不再产原价政策行：仅套餐级异常块扣除政策行数（主行块本就不产政策行）
+ * @returns {number} 本次计入的异常块数
+ */
+export function adjustAbnormalPackageSummary(summary, policyNames) {
+  if (!summary) return 0
+  const blocks = Array.isArray(summary.noBidBlocks) ? summary.noBidBlocks : []
+  const abnormal = blocks.filter(b => isAbnormalBlock(b, policyNames))
+  const abnormalPkg = abnormal.filter(b => b?.kind === 'package').length
+  if (abnormal.length === 0) return 0
+  summary.abnormalPackageCount = (Number(summary.abnormalPackageCount) || 0) + abnormal.length
+  const prevU = Number(summary.quoteUnmatched) || 0
+  summary.quoteUnmatched = Math.max(0, prevU - abnormal.length)
+  const prevP = Number(summary.policyRowCount) || 0
+  summary.policyRowCount = Math.max(0, prevP - abnormalPkg)
+  return abnormal.length
+}
+
 /** 我方 147 列扁平行 → 按用户文件表头列序重排为数组（缺失列填 ''；对象值转 JSON 字符串防泄漏结构） */
 export function buildRowInUserColumnOrder(flat, headers) {
   const arr = new Array(headers.length).fill('')
