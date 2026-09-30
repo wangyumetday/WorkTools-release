@@ -72,6 +72,47 @@ export function keepPolicyRow(row, outcomeField) {
   return normalizePolicyKey(row?.['航程类型']) === normalizePolicyKey('单程')
 }
 
+/**
+ * 政策文件 aoa（`XLSX.utils.sheet_to_json(ws, { header: 1, defval: null })` 的结果）
+ * → 解析结果（2026-09-30 从 FileManager.readPolicyFile 抽出为纯函数）
+ *
+ * 抽出的原因：SheetJS 读盘是**同步**调用，真实政策文件（4935 行 × 147 列 / 23.68MB）
+ * 实测 readFile 2.6s + sheet_to_json 0.2s，是一段不可打断的主线程阻塞（窗口"未响应"的来源）。
+ * 为此把「读盘 + 解析」整体移到 worker 线程执行；而表头定位 / 必填列校验 / 空行过滤这些
+ * **业务口径必须与进程内读盘完全一致**，所以收敛到这一个纯函数，主进程与 worker 共用同一实现。
+ *
+ * @param {any[][]} aoa           整表二维数组（含表头行）
+ * @param {string}  fileName      仅用于回显（worker 侧传 path.basename）
+ * @returns {{success:true,fileName:string,headers:string[],keyColMap:object,rows:any[][]}
+ *          |{success:false,error:string}}
+ */
+export function parsePolicyAoa(aoa, fileName) {
+  if (!Array.isArray(aoa) || aoa.length < 2) {
+    return { success: false, error: '政策文件内容不足（至少需要表头行 + 1 行数据）' }
+  }
+  // 表头定位：首行起至多找两行，必须同时含 OTAConfigID 与 航程类型 才是表头
+  let headerRow = null
+  let headers = []
+  for (let i = 0; i < Math.min(aoa.length, 2); i++) {
+    const names = (aoa[i] || []).map(c => (c == null ? '' : String(c).trim()))
+    if (names.includes('OTAConfigID') && names.includes('航程类型')) {
+      headerRow = i
+      headers = names
+      break
+    }
+  }
+  if (headerRow == null) {
+    return { success: false, error: '未找到政策文件表头行（须含 OTAConfigID / 航程类型 列）' }
+  }
+  const keyColMap = buildHeaderKeyMap(headers)
+  const missing = POLICY_REQUIRED_HEADERS.filter(h => keyColMap[h] == null)
+  if (missing.length > 0) {
+    return { success: false, error: `政策文件缺少列: ${missing.join('、')}` }
+  }
+  const rows = aoa.slice(headerRow + 1).filter(r => r && r.some(c => c != null && String(c).trim() !== ''))
+  return { success: true, fileName, headers, keyColMap, rows }
+}
+
 // ===== 异常航线（无投放）判定（2026-09-29 起，纯函数供 fileManager/ExcelExporter 共用） =====
 // 政策文件匹配字段（5 列，2026-09-29 改：从 Name 解析 → 直接按列取值）：
 //   航司名 / 机场航线匹配（出发-到达 3 字码） / 舱位 / 去程套餐索引v2（纯数字） / 航程类型（单程/多程）

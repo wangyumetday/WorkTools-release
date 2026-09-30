@@ -17,7 +17,12 @@ import { O_PLATFORM_KEYS as O_PLATFORMS } from './platforms/registry.js'
 import { A2_FIELDS, A3_FIELDS } from './fieldNames.js'
 // ARCH-1：导出逻辑已抽离到 ExcelExporter，HR_FIELDS 由其统一导出（saveA3FromOTasks 仍要用）
 import { ExcelExporter, HR_FIELDS } from './ExcelExporter.js'
-import { buildHeaderKeyMap, POLICY_REQUIRED_HEADERS, findAbnormalPolicyColIndices, extractAbnormalPolicyEntry, adjustAbnormalPackageSummary } from './policyWriteback.js'
+// ★ 2026-09-29 异常航线判定已改为任务级实时（TaskManager.reloadRuntimeConfigs 注入政策条目、
+//   trip adapter 在 mergeResult 内即时修正 summary）→ 本文件不再需要异常判定相关函数
+// ★ 2026-09-30：政策解析口径收敛到 parsePolicyAoa（worker 线程读盘与进程内读盘共用）
+import { buildHeaderKeyMap, POLICY_REQUIRED_HEADERS, parsePolicyAoa } from './policyWriteback.js'
+// ★ 2026-09-30：SheetJS 同步读/写移到 worker 线程（失败自动回退进程内）
+import { readPolicyFileOffThread, writeSheetOffThread } from './xlsxWorkerClient.js'
 
 // ===== JSDoc 类型定义：a1 / a2 / a3 数据 shape（文档 / IDE 提示用）=====
 
@@ -86,12 +91,14 @@ export class FileManager {
     // ConfigManager 注入（阶段4：导出时取平台配置 agentName/agentRemark 写入政策列）
     this.configManager = configManager
 
-    // 用户上传的外部政策文件路径（仅内存、不持久化）：上传时只记路径，下载要用时才读盘解析
+    // 用户上传的外部政策文件路径（仅内存、不持久化）
     //   注意：不随 clearAll 清空（换航线文件会触发 clearAll，若在此清掉会导致回写被静默跳过）；
     //         仅在上传新政策文件时覆盖、下载成功后由 controller 显式清空
     this.policyFilePath = ''
     // ★ 2026-09-29 起：上传时即解析驻留的 { headers, keyColMap, rows }（异常航线判定任务期用）
     this.policyFileData = null
+    // ★ 2026-09-30：驻留解析结果对应的文件指纹，导出时用它判断能否复用（省一次同步读盘）
+    this.policyFileStat = null
 
     // 上次选择文件的文件夹（首次为空字符串，dialog 不传 defaultPath 时 Electron 用 OS 默认）
     //   用途：步骤1选 xlsx 时，defaultPath = lastDirectory，下次直接打开同一文件夹
@@ -236,7 +243,9 @@ export class FileManager {
   }
 
   /**
-   * 记录用户上传的外部系统（携程）政策文件路径（惰性加载：此处不读盘解析）
+   * 记录政策文件路径并**同步**解析驻留（进程内变体）
+   *   ★ 2026-09-30 起上传走 preparePolicyFile（worker 线程解析，避免 2.6s 主线程阻塞）；
+   *     本方法保留给进程内场景/测试用，行为与改造前一致。
    * @param {string} filePath xlsx 文件路径
    */
   setPolicyFilePath(filePath) {
@@ -245,9 +254,70 @@ export class FileManager {
     if (this.policyFilePath) {
       const parsed = this.readPolicyFile(this.policyFilePath)
       this.policyFileData = parsed.success ? parsed : null
+      // ★ 2026-09-30：记下解析时的文件指纹 → 导出时文件没变就直接复用，不再同步读盘
+      this.policyFileStat = this._policyFileFingerprint(this.policyFilePath)
     } else {
       this.policyFileData = null
+      this.policyFileStat = null
     }
+  }
+
+  /** 政策文件指纹（mtimeMs + size）：判断驻留的解析结果是否仍对应当前文件 */
+  _policyFileFingerprint(filePath) {
+    try {
+      const st = fs.statSync(filePath)
+      return { mtimeMs: st.mtimeMs, size: st.size }
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * 记录政策文件路径并**在 worker 线程**完成解析驻留（2026-09-30，上传时调用）
+   *   为什么放 worker：SheetJS readFile 是同步调用，真实政策文件（4935 行 × 147 列 / 23.68MB）
+   *   实测 readFile 2.6s + sheet_to_json 0.2s，是一段不可打断的主线程阻塞（窗口"未响应"）。
+   *   worker 不可用/失败 → 自动回退到进程内 readPolicyFile（= 改造前行为）。
+   * @param {string} filePath xlsx 路径
+   * @returns {Promise<{success:boolean, fileName?:string, error?:string}>}
+   */
+  async preparePolicyFile(filePath) {
+    this.policyFilePath = filePath || ''
+    if (!this.policyFilePath) {
+      this.policyFileData = null
+      this.policyFileStat = null
+      return { success: true, fileName: '' }
+    }
+    const stat = this._policyFileFingerprint(this.policyFilePath)
+    const offThread = await readPolicyFileOffThread(this.policyFilePath)
+    const parsed = offThread || this.readPolicyFile(this.policyFilePath)
+    this.policyFileData = parsed.success ? parsed : null
+    this.policyFileStat = stat
+    if (!parsed.success) console.warn('[FileManager] 政策文件解析失败:', parsed.error)
+    return parsed
+  }
+
+  /**
+   * 取当前政策文件的解析结果 { headers, keyColMap, rows }：
+   *   优先复用上传时驻留的 policyFileData（文件未变化时）—— 避免导出阶段再跑一次
+   *   同步 XLSX.readFile + sheet_to_json（实测 2 万行 ≈ 2.2 s、10 万行 ≈ 11 s 的
+   *   **不可打断**主线程阻塞，正是下载时窗口"未响应"的主因）；
+   *   文件被外部改动过（mtime/size 变了）→ 才真正重新读盘并刷新驻留。
+   * @returns {{success:true,...}|{success:false,error:string}}
+   */
+  getPolicyFileData() {
+    const p = this.policyFilePath
+    if (!p) return { success: false, error: '未记录政策文件路径' }
+    const fp = this._policyFileFingerprint(p)
+    if (this.policyFileData && fp && this.policyFileStat &&
+        fp.mtimeMs === this.policyFileStat.mtimeMs && fp.size === this.policyFileStat.size) {
+      return this.policyFileData
+    }
+    const parsed = this.readPolicyFile(p)
+    if (parsed.success) {
+      this.policyFileData = parsed
+      this.policyFileStat = fp
+    }
+    return parsed
   }
 
   /** 是否已记录政策文件路径（下载回写模式的开关） */
@@ -264,6 +334,7 @@ export class FileManager {
   clearPolicyFilePath() {
     this.policyFilePath = ''
     this.policyFileData = null
+    this.policyFileStat = null
   }
 
   /**
@@ -286,30 +357,9 @@ export class FileManager {
       const firstSheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[firstSheetName]
       const aoa = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null })
-      if (!Array.isArray(aoa) || aoa.length < 2) {
-        return { success: false, error: '政策文件内容不足（至少需要表头行 + 1 行数据）' }
-      }
-      // 表头定位：首行起至多找两行，必须同时含 OTAConfigID 与 航程类型 才是表头
-      let headerRow = null
-      let headers = []
-      for (let i = 0; i < Math.min(aoa.length, 2); i++) {
-        const names = (aoa[i] || []).map(c => (c == null ? '' : String(c).trim()))
-        if (names.includes('OTAConfigID') && names.includes('航程类型')) {
-          headerRow = i
-          headers = names
-          break
-        }
-      }
-      if (headerRow == null) {
-        return { success: false, error: '未找到政策文件表头行（须含 OTAConfigID / 航程类型 列）' }
-      }
-      const keyColMap = buildHeaderKeyMap(headers)
-      const missing = POLICY_REQUIRED_HEADERS.filter(h => keyColMap[h] == null)
-      if (missing.length > 0) {
-        return { success: false, error: `政策文件缺少列: ${missing.join('、')}` }
-      }
-      const rows = aoa.slice(headerRow + 1).filter(r => r && r.some(c => c != null && String(c).trim() !== ''))
-      return { success: true, fileName: path.basename(filePath), headers, keyColMap, rows }
+      // ★ 2026-09-30：表头定位/必填列校验/空行过滤收敛到纯函数 parsePolicyAoa，
+      //   与 worker 线程读盘共用同一实现（两条路径结果必然一致）
+      return parsePolicyAoa(aoa, path.basename(filePath))
     } catch (error) {
       return { success: false, error: error.message }
     }
@@ -430,22 +480,11 @@ export class FileManager {
     //   （官网行 + 携程行 + 附加行）收集起来，供底价检查文件按「官网行 + 匹配携程行」展开
     const tripQuoteRows = []
     // ★ 无投放对比块（2026-09-29 起）：trip 任务 summary.noBidBlocks（携程无任何投放的
-    //   官网对比块），供导出阶段与用户政策文件 Name 比对后生成「异常航线（无投放）」文件
+    //   官网对比块），供导出阶段与用户政策文件五列（航司名/机场航线匹配/舱位/去程套餐索引v2/
+    //   航程类型）比对后生成「异常航线（无投放）」文件
+    //   （判定本身已在任务期由 trip adapter 完成，见 policyWriteback.adjustAbnormalPackageSummary；
+    //    此处仅收集原料供导出用）
     const tripNoBidBlocks = []
-
-    // ★ 异常航线（套餐级）判定名单（2026-09-29）：政策文件上传时已解析驻留（policyFileData），
-    //   此处从五列（航司名/机场航线匹配/舱位/去程套餐索引v2/航程类型）提取归一化匹配条目，
-    //   供任务 summary 修正（独占数/政策行数/异常计数）
-    const abnormalPolicyEntries = []
-    {
-      const colIdx = findAbnormalPolicyColIndices(this.policyFileData?.headers)
-      if (colIdx) {
-        for (const row of (Array.isArray(this.policyFileData?.rows) ? this.policyFileData.rows : [])) {
-          const entry = extractAbnormalPolicyEntry(row, colIdx)
-          if (entry) abnormalPolicyEntries.push(entry)
-        }
-      }
-    }
 
     // 预取各平台配置 + exportTemplate + 锦绣政策字段配置（航司私有化：按当前文件航司取）
     //   from(item, ctx) 的 ctx = { ...平台配置, policyFields }：
@@ -486,10 +525,8 @@ export class FileManager {
       if (p === 'trip' && Array.isArray(result?.summary?.noBidBlocks)) {
         for (const b of result.summary.noBidBlocks) tripNoBidBlocks.push(b)
       }
-      // ★ 修正常态统计（2026-09-29）：命中政策文件的无投放套餐块不计独占数、不占政策行数，计入异常航线
-      if (p === 'trip' && abnormalPolicyEntries.length > 0 && result?.summary) {
-        adjustAbnormalPackageSummary(result.summary, abnormalPolicyEntries)
-      }
+      // ★ 异常航线统计（2026-09-29 改）：已由 trip adapter 在任务完成时即时计入 summary
+      //   （政策条目随运行时配置快照注入），此处不再修正，避免重复计数
       const processedData = result.processedData
       if (!Array.isArray(processedData)) return
       stats[p].okTasks++
@@ -564,9 +601,16 @@ export class FileManager {
   }
 
   // 写入 JSON 数据到 data 目录
+  //   ★ 2026-09-30：改「异步写 + 不缩进」——原来 JSON.stringify(data, null, 2) + writeFileSync
+  //     是同步大调用，且落盘时机正好在"跑完任务瞬间"（saveStageResults），
+  //     真实跑批 a3 可达数十 MB（缩进还会让体积再放大约 1.4 倍、CPU 翻倍），
+  //     会在主进程造成秒级不可打断阻塞。缩进对 data 目录缓存没有意义（人是看导出的 xlsx）。
+  //     注：JSON.stringify 本身仍是同步的（百毫秒量级）；如需彻底消除，见"导出/落盘移出主线程"方案。
   saveData(filename, data) {
     const filePath = path.join(this.dataDir, filename)
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8')
+    Promise.resolve()
+      .then(() => fs.promises.writeFile(filePath, JSON.stringify(data), 'utf-8'))
+      .catch(e => console.warn(`[FileManager.saveData] ${filename} 落盘失败:`, e?.message))
   }
 
   // 从 data 目录加载 JSON 数据（不存在或解析失败返回空数组）

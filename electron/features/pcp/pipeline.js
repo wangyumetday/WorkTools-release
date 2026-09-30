@@ -25,6 +25,8 @@ import registry, { O_PLATFORM_KEYS } from './platforms/registry.js'
 import { DEFAULT_BUSINESS_MODE, isValidBusinessMode } from './businessModes.js'
 import { exportRunLog } from './runLogExporter.js'
 import { exportPolicyReview } from './policyReviewExporter.js'
+// ★ 2026-09-30：任务推送出口统一精简（剥离原始响应/原始行，见 taskIpc.js）
+import { slimTaskStateForIpc, slimTasksForIpc } from './taskIpc.js'
 
 // ===== 细粒度阶段定义（单一权威：顺序 = 依赖顺序）=====
 // 任何地方要列阶段，都应该遍历这个数组而不是自己硬编码顺序
@@ -201,7 +203,7 @@ export class Pipeline {
     this.status = 'idle'
     this._syncLegacyFields()
     this.lastGateFail = null
-    this.emit('pcp:task:state', this.taskManager.getState())
+    this.emit('pcp:task:state', slimTaskStateForIpc(this.taskManager.getState()))
     this.emitState()
     this._exportRunLog('aborted')
     return { success: true }
@@ -385,7 +387,7 @@ export class Pipeline {
       this._exportRunLog(stage === 'jxgj' ? 'stage-failed-jxgj' : 'stage-failed-o-combo')
       return
     }
-    this.emit('pcp:task:state', this.taskManager.getState())
+    this.emit('pcp:task:state', slimTaskStateForIpc(this.taskManager.getState()))
     const startResult = await this.taskManager.start(stage)
     if (!startResult.success) {
       if (stage === 'jxgj') {
@@ -619,7 +621,11 @@ export class Pipeline {
     }
 
     // 2. 推 pcp:task:allComplete（渲染层据此刷新 a1/a2/a3 计数 + 提示）
-    this.emit('pcp:task:allComplete', { results, stage })
+    //    ★ 2026-09-30：results 逐个精简后再推 —— 渲染层只用 length/status，
+    //      不精简的话这一帧会带上全部任务的原始响应与原始行（真实跑批可达数百 MB，
+    //      主线程结构化克隆本身就是数秒不可打断阻塞）。主进程内部（日志/复盘）用的是
+    //      handleStageComplete 收到的原对象，不受影响。
+    this.emit('pcp:task:allComplete', { results: slimTasksForIpc(results), stage })
   }
 
   // ========== 工具：事件推送 ==========

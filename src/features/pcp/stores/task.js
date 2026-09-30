@@ -242,11 +242,19 @@ export const useTaskStore = defineStore('pcp-task', () => {
     }
   }
 
-  // ==================== 政策文件上传（下载回写用）====================
+  // ==================== 政策文件上传（下载回写用 + 异常航线判定）====================
   //   与航线上传不同：不 pipelineReset（不清已上传的航线数据）；
-  //   主进程只记录该文件路径，下载时才读盘解析用于回写（惰性加载，不随 clearAll 清空）
+  //   主进程上传时即解析驻留（异常航线判定在任务期要用），下载回写复用同一份数据
+  //   ★ 运行中禁止替换：按钮在 pipelineInProgress 时禁用，主进程另有 failIfInProgress 门禁兜底
+  //     （判定条目是「任务开始时的快照」，运行中换文件会让面板与导出结果不一致）
   async function handleUploadPolicyXlsx() {
-    const result = await api.pcp.fileUploadPolicy()
+    let result = null
+    try {
+      result = await api.pcp.fileUploadPolicy()
+    } catch (e) {
+      message.error(e?.message || '政策文件上传失败（步骤流进行中禁止替换政策文件）')
+      return
+    }
     if (result && result.success) {
       policyFileName.value = result.fileName || ''
       message.success(`已选择政策文件：${result.fileName}，下载时将回写更新`)
@@ -383,7 +391,14 @@ export const useTaskStore = defineStore('pcp-task', () => {
 
   /** 选项①：重新选择一个正确的政策文件 → 选好后自动重试下载 */
   async function handlePolicyIssueRepick() {
-    const picked = await api.pcp.fileUploadPolicy()
+    let picked = null
+    try {
+      picked = await api.pcp.fileUploadPolicy()
+    } catch (e) {
+      // 选文件失败（如流程进行中）→ 保留选项框，提示原因
+      message.error(e?.message || '政策文件选择失败')
+      return
+    }
     if (picked && picked.success) {
       policyFileName.value = picked.fileName || ''
       policyWritebackIssue.value = null

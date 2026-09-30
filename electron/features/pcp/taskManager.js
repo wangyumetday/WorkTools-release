@@ -9,6 +9,7 @@
 import * as registry from './platforms/registry.js'
 import { TaskScheduler } from './taskScheduler.js'
 import { PlatformRunner } from './platformRunner.js'
+import { findAbnormalPolicyColIndices, extractAbnormalPolicyEntry } from './policyWriteback.js'
 
 /** 深拷贝（配置仅 JSON 可序列化字段） */
 function deepClone(obj) {
@@ -92,10 +93,16 @@ export class TaskManager {
     // 政策字段配置快照（含「主行参与」开关）：随运行时栈一起注入各平台编译配置，
     //   与平台配置同属"任务开始时的快照"（开始后不随页面改动变化）
     const policyFields = airline.policyFields
+    // ★ 异常航线判定条目快照（2026-09-29）：政策文件在上传时已解析驻留（fileManager.policyFileData），
+    //   这里提取五列归一化条目一并注入 → trip adapter 在任务完成时即可判定异常航线，
+    //   使「异常航线」与其它统计同频（每任务完成即刷新），不再等阶段末批处理修正。
+    //   上传政策文件的 IPC 有 failIfInProgress 门禁（运行中禁止替换），故快照与导出所用文件一致。
+    const policyAbnormalEntries = this.collectPolicyAbnormalEntries()
     for (const adapter of registry.all()) {
       const rawConfig = airline.platform[adapter.key] || {}
       const compiled = adapter.compileConfig(rawConfig)
       compiled.policyFields = policyFields
+      compiled.policyAbnormalEntries = policyAbnormalEntries
       this.compiledConfigs[adapter.key] = compiled
     }
     this._runtimeRevision++
@@ -125,6 +132,26 @@ export class TaskManager {
     //   `\n  summary =`, summary
     // )
     return { revision: this._runtimeRevision, summary }
+  }
+
+  /**
+   * 从 FileManager 驻留的政策文件解析结果（上传时已解析）提取「异常航线」判定条目：
+   *   五列 = 航司名 / 机场航线匹配 / 舱位 / 去程套餐索引v2 / 航程类型（后两列缺失时留空）
+   *   - 未上传政策文件 / 表头缺「航司名/机场航线匹配/舱位」→ 返回 []（判定不生效，异常航线恒 0）
+   *   - 关键字段为空的行丢弃（宁可不判，不误判）
+   * @returns {Array<{airline:string, route:string, cabin:string, pkgIndex:string, journeyType:string}>}
+   */
+  collectPolicyAbnormalEntries() {
+    const policyFileData = this.fileManager?.policyFileData
+    const colIdx = findAbnormalPolicyColIndices(policyFileData?.headers)
+    if (!colIdx) return []
+    const rows = Array.isArray(policyFileData?.rows) ? policyFileData.rows : []
+    const out = []
+    for (const row of rows) {
+      const entry = extractAbnormalPolicyEntry(row, colIdx)
+      if (entry) out.push(entry)
+    }
+    return out
   }
 
   /** 从运行时配置栈取某平台配置（深拷贝，避免调用方改到内存栈本身） */

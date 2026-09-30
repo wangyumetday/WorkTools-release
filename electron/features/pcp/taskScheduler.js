@@ -7,6 +7,9 @@
 // 不关心平台逻辑：execute(task, {onStep}) 回调由 facade 注入（platformRunner.runByType）
 // 不关心配置：compiledConfigs 由 facade 持有
 
+// ★ 2026-09-30：IPC 出口统一精简（剥离渲染层不读的原始响应/原始行，见 taskIpc.js）
+import { slimTaskForIpc } from './taskIpc.js'
+
 // ★ 请求项状态机：task.stage 的合法取值与转换
 //   idle       已入队，预请求已配置，等待调度器拉起
 //   credential 取账密中（progress=5）
@@ -98,7 +101,10 @@ export class TaskScheduler {
       startedAt: t.startedAt ?? null,
       finishedAt: t.finishedAt ?? null,
       createdAt: t.createdAt ?? null,
-      result: t.result ?? null   // 透传 result（含 error / errorType / isFatal 等失败详情），供前端 TaskMonitor 展开查看
+      // ★ 2026-09-30：result 经 slimTaskForIpc 剥离原始响应/原始行后再推送 ——
+      //   任务完成时这条推送会带上整份 result，若含 payload（携程原始响应）则每个任务完成
+      //   都在主线程做一次数百 KB~MB 的结构化克隆（不可打断）。渲染层不读这些字段。
+      result: slimTaskForIpc({ result: t.result ?? null }).result   // 含 error/errorType/isFatal 等失败详情，供前端 TaskMonitor 展开查看
     }
   }
 

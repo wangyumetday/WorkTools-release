@@ -20,6 +20,9 @@ import { O_PLATFORM_KEYS as O_PLATFORMS } from './platforms/registry.js'
 import { A3_FIELDS } from './fieldNames.js'
 import { formatPolicyAdjust } from './policyAdjust.js'
 import { keepPolicyRow, applyPolicyWriteback, findAbnormalPolicyColIndices, extractAbnormalPolicyEntry, isAbnormalBlock } from './policyWriteback.js'
+// ★ 2026-09-30：居中样式抽到 xlsxSheet（worker 写盘复用同一实现）；写盘走 worker（失败自动回退）
+import { centerSheetCells } from './xlsxSheet.js'
+import { writeSheetOffThread } from './xlsxWorkerClient.js'
 
 // 「底价检查」人看文件需要保留的原始字段（附加在 a3 每行上）
 //   exportResult 只按 template.columns 的 key 导列，这些附加字段不会被写进系统导入文件
@@ -136,40 +139,9 @@ function formatFloorMeta(meta) {
 
 /**
  * xlsx sheet 所有单元格 水平垂直居中 + 行背景色 + 列宽
- *   - 遍历 !ref 范围内所有单元格，设置 alignment + fill（根据 rowBgColors）
- *   - 无 !ref（空 sheet）时跳过
- *   - rowBgColors：与数据行对齐的数组，row 0 是表头不算
- *     true → 浅绿 C6EFCE / false → 浅红 FFC7CE / null → 不着色
+ *   ★ 2026-09-30：实现已抽到 xlsxSheet.js（worker 写盘与主进程回退共用同一份），
+ *     本文件内继续使用同名导入。
  */
-function centerSheetCells(ws, rowBgColors = []) {
-  if (!ws || !ws['!ref']) return
-  const range = XLSX.utils.decode_range(ws['!ref'])
-  for (let R = range.s.r; R <= range.e.r; R++) {
-    // 行背景色：跳过表头行（R=0），数据行从 R=1 开始，对应 rowBgColors[R-1]
-    const bgVal = R > 0 ? rowBgColors[R - 1] : null
-    const fgColor = bgVal == null ? null : (bgVal ? 'C6EFCE' : 'FFC7CE')
-    for (let C = range.s.c; C <= range.e.c; C++) {
-      const addr = XLSX.utils.encode_cell({ r: R, c: C })
-      const cell = ws[addr]
-      if (!cell) continue
-      const baseStyle = (cell.s && typeof cell.s === 'object') ? cell.s : {}
-      if (fgColor) {
-        baseStyle.fill = { patternType: 'solid', fgColor: { rgb: fgColor } }
-      }
-      cell.s = {
-        ...baseStyle,
-        alignment: {
-          horizontal: 'center',
-          vertical: 'center',
-          wrapText: true
-        }
-      }
-    }
-  }
-  // 列宽：兜底稍微宽一点，避免中文列被挤成 ###（14px 字体大概 8~16 字符）
-  const colCount = Math.max(1, range.e.c - range.s.c + 1)
-  ws['!cols'] = new Array(colCount).fill(null).map(() => ({ wch: 14 }))
-}
 
 /**
  * Excel 导出器
@@ -313,7 +285,10 @@ export class ExcelExporter {
       let tripPolicy = null
       if (!skipPolicyWriteback && platformKeys.includes('trip') && this.fileManager.hasPolicyFilePath()) {
         const policyPath = this.fileManager.getPolicyFilePath()
-        const readResult = this.fileManager.readPolicyFile(policyPath)
+        // ★ 2026-09-30：优先复用上传时已驻留的解析结果（getPolicyFileData 会校验文件指纹），
+        //   避免导出阶段再跑一次同步 XLSX.readFile + sheet_to_json（大文件下是数秒的
+        //   不可打断主线程阻塞，正是下载时"未响应"的主因）
+        const readResult = this.fileManager.getPolicyFileData()
         if (!readResult.success) {
           // 注意：此处不推 -1 —— 这不是"下载失败"，而是要求用户决策；
           //   渲染层收到本 code 后会复位按钮进度并弹选项框（若推 -1 会让按钮先闪红再弹框，语义冲突）
@@ -382,13 +357,15 @@ export class ExcelExporter {
         })
 
         // ★ 0 行数据 + 有 columns 模板时：仅写表头行（否则 json_to_sheet([]) 出的表连列名都没有）
-        let worksheet
+        let worksheet = null
+        // ★ 2026-09-30：政策回写路径直接把 aoa 交给 worker（省掉主线程 aoa_to_sheet ~0.5s）
+        let aoaForWorker = null
         let outCount
         // ★ 2026-09-24 政策回写：已上传外部政策文件 → 生成政策与用户文件逐条匹配，
         //   输出 = 用户文件行（命中行删除）+ 我方更新/新增行追加末尾（保留用户表头与列序）
         if (p === 'trip' && tripPolicy) {
           const wb = applyPolicyWriteback(flatData, tripPolicy)
-          worksheet = XLSX.utils.aoa_to_sheet([tripPolicy.headers, ...wb.finalRows])
+          aoaForWorker = [tripPolicy.headers, ...wb.finalRows]
           outCount = wb.finalRows.length
         } else if (flatData.length === 0 && columns) {
           const headerRow = columns.map(col => col.title || col.label || col.key)
@@ -398,18 +375,32 @@ export class ExcelExporter {
           worksheet = XLSX.utils.json_to_sheet(flatData)
           outCount = rows.length
         }
-        // 系统导入文件：所有单元格水平垂直居中显示
-        centerSheetCells(worksheet)
-        const workbook = XLSX.utils.book_new()
-        XLSX.utils.book_append_sheet(workbook, worksheet, p)
 
         // 系统导入文件名：{航司-}{平台中文名}导入政策{日期}.xlsx（如 XQ-携程导入政策2026-08-21.xlsx）
         const finalPath = this._pathWithSeq(dir, `${airlinePrefix}${platformDisplayName(p)}导入政策${dateStr}`, '.xlsx', unifiedSeq)
-        // ★ 让出事件循环：XLSX.writeFile 是同步 V8 调用，数据量大时会卡几百毫秒；
-        //   前后让一拍可让 Windows GUI 心跳通过，避免弹"无响应"
-        await new Promise(r => setImmediate(r))
-        XLSX.writeFile(workbook, finalPath)
-        await new Promise(r => setImmediate(r))
+
+        // ★ 写盘放 worker 线程（2026-09-30）：XLSX.writeFile 是同步 V8 调用，真实数据
+        //   （4935 行 × 147 列）实测 writeFile 1.4s + aoa_to_sheet 0.5s 不可打断，
+        //   是下载时窗口"未响应"的最后一处来源。worker 内调用序列与这里完全一致
+        //   （aoa_to_sheet → centerSheetCells → book_new/append_sheet → writeFile），
+        //   产出文件零差异；worker 不可用/失败 → 自动回退下面的进程内实现。
+        let written = false
+        if (aoaForWorker) {
+          written = await writeSheetOffThread({ filePath: finalPath, sheetName: p, aoa: aoaForWorker })
+        } else if (worksheet) {
+          written = await writeSheetOffThread({ filePath: finalPath, sheetName: p, worksheet })
+        }
+        if (!written) {
+          // 回退（进程内，改造前行为）：系统导入文件所有单元格水平垂直居中
+          if (!worksheet) worksheet = XLSX.utils.aoa_to_sheet(aoaForWorker)
+          centerSheetCells(worksheet)
+          const workbook = XLSX.utils.book_new()
+          XLSX.utils.book_append_sheet(workbook, worksheet, p)
+          // 让出事件循环：XLSX.writeFile 是同步 V8 调用，数据量大时会卡几百毫秒
+          await new Promise(r => setImmediate(r))
+          XLSX.writeFile(workbook, finalPath)
+          await new Promise(r => setImmediate(r))
+        }
         files.push({ path: finalPath, filename: path.basename(finalPath), platform: p, count: outCount })
 
         // 每平台完成后按比例推进进度（留 10% 给最终 100）
@@ -571,32 +562,48 @@ export class ExcelExporter {
     }
 
     // 写 xlsx：{航司-}{平台中文名}底价检查{日期}.xlsx（如 XQ-携程底价检查2026-08-28.xlsx）
-    //   用 exceljs 生成（支持单元格样式：居中 + 行背景色）
+    //   ★ 2026-09-30 改「流式写入器」：原来的 new ExcelJS.Workbook() + wb.xlsx.writeFile 虽然
+    //     是 async 外壳，但内部几乎不让出事件循环 —— 实测 2.2 万行（真实那次 21957 条报价）
+    //     单次 **3.7 秒不可打断** 主线程阻塞，正是下载时窗口"未响应"的元凶。
+    //     改用 stream.xlsx.WorkbookWriter：逐行 addRow/commit 边写边落盘，
+    //     并在行间按时间片让出事件循环 → 总耗时基本不变，但单段阻塞降到毫秒级。
+    //     代价：流式写入没有随机访问，表头也按普通行写入（不再用 ws.columns）；
+    //           useSharedStrings=false 避免收尾时一次性刷共享字符串表。
     const finalPath = seq != null
       ? this._pathWithSeq(dir, `${this._airlinePrefix()}${pName}底价检查${dateStr}`, '.xlsx', seq)
       : this.getUniqueFilePath(dir, `${this._airlinePrefix()}${pName}底价检查${dateStr}.xlsx`)
 
-    const wb = new ExcelJS.Workbook()
-    const ws = wb.addWorksheet('底价检查')
-    // 表头行
-    ws.columns = header.map(h => ({ header: h, key: h, width: 14 }))
-    // 数据行
-    for (let i = 0; i < outRows.length; i++) {
-      const row = ws.addRow(outRows[i])
-      const bgColor = rowBgColors[i]
-      row.eachCell({ includeEmpty: true }, (cell) => {
-        cell.alignment = { horizontal: 'center', vertical: 'center', wrapText: true }
-        if (bgColor) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + bgColor } }
-        }
-      })
-    }
-    // 表头行样式
-    ws.getRow(1).eachCell({ includeEmpty: true }, (cell) => {
-      cell.alignment = { horizontal: 'center', vertical: 'center', wrapText: true }
+    const centerStyle = { horizontal: 'center', vertical: 'center', wrapText: true }
+    const wb = new ExcelJS.stream.xlsx.WorkbookWriter({
+      filename: finalPath,
+      useStyles: true,
+      useSharedStrings: false
     })
-
-    await wb.xlsx.writeFile(finalPath)
+    const ws = wb.addWorksheet('底价检查')
+    // 只给列宽：流式模式下 addRow(对象) 需要 columns 带 key 才能映射，
+    // 这里统一按表头顺序传数组，避免"对象行映射不上 → 整行被丢弃"（表头手写、写完立即 commit）
+    ws.columns = header.map(() => ({ width: 14 }))
+    const headRow = ws.addRow(header)
+    headRow.eachCell({ includeEmpty: true }, (cell) => { cell.alignment = centerStyle })
+    headRow.commit()
+    // 数据行：逐行 commit + 按时间片让出（保证主进程单段阻塞远低于"未响应"阈值）
+    let lastYieldAt = Date.now()
+    for (let i = 0; i < outRows.length; i++) {
+      const bgColor = rowBgColors[i]
+      const argb = bgColor ? 'FF' + bgColor : null
+      const src = outRows[i]
+      const row = ws.addRow(header.map(h => src[h]))
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.alignment = centerStyle
+        if (argb) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } }
+      })
+      row.commit()
+      if (Date.now() - lastYieldAt >= 40) {
+        lastYieldAt = Date.now()
+        await new Promise(r => setImmediate(r))
+      }
+    }
+    await wb.commit()
     return { path: finalPath, filename: path.basename(finalPath), platform: `${pName}底价检查`, count: outRows.length }
   }
 }

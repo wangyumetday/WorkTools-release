@@ -11,7 +11,7 @@ import { configSchema, defaults } from './config.js'
 import { A2_FIELDS, A3_FIELDS, TRIP_RESPONSE_FIELDS, JXGJ_RESPONSE_FIELDS } from '../../fieldNames.js'
 import { resolvePolicyField } from '../../policyFieldResolver.js'
 import { formatPolicyAdjust } from '../../policyAdjust.js'
-import { keepPolicyRow } from '../../policyWriteback.js'
+import { keepPolicyRow, adjustAbnormalPackageSummary } from '../../policyWriteback.js'
 
 export const key = 'trip'
 // 平台中文名：用于导出文件名（携程导入政策{日期}.xlsx / 携程底价检查{日期}.xlsx）和底价列名（携程底价）
@@ -1460,6 +1460,42 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
       }
     }
   }
+  const summary = {
+    flightCount,
+    lowPriceCount,
+    // 携程全部报价平铺口径（胜利率：quoteOwnShown / quoteTotal）——原始层统计，见函数开头
+    quoteTotal,
+    quoteOwn,
+    quoteOwnShown,
+    quoteOwnHidden,
+    // 对比单元口径（role='official' 官方行：一单元一行，携程子行不计数）
+    compareTotal: quoteRows.filter(r => r.role === 'official').length,
+    compareMain: quoteRows.filter(r => r.role === 'official' && r.kind === 'main').length,
+    comparePackage: quoteRows.filter(r => r.role === 'official' && r.kind === 'package').length,
+    // 胜出率/覆盖率（对比块口径，2026-09-29）：分母=套餐对比块数（comparePackage）
+    winRateNum: ownShownInBlocks,
+    coverageNum: blocksWithOwn.size,
+    noBidBlocks,
+    quoteWon: quoteRows.filter(r => r.role === 'official' && r.status === 'won').length,
+    quoteWonHidden,
+    quoteLost: quoteRows.filter(r => r.role === 'official' && r.status === 'lost').length,
+    quoteUnmatched: quoteRows.filter(r => r.role === 'official' && r.status === 'unmatched').length,
+    // ★ 本次将写入政策导入文件的条数（2026-09-24）：我方比赢（_outcome!=='lost'，含未匹配出政策的
+    //   原价政策行）且航程类型=单程、会真正落进政策导入文件的数据条数
+    //   口径与 ExcelExporter 导出过滤 / policyWriteback.keepPolicyRow 完全一致
+    policyRowCount: processedDataArr.filter(r => keepPolicyRow(r, A3_FIELDS._outcome)).length,
+    // 附加行口径
+    otherCount: quoteRows.filter(r => r.kind === 'other').length,
+    otherOwnShown: quoteRows.filter(r => r.kind === 'other' && r.status === 'ownShown').length,
+    otherOwnHidden: quoteRows.filter(r => r.kind === 'other' && r.status === 'ownHidden').length
+  }
+  // ★ 异常航线（2026-09-29 改：任务级实时计数）：政策文件条目随运行时配置快照注入
+  //   （TaskManager.reloadRuntimeConfigs → compiledConfigs.policyAbnormalEntries），
+  //   此处立刻用无投放块与其比对并修正本任务 summary：
+  //     命中块 → 计「异常航线」abnormalPackageCount；不计「独占数量」；套餐级不占政策行数
+  //   这样该任务完成时推送的 summary 已含正确计数 —— 与其它统计同频刷新（不再等阶段末批处理）。
+  //   未上传政策文件（条目为空）→ 纯函数直接返回 0，行为与历史一致。
+  adjustAbnormalPackageSummary(summary, _compiledConfig?.policyAbnormalEntries)
   return {
     platform: 'trip', status: 'ok', code: rawResponse.statusCode,
     message: resData?.responseHeader?.message || 'success',
@@ -1467,35 +1503,7 @@ export function mergeResult(rawResponse, a2Item, _compiledConfig) {
     processedData: processedDataArr,
     // 套餐对套餐对比：我方对比单元行 + 附加行（对不上任何单元的携程报价）
     quoteRows,
-    summary: {
-      flightCount,
-      lowPriceCount,
-      // 携程全部报价平铺口径（胜利率：quoteOwnShown / quoteTotal）——原始层统计，见函数开头
-      quoteTotal,
-      quoteOwn,
-      quoteOwnShown,
-      quoteOwnHidden,
-      // 对比单元口径（role='official' 官方行：一单元一行，携程子行不计数）
-      compareTotal: quoteRows.filter(r => r.role === 'official').length,
-      compareMain: quoteRows.filter(r => r.role === 'official' && r.kind === 'main').length,
-      comparePackage: quoteRows.filter(r => r.role === 'official' && r.kind === 'package').length,
-      // 胜出率/覆盖率（对比块口径，2026-09-29）：分母=套餐对比块数（comparePackage）
-      winRateNum: ownShownInBlocks,
-      coverageNum: blocksWithOwn.size,
-      noBidBlocks,
-      quoteWon: quoteRows.filter(r => r.role === 'official' && r.status === 'won').length,
-      quoteWonHidden,
-      quoteLost: quoteRows.filter(r => r.role === 'official' && r.status === 'lost').length,
-      quoteUnmatched: quoteRows.filter(r => r.role === 'official' && r.status === 'unmatched').length,
-      // ★ 本次将写入政策导入文件的条数（2026-09-24）：我方比赢（_outcome!=='lost'，含未匹配出政策的
-      //   原价政策行）且航程类型=单程、会真正落进政策导入文件的数据条数
-      //   口径与 ExcelExporter 导出过滤 / policyWriteback.keepPolicyRow 完全一致
-      policyRowCount: processedDataArr.filter(r => keepPolicyRow(r, A3_FIELDS._outcome)).length,
-      // 附加行口径
-      otherCount: quoteRows.filter(r => r.kind === 'other').length,
-      otherOwnShown: quoteRows.filter(r => r.kind === 'other' && r.status === 'ownShown').length,
-      otherOwnHidden: quoteRows.filter(r => r.kind === 'other' && r.status === 'ownHidden').length
-    },
+    summary,
     processedAt: new Date().toISOString()
   }
 }

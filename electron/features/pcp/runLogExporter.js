@@ -30,6 +30,12 @@ const LOG_ROOT_DIR = 'work tools运行日志'
 const INDEX_FILENAME = 'index.html'
 const ERROR_FILENAME = 'error.txt'
 
+// ★ 2026-09-30：流式写盘时的事件循环让出粒度（毫秒）
+//   为什么需要：单任务渲染是同步 CPU（safeStringify + escapeHtml），真实数据 40~60ms/任务；
+//   让出太稀疏（原来每 10 个任务）会让主进程累计数百毫秒不可打断 → 窗口"未响应"。
+//   按时间片让出后总耗时不变，但每一段阻塞都很短，配合前端 loading mask 就是"后台慢慢做"。
+const YIELD_EVERY_MS = 40
+
 // ========== 工具 ==========
 
 /**
@@ -778,6 +784,7 @@ export async function exportRunLog({ tasks, fileManager, pipeline, trigger }) {
 
     // 2. 逐任务 as 行 + 内联详情 dialog，按分组流式 append
     let dlgSeq = 0
+    let lastYieldAt = Date.now()
     const writeGroup = async (label, list) => {
       if (list.length === 0) return
       await fsp.appendFile(indexPath, renderGroupOpen(label, list.length), 'utf-8')
@@ -799,9 +806,14 @@ export async function exportRunLog({ tasks, fileManager, pipeline, trigger }) {
           } catch { /* ignore */ }
         }
         dlgSeq++
-        // ★ 每个任务让出一拍事件循环（兜底，避免 110 航线大跑时 fsp 内部回调链占用过久）
-        //   setImmediate 比 setTimeout(0) 优先级更准（Node 微任务队列）
-        if (dlgSeq % 10 === 0) await new Promise(r => setImmediate(r))
+        // ★ 让出事件循环（2026-09-30 改：按时间片而不是"每 10 个任务"）
+        //   单任务渲染（safeStringify + escapeHtml + 拼接）在真实数据下 40~60ms 量级，
+        //   按"每 10 个"会让出前累计 400~600ms 不可打断 CPU；改成"累计约 40ms 就让出一次"，
+        //   保证主进程单段阻塞远低于 Windows 判定"未响应"的阈值（总时长不变，只是更平滑）。
+        if (Date.now() - lastYieldAt >= YIELD_EVERY_MS) {
+          lastYieldAt = Date.now()
+          await new Promise(r => setImmediate(r))
+        }
       }
       await fsp.appendFile(indexPath, renderGroupClose(), 'utf-8')
     }

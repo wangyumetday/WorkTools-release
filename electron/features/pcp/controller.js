@@ -8,10 +8,11 @@
 //
 // 调用方式：main.js 在 registerIpcHandlers 阶段调一次
 //   registerPcpController({ mainWindow, taskManager, fileManager, credentialManager, configManager, pipeline })
-
 import { ipcMain, dialog, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
+// ★ 2026-09-30：任务快照过 IPC 前统一精简（剥离原始响应/原始行，见 taskIpc.js）
+import { slimTaskStateForIpc } from './taskIpc.js'
 
 /**
  * 注册 PCP feature 的全部 IPC handlers
@@ -30,7 +31,7 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
   ipcMain.handle('pcp:task:clear', () => taskManager.clearAll())
   ipcMain.handle('pcp:task:start', (_event, stage) => taskManager.start(stage))
   ipcMain.handle('pcp:task:pause', () => taskManager.pause())
-  ipcMain.handle('pcp:task:getState', () => taskManager.getState())
+  ipcMain.handle('pcp:task:getState', () => slimTaskStateForIpc(taskManager.getState()))
   // 设置并发数（运行时也可调，会立刻唤醒额外 worker）
   ipcMain.handle('pcp:task:setConcurrency', (_event, n) => taskManager.setConcurrency(n))
 
@@ -58,8 +59,13 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
     return fileManager.parseXlsx(result.filePaths[0])
   })
 
-  // 上传外部系统（携程）导出的政策文件：仅记录路径（惰性加载），下载时再读盘解析用于回写
-  //   - 上传时只记路径，不做解析（避免驻留内存被 clearAll 清掉 → 下载时回写被静默跳过）
+  // 上传外部系统（携程）导出的政策文件：解析后驻留内存（供异常航线判定 + 下载回写）
+  //   - ★ 2026-09-29 起：上传即解析驻留（fileManager.preparePolicyFile → readPolicyFile），
+  //     任务期的「异常航线」判定要用；下载回写复用同一份解析结果
+  //   - ★ 2026-09-30：解析放 worker 线程（SheetJS 同步读盘：真实 4935 行 × 147 列 / 23.68MB
+  //     实测 2.8s 不可打断，是上传时窗口"未响应"的来源）；期间推 busy 让前端显示 loading
+  //   - ★ failIfInProgress 门禁：步骤流/任务进行中禁止替换 —— 任务级异常航线判定用的是
+  //     「任务开始时的政策条目快照」，运行中换文件会让统计面板与导出结果不一致
   //   - 上传政策文件本身不 reset（不清空已上传的航线 a1/a2/a3）
   ipcMain.handle('pcp:file:uploadPolicy', async () => {
     failIfInProgress('上传政策文件')
@@ -74,13 +80,28 @@ export function registerPcpController({ mainWindow, taskManager, fileManager, cr
     }
     const filePath = result.filePaths[0]
     fileManager.setLastDirectory(path.dirname(filePath))
-    fileManager.setPolicyFilePath(filePath)
-    return { success: true, fileName: path.basename(filePath) }
+    // 解析期间前端显示全屏 loading mask（解析在 worker 线程，主线程仍可响应）
+    mainWindow?.webContents.send('pcp:busy', {
+      active: true,
+      label: '正在解析政策文件...',
+      detail: path.basename(filePath)
+    })
+    await new Promise(r => setImmediate(r))
+    try {
+      // 解析失败仍返回 success（与历史一致）：失败详情在下载时按 POLICY_READ_FAILED 弹选项框
+      await fileManager.preparePolicyFile(filePath)
+      return { success: true, fileName: path.basename(filePath) }
+    } finally {
+      mainWindow?.webContents.send('pcp:busy', { active: false })
+    }
   })
 
   ipcMain.handle('pcp:file:getA1', () => fileManager.getA1())
-  ipcMain.handle('pcp:file:getA2', () => fileManager.getA2())
-  ipcMain.handle('pcp:file:getA3', () => fileManager.getA3())
+  // ★ 2026-09-30：a2/a3 只回计数 —— 渲染层 refreshDataCounts 只用 .count，
+  //   原来把整个数组（真实跑批 a3 可达数十 MB）过 IPC，主线程同步克隆会出现长阻塞，
+  //   而且这个调用正好发生在"跑完任务"那一刻（handleAllComplete → refreshDataCounts）
+  ipcMain.handle('pcp:file:getA2', () => ({ count: fileManager.getA2().count }))
+  ipcMain.handle('pcp:file:getA3', () => ({ count: fileManager.getA3().count }))
 
   // 获取当前下载目录（前端 onMounted 调用，显示当前目录路径）
   ipcMain.handle('pcp:file:getDownloadDir', () => ({ dir: fileManager.getDownloadDir() }))
