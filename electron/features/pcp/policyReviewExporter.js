@@ -87,7 +87,7 @@ const ITEM_FIELD_EXPR = {
   '舱位': "item['C舱位']（套餐行=套餐舱位，主行=主行舱位）",
   '去程套餐索引v2': "item['去程套餐索引v2']（值=套餐自带「套餐索引」，主行/返程留空）",
   '爬虫名': "item['H航司名']（与航司同口径）",
-  '调价固定加减钱': "原价行=0；否则 floor(CUT_VALUE) − cutOffset（cutOffset=「比携程低多少元」，默认1）",
+  '调价固定加减钱': "原价行=0；CUT_VALUE 无效（官网价/套餐价取不到）=0；否则 floor(CUT_VALUE) − cutOffset（cutOffset=「比携程低多少元」，默认1）",
   'UpdateTime': '行生成时刻 formatNow()'
 }
 

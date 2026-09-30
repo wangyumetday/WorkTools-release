@@ -726,7 +726,11 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
       acai['差值'] = ''
       acai['携程底价'] = pkgHit.price
       // 差值只保留精确价差（不含 cutOffset 让利额），写入文件前由 policyAdjust 统一「向下取整再 − cutOffset」
-      acai['差值'] = new Decimal(pkgHit.price).minus(acai['套餐价格_CNY']).toNumber()
+      // ★ 金额不兜底（2026-09-30）：套餐价格无效 → 差值 null（政策行调价留空），不拿 0 顶替。
+      const pkgCnyNum = Number(acai['套餐价格_CNY'])
+      acai['差值'] = Number.isFinite(pkgCnyNum) && pkgCnyNum > 0
+        ? new Decimal(pkgHit.price).minus(pkgCnyNum).toNumber()
+        : null
       // ★ 展示口径补充（套餐对套餐对比行用；只记录、不参与任何判定）：
       //   命中报价对象引用 / 行李原文 / 外显状态 / OTA 航班卡标记（price 自身优先、父级兜底）
       acai._hitQuote = pkgPrice
@@ -770,8 +774,15 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
     //   （能比过的价格里最低的那条）；全部比不过 → lost（不贴底价卖、政策导入文件排除，
     //   底价检查文件展示参考全场最低有效报价）
     const rowSig = parseOurBaggage(item.行李信息)
-    const dijia = Number(item[A2_FIELDS.dijia]) || 0
-    const totalCNY = Number(item[A2_FIELDS.C成人总票价_CNY_INT]) || 0
+    // ★ 金额不兜底（2026-09-30）：有数据就是有数据，没有就是没有。
+    //   官网价/底价缺失或无效 → NaN（不参与任何金额计算），绝不拿 0 顶替——
+    //   否则差值 = 携程价 − 0 = 携程价本身（千元级），调价固定加减钱会写成离谱的正大数。
+    //   dijia 无效 → 不参与比价（dijia > 0 判定自然不通过），行为与旧「|| 0」一致；
+    //   totalCNY 无效 → won 行 CUT_VALUE 留空（不写错的调价金额）。
+    const dijiaNum = Number(item[A2_FIELDS.dijia])
+    const dijia = Number.isFinite(dijiaNum) && dijiaNum > 0 ? dijiaNum : NaN
+    const totalCNYNum = Number(item[A2_FIELDS.C成人总票价_CNY_INT])
+    const totalCNY = Number.isFinite(totalCNYNum) && totalCNYNum > 0 ? totalCNYNum : NaN
     const rowMatched = relatedPrices.filter(p =>
       p && baggageMatchs(rowSig, parseTripBaggage(p[TRIP_RESPONSE_FIELDS.baggage]))
     )
@@ -824,7 +835,11 @@ function priceComparisonPolicy(originalData, resData, matchSink = null, mainRowE
     //   cutOffset = 平台配置「比携程低多少元」（ctx.cutOffset，默认 1）
     //   lost（无法胜出）不贴底价卖：CUT_VALUE 留空（底价检查文件「预计减价」为空）
     if (item[A3_FIELDS._outcome] === 'won') {
-      item[A3_FIELDS.CUT_VALUE] = new Decimal(sortIndicator).minus(totalCNY || 0).toNumber()
+      // ★ 金额不兜底（2026-09-30）：官网价无效 → CUT_VALUE 留空（null），
+      //   绝不写「携程价 − 0」这种离谱调价；导出列自然留空，有数据才有钱数。
+      item[A3_FIELDS.CUT_VALUE] = Number.isFinite(totalCNY) && totalCNY > 0
+        ? new Decimal(sortIndicator).minus(totalCNY).toNumber()
+        : null
     }
     // ★ 主行参与开启同样适用：真未匹配（无任何行李匹配报价）的套餐产「原价政策」行；
     //   命中套餐在开启模式下仍不产政策行（维持现状，仅底价检查展示）
@@ -1633,7 +1648,14 @@ export const exportTemplate = {
     // ★ 写入前统一「向下取整再 − cutOffset」（计算阶段保留精确价差，见 policyAdjust.js）
     //   cutOffset = 平台配置「比携程低多少元」（ctx.cutOffset，默认 1）
     // 原价政策（无人在携程投放此套餐）→ 不调价，直接写 0；正常行按差值的 floor−cutOffset 口径
-    { key: '调价固定加减钱', from: (item, ctx) => item['_原价政策'] === true ? 0 : formatPolicyAdjust(item[A3_FIELDS.CUT_VALUE], ctx?.cutOffset) },
+    // ★ 金额不兜底（2026-09-30）：差值无效（官网价/套餐价取不到）→ 写 0（政策归 0，不调价），
+    //   绝不写「携程价−0」这种离谱值；0 的语义 = 按原价卖，安全。
+    { key: '调价固定加减钱', from: (item, ctx) => {
+      if (item['_原价政策'] === true) return 0
+      const v = item[A3_FIELDS.CUT_VALUE]
+      if (v == null || v === '' || !Number.isFinite(Number(v))) return 0
+      return formatPolicyAdjust(v, ctx?.cutOffset)
+    } },
     { key: '儿童调价增加百分比', value: 0 },
     { key: '儿童调价固定加减钱', value: 0 },
     // 97-99：留空
